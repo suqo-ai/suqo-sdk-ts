@@ -5,7 +5,7 @@
  */
 
 /** SDK version, stamped into request headers (keep in sync with package.json). */
-export const VERSION = "0.0.0";
+export const VERSION = "0.0.1";
 
 /** Base class for every error thrown by the SDK. */
 export class ApiError extends Error {
