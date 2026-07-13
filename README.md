@@ -1,6 +1,8 @@
-# SDK Starter Template
+# @suqo/sdk
 
-Bare, type-safe TypeScript SDK scaffold. Industry-standard tooling, zero implementation — fill in your own client, resources, and types.
+Server-side TypeScript SDK for the SUQO subscription management platform. Lets platform sellers integrate customers, subscriptions, and payments into their own apps without building raw API calls by hand.
+
+> **Server-side only.** This SDK uses your full-access API key and must never be bundled into browser code.
 
 ## What's included
 
@@ -24,11 +26,25 @@ npm run format
 ## Layout
 
 ```
-src/index.ts   # entry — Client + ApiError stub (replace)
-test/          # vitest specs
-tsup.config.ts # build config
-tsconfig.json  # strict compiler options
+src/index.ts        # entry — Client + ApiError stub (replace)
+test/index.test.ts   # vitest specs — mock-fetch coverage for the Client stub
+tsup.config.ts       # build config
+tsconfig.json        # strict compiler options
 ```
+
+## Test cases included
+
+`test/index.test.ts` mocks the global `fetch` (no real network calls) and covers:
+
+- **Auth header** — `X-Api-Key` is sent on every request.
+- **On-Behalf-Of header** — added only when `onBehalfOf` is passed to the client.
+- **Custom `baseUrl`** — requests hit the configured host, not just the default.
+- **Success path** — parsed JSON body is returned as-is.
+- **Error path (404)** — a non-2xx response throws `ApiError` with the right `status` and `body`.
+- **Rate limiting (429)** — same error path, confirming status code propagates correctly.
+- **Malformed JSON body** — a response that fails to parse doesn't crash the client; it resolves to `undefined`.
+
+Run them with `npm test`.
 
 ## Build your SDK — checklist
 
@@ -40,9 +56,9 @@ tsconfig.json  # strict compiler options
    - Define a typed error hierarchy off `ApiError` and map HTTP status → error class.
    - Add pagination helpers if your API paginates.
 3. Export everything from `src/index.ts`.
-4. Cover it in `test/` with an injected mock `fetch` (no network).
+4. Extend `test/index.test.ts` as you add resources — keep using an injected mock `fetch` (no network).
 5. `npm run typecheck && npm test && npm run build`.
 
 ## License
 
-MIT
+Apache 2.0
