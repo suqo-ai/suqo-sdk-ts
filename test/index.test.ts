@@ -1,19 +1,26 @@
 import { describe, expect, it } from "vitest";
-import { ApiError, Client } from "../src/index.js";
+import * as sdk from "../src/index.js";
 
-describe("Client", () => {
-  it("throws when apiKey is missing", () => {
-    // @ts-expect-error deliberately omitting apiKey
-    expect(() => new Client({})).toThrow(ApiError);
+describe("public export surface", () => {
+  it("exports the version", () => {
+    expect(sdk.VERSION).toBe("0.0.1");
   });
 
-  it("constructs with an apiKey", () => {
-    expect(new Client({ apiKey: "k" })).toBeInstanceOf(Client);
+  it("exports SdkConfig and the environment list", () => {
+    expect(sdk.SdkConfig).toBeTypeOf("function");
+    expect(sdk.SUQO_ENVIRONMENTS).toEqual(["production", "staging", "local"]);
   });
 
-  it("ApiError carries a status and is an Error", () => {
-    const err = new ApiError("boom", 500);
-    expect(err).toBeInstanceOf(Error);
-    expect(err.status).toBe(500);
+  it("exports the full SDKError hierarchy and mapHttpError", () => {
+    expect(sdk.SDKError).toBeTypeOf("function");
+    expect(sdk.AuthenticationError).toBeTypeOf("function");
+    expect(sdk.PermissionError).toBeTypeOf("function");
+    expect(sdk.ValidationError).toBeTypeOf("function");
+    expect(sdk.NotFoundError).toBeTypeOf("function");
+    expect(sdk.RateLimitError).toBeTypeOf("function");
+    expect(sdk.ServerError).toBeTypeOf("function");
+    expect(sdk.NetworkError).toBeTypeOf("function");
+    expect(sdk.TimeoutError).toBeTypeOf("function");
+    expect(sdk.mapHttpError).toBeTypeOf("function");
   });
 });
