@@ -3,7 +3,7 @@
 **Status:** Draft · **Version:** 1.0.0 · **Spec target:** SUQO External API `v1`
 
 This document is the language-agnostic contract every SUQO SDK must satisfy. It
-sits on top of [`[openapi.yaml](https://claude.ai/chat/openapi.yaml)`](./openapi.yaml), which is the machine-readable
+sits on top of [`openapi.yaml`](./openapi.yaml), which is the machine-readable
 source of truth for endpoints, request/response schemas, and errors. Where this
 document and the OpenAPI file overlap, the OpenAPI file wins for *wire shapes*;
 this document governs *SDK behaviour* (config, retries, errors, iteration,

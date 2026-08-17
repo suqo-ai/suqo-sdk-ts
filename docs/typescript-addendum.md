@@ -1,8 +1,8 @@
 # SUQO SDK — TypeScript (server-side) Addendum
 
 Concrete build decisions for the **lead** implementation. This layers on
-[`[SDK-SPEC.md](https://claude.ai/chat/SDK-SPEC.md)`](./SDK-SPEC.md) (behaviour contract) and
-[`[openapi.yaml](https://claude.ai/chat/openapi.yaml)`](./openapi.yaml) (wire contract). Where the general spec says
+[`SDK-SPEC.md`](../specs/SDK-SPEC.md) (behaviour contract) and
+[`openapi.yaml`](../specs/openapi.yaml) (wire contract). Where the general spec says
 "the SDK MUST…", this file says *how*, in TypeScript.
 
 Package name: `@suqo/sdk`. **Server-side only** — Node, not browsers.
