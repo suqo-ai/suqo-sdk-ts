@@ -1,0 +1,525 @@
+openapi: 3.1.0
+info:
+  title: SUQO External API
+  version: 1.0.0
+  description: >
+    Public, API-key-authenticated endpoints for third-party consumers. Read your
+    products, create and manage subscriptions, and (later) list your customers
+    directly from your own software.
+
+    This document is the single source of truth for the SUQO SDKs. Language SDKs
+    generate their request/response models from it; the human docs at
+    suqo.ai/docs/api are generated from it too, so the two cannot drift.
+
+    CONVENTIONS THAT APPLY TO EVERY OPERATION:
+
+    - Every route ends in a trailing slash "/". A GET without it 301-redirects;
+      a POST/write without it FAILS (the redirect drops the request body). SDKs
+      MUST always send the trailing slash.
+
+    - Authentication is a bearer API key: header `Authorization: Bearer <api_key>`.
+      There is no X-Api-Key header.
+
+    - Two error shapes exist. Field validation errors are keyed by field name with
+      an array-or-string message: `{"field": ["msg"]}`. General errors (auth,
+      not-found) use `{"detail": "msg"}`. SDK error mapping MUST handle both.
+
+    - Rate limiting is NOT yet enforced. It is reserved and will be introduced
+      later (see the SDK spec "Rate limiting — coming later" section).
+
+    - Idempotency (X-Idempotency-Key) is NOT implemented. It is on the backlog.
+      Until it ships, write operations (create, cancel, update-billing-cycle)
+      are NOT safe to auto-retry.
+
+servers:
+  - url: https://be.suqo.ai
+    description: Live
+  - url: https://test.be.suqo.ai
+    description: Sandbox
+
+security:
+  - bearerApiKey: []
+
+tags:
+  - name: Products
+    description: List active products with plans, billing periods, and VAT config.
+  - name: Subscriptions
+    description: List, create, cancel, and set the billing cycle of subscriptions.
+  - name: Customers
+    description: STUB — not yet specified. Endpoints to be added when documented.
+
+paths:
+  /api/v1/products/:
+    get:
+      operationId: listProducts
+      tags: [Products]
+      summary: List products
+      description: >
+        Lists the authenticated seller's active products. Paginated.
+        No KYC required — this is the only endpoint that works before the
+        account is KYC-verified.
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: Paginated list of products.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PaginationEnvelope'
+                  - type: object
+                    properties:
+                      results:
+                        type: array
+                        items: { $ref: '#/components/schemas/Product' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        # NOTE: 403 KYC deliberately not listed here — products is the pre-KYC endpoint.
+
+  /api/v1/subscriptions/:
+    get:
+      operationId: listSubscriptions
+      tags: [Subscriptions]
+      summary: List subscriptions
+      description: >
+        Lists the seller's subscriptions. The paginated envelope is extended
+        with status counts.
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: Paginated list with status counts.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SubscriptionListEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/KycRequired' }
+    post:
+      operationId: createSubscription
+      tags: [Subscriptions]
+      summary: Create a subscription
+      description: >
+        Creates a subscription in `pending_checkout` state (no billing cycle set
+        yet) and returns a checkout URL for the buyer to pay. Redirect the buyer
+        to `checkout_url`; SUQO runs the whole payment flow and returns them to
+        your `return_url`. The return does NOT prove payment — learn the outcome
+        via the `checkout.succeeded` / `checkout.failed` webhooks.
+
+        Reuse behaviour: an inactive/expired subscription for the same buyer +
+        product + billing period is reactivated (reset to a clean
+        `pending_checkout`) rather than duplicated. Only a currently ACTIVE one
+        triggers the duplicate error.
+
+        NOTE (write op): not auto-retryable until idempotency ships.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateSubscriptionRequest' }
+      responses:
+        '201':
+          description: Subscription created in pending_checkout.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CreateSubscriptionResponse' }
+        '400':
+          description: >
+            Validation error. Known triggers: unknown/invisible `pbp_id`;
+            account has no API usage type; `return_url` missing; an active
+            subscription already exists for this buyer + product + billing period.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FieldError' }
+              examples:
+                unknownPbp:
+                  value: { pbp_id: "PlanBillingPeriod with public_id '...' does not exist or is not visible." }
+                noUsageType:
+                  value: { api_usage_type: "Your account does not have an API usage type configured." }
+                missingReturnUrl:
+                  value: { return_url: "A return URL is required for reminder-and-payment accounts." }
+                duplicateActive:
+                  value: { detail: "An active subscription already exists for this buyer, product, and billing period." }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/KycRequired' }
+
+  /api/v1/subscriptions/{id}/cancel/:
+    post:
+      operationId: cancelSubscription
+      tags: [Subscriptions]
+      summary: Cancel a subscription
+      description: >
+        Cancels a subscription. No request body. Sets `is_inactive = true` and
+        clears the billing cycle.
+
+        NOTE (write op): not auto-retryable until idempotency ships.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+          description: Subscription UUID.
+      responses:
+        '200':
+          description: Cancelled.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Message' }
+              example: { message: "Subscription cancelled." }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/KycRequired' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/v1/subscriptions/update-billing-cycle/:
+    post:
+      operationId: updateBillingCycle
+      tags: [Subscriptions]
+      summary: Update the billing cycle
+      description: >
+        Sets a subscription's next billing date. Collection-level action — the
+        subscription id goes in the BODY, not the path.
+
+        NOTE (write op): not auto-retryable until idempotency ships.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateBillingCycleRequest' }
+      responses:
+        '200':
+          description: Updated.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Message' }
+              example: { message: "Billing cycle updated." }
+        '400':
+          description: Date in the past, or subscription not found / not owned.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FieldError' }
+              examples:
+                pastDate:
+                  value: { next_billing_cycle: ["next_billing_cycle must be in the future or today."] }
+                notFound:
+                  value: { subscription_id: "Subscription '...' does not exist." }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/KycRequired' }
+
+  # -------------------------------------------------------------------------
+  # CUSTOMERS — STUB. Not yet specified. When the Customers page is provided,
+  # add `/api/v1/customers/` (list) and `/api/v1/customers/{id}/` (retrieve)
+  # here and a Customer schema below. Structure is intentionally additive:
+  # adding this resource must not change any existing path or schema.
+  # -------------------------------------------------------------------------
+
+components:
+  securitySchemes:
+    bearerApiKey:
+      type: http
+      scheme: bearer
+      description: >
+        `Authorization: Bearer <api_key>`. The key resolves to the seller who
+        owns it. Key prefix selects the environment: `su_test_key_` = sandbox,
+        `su_key_` = live. (Prefix→environment is an SDK convention; see SDK spec.)
+
+  parameters:
+    Page:
+      name: page
+      in: query
+      required: false
+      schema: { type: integer, minimum: 1, default: 1 }
+      description: Page number (1-indexed).
+    PageSize:
+      name: page_size
+      in: query
+      required: false
+      schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+      description: Results per page (max 100).
+
+  responses:
+    Unauthorized:
+      description: Missing / malformed / inactive key.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/DetailError' }
+          example: { detail: "Invalid or inactive API key." }
+    KycRequired:
+      description: Owner not KYC-verified.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/KycError' }
+          example: { status_code: "<kyc_status>", message: "KYC verification needed to perform this action." }
+    NotFound:
+      description: Resource not found.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/DetailError' }
+          example: { detail: "Not found." }
+
+  schemas:
+    PaginationEnvelope:
+      type: object
+      required: [count, next, previous, results]
+      properties:
+        count: { type: integer, description: Total rows. }
+        next:
+          type: [string, 'null']
+          format: uri
+          description: URL of the next page, or null.
+        previous:
+          type: [string, 'null']
+          format: uri
+          description: URL of the previous page, or null.
+        results:
+          type: array
+          items: {}
+
+    SubscriptionListEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/PaginationEnvelope'
+        - type: object
+          properties:
+            total_subscriptions: { type: integer, description: Same as count. }
+            active_subscriptions: { type: integer }
+            due_subscriptions: { type: integer }
+            inactive_subscriptions: { type: integer }
+            results:
+              type: array
+              items: { $ref: '#/components/schemas/Subscription' }
+
+    SubscriptionStatus:
+      type: string
+      description: >
+        pending_checkout = newly created, buyer hasn't paid yet;
+        active = currently active;
+        due = next_billing_cycle passed, no payment yet;
+        cancelled = cancelled immediately (user-prompted);
+        pending_cancellation = scheduled to cancel at end of current cycle;
+        inactive = auto-ended after grace period without payment.
+      enum:
+        - pending_checkout
+        - active
+        - due
+        - cancelled
+        - pending_cancellation
+        - inactive
+
+    Subscription:
+      type: object
+      properties:
+        subscription_id: { type: string, format: uuid }
+        status: { $ref: '#/components/schemas/SubscriptionStatus' }
+        is_active:
+          type: boolean
+          description: True iff status == "active".
+        client: { $ref: '#/components/schemas/ClientRead' }
+        product: { $ref: '#/components/schemas/SubscriptionProduct' }
+        current_period_start: { type: [string, 'null'], format: date-time }
+        current_period_end:
+          type: [string, 'null']
+          format: date-time
+          description: Equals billing_cycle.
+        next_billing_cycle:
+          type: [string, 'null']
+          format: date-time
+          description: The date the subscription bills next (same value as billing_cycle).
+        created_at: { type: string, format: date-time }
+
+    SubscriptionProduct:
+      type: object
+      properties:
+        product_id: { type: string }
+        name: { type: string }
+        plan_name: { type: string }
+        pbp_id: { type: string }
+        label: { type: string }
+        price: { type: string, description: Decimal string. Parse as decimal, never float. }
+        currency: { type: string, example: NPR }
+
+    ClientRead:
+      type: object
+      properties:
+        phone: { type: string }
+        full_name: { type: string }
+        email: { type: string }
+        address: { type: string }
+        billing:
+          type: [object, 'null']
+          properties:
+            business_name: { type: string }
+            email: { type: string }
+            address: { type: string }
+            pan_vat: { type: string }
+        shipping:
+          type: [object, 'null']
+          properties:
+            phone: { type: string }
+            full_name: { type: string }
+            email: { type: string }
+            address: { type: string }
+
+    CreateSubscriptionRequest:
+      type: object
+      required: [pbp_id, return_url, client]
+      properties:
+        pbp_id:
+          type: string
+          description: Plan billing period public id (from GET /products).
+        return_url:
+          type: string
+          format: uri
+          description: Where the buyer returns after checkout.
+        client: { $ref: '#/components/schemas/ClientWrite' }
+
+    ClientWrite:
+      type: object
+      required: [phone, full_name, email, address]
+      description: >
+        When billing is omitted, billing info is filled from the buyer's profile.
+        On a reused subscription, only non-null fields overwrite (partial refresh).
+      properties:
+        phone:
+          type: string
+          description: Buyer identity — matches or creates the buyer.
+        full_name: { type: string }
+        email: { type: string }
+        address: { type: string }
+        billing:
+          type: object
+          description: If present, the *-required fields are required.
+          required: [billing_business_name, billing_email, billing_address]
+          properties:
+            billing_business_name: { type: string }
+            billing_email: { type: string }
+            billing_address: { type: string }
+            billing_pan_vat:
+              type: string
+              description: 9 numbers.
+        shipping:
+          type: object
+          description: If present, the *-required fields are required.
+          required: [phone, full_name, email]
+          properties:
+            phone: { type: string }
+            full_name: { type: string }
+            email: { type: string }
+            address: { type: string }
+
+    CreateSubscriptionResponse:
+      type: object
+      properties:
+        subscription_id: { type: string, format: uuid }
+        pbp_id: { type: string, description: Echoed. }
+        status:
+          type: string
+          const: pending_checkout
+        checkout_url:
+          type: string
+          format: uri
+          description: <FRONTEND_URL>/pay/<subscription_id>. Redirect the buyer here.
+        next_billing_cycle:
+          type: [string, 'null']
+          format: date-time
+          description: null until payment.
+        created_at: { type: string, format: date-time }
+
+    UpdateBillingCycleRequest:
+      type: object
+      required: [subscription_id, next_billing_cycle]
+      properties:
+        subscription_id:
+          type: string
+          format: uuid
+          description: Must belong to the seller.
+        next_billing_cycle:
+          type: string
+          format: date
+          description: YYYY-MM-DD. Today or future.
+
+    Product:
+      type: object
+      properties:
+        product_id: { type: string, description: Product UUID. }
+        name: { type: string }
+        description: { type: string }
+        type: { type: string }
+        is_active: { type: boolean }
+        terms_and_conditions: { type: string }
+        features_and_benefits: { type: string }
+        vat:
+          type: [object, 'null']
+          properties:
+            is_vat_active: { type: boolean }
+            vat_type: { type: string }
+            vat_percentage: { type: string }
+        product_image:
+          type: array
+          description: Ordered images (blank images excluded).
+          items: { type: string }
+        plan:
+          type: array
+          items: { $ref: '#/components/schemas/Plan' }
+        total_subscribers:
+          type: string
+          description: Count of active subscribers (sent as string).
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    Plan:
+      type: object
+      properties:
+        plan_id: { type: string }
+        plan_name: { type: string }
+        description: { type: string }
+        billing_periods:
+          type: array
+          items: { $ref: '#/components/schemas/BillingPeriod' }
+
+    BillingPeriod:
+      type: object
+      properties:
+        pbp_id:
+          type: string
+          description: Public id — pass this to create a subscription.
+        interval_type: { type: string, example: month }
+        interval_count: { type: integer }
+        label: { type: string }
+        price: { type: string, description: Decimal string. }
+        currency: { type: string, example: NPR }
+        is_current: { type: boolean }
+        is_limited: { type: boolean }
+        is_archived: { type: boolean }
+        offers:
+          type: array
+          items: {}
+
+    Message:
+      type: object
+      properties:
+        message: { type: string }
+
+    DetailError:
+      type: object
+      description: General errors (auth, not-found).
+      properties:
+        detail: { type: string }
+
+    FieldError:
+      type: object
+      description: >
+        Field validation errors, keyed by field name with an array-or-string
+        message. Some 400s use the `detail` shape instead (e.g. duplicate active
+        subscription), so consumers must accept either.
+      additionalProperties:
+        oneOf:
+          - type: string
+          - type: array
+            items: { type: string }
+
+    KycError:
+      type: object
+      description: 403 when the owning seller is not KYC-verified.
+      properties:
+        status_code: { type: string, description: The KYC status code. }
+        message: { type: string }
