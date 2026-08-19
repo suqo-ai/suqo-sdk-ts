@@ -19,6 +19,10 @@ describe("public export surface", () => {
     expect(sdk.mapHttpError).toBeTypeOf("function");
   });
 
-  // SdkConfig and SuqoClient are smoke-tested here again once this ticket's remaining
-  // commits land (see docs/implementation-plan.md Ticket 1).
+  it("exports SuqoClient, constructible end-to-end from the public surface", () => {
+    expect(sdk.SuqoClient).toBeTypeOf("function");
+    const suqo = new sdk.SuqoClient({ apiKey: "su_test_key_abc123" });
+    expect(suqo.environment).toBe("sandbox");
+    expect(suqo.baseUrl).toBe("https://test.be.suqo.ai");
+  });
 });

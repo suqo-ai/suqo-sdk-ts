@@ -27,5 +27,8 @@ export {
   type HttpErrorInput,
 } from "./errors/index.js";
 
-// SdkConfig and SuqoClient land here in the commits that follow (see
-// docs/implementation-plan.md Ticket 1).
+export { SuqoClient, type SuqoClientOptions } from "./client.js";
+export type { SuqoEnvironment } from "./config/index.js";
+
+// .products/.subscriptions/.customers/.webhooks attach onto SuqoClient in a later ticket
+// (see docs/implementation-plan.md Ticket 4).
