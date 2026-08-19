@@ -35,6 +35,7 @@
     "test:watch": "vitest",
     "lint": "eslint . --ext .ts",
     "format": "prettier --write .",
+    "prepare": "node scripts/install-git-hooks.mjs",
     "prepublishOnly": "npm run typecheck && npm run test && npm run build"
   },
   "keywords": [
