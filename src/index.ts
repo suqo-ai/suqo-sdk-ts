@@ -8,5 +8,24 @@
 /** SDK version, stamped into request headers (keep in sync with package.json). */
 export const VERSION = "0.0.1";
 
-// The SuqoError hierarchy, SdkConfig, and SuqoClient land here across this ticket's
-// remaining commits (see docs/implementation-plan.md Ticket 1).
+export {
+  SuqoError,
+  SuqoConfigError,
+  AuthenticationError,
+  KycRequiredError,
+  ValidationError,
+  NotFoundError,
+  RateLimitError,
+  ServerError,
+  NetworkError,
+  mapHttpError,
+  type SuqoErrorOptions,
+  type KycRequiredErrorOptions,
+  type ValidationErrorOptions,
+  type FieldErrors,
+  type RateLimitErrorOptions,
+  type HttpErrorInput,
+} from "./errors/index.js";
+
+// SdkConfig and SuqoClient land here in the commits that follow (see
+// docs/implementation-plan.md Ticket 1).
