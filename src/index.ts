@@ -1,5 +1,5 @@
 /**
- * SDK entry point — the single, complete public export surface (RFC §3, §4 "Clean public API").
+ * SDK entry point — the single, complete public export surface (SDK-SPEC.md §5).
  * Nothing outside this file's exports is part of the public contract.
  *
  * @packageDocumentation
@@ -9,27 +9,26 @@
 export const VERSION = "0.0.1";
 
 export {
-  SdkConfig,
-  type SdkConfigInput,
-  SUQO_ENVIRONMENTS,
-  type SuqoEnvironment,
-} from "./config/index.js";
-
-export {
-  SDKError,
+  SuqoError,
+  SuqoConfigError,
   AuthenticationError,
-  PermissionError,
+  KycRequiredError,
   ValidationError,
   NotFoundError,
   RateLimitError,
   ServerError,
   NetworkError,
-  TimeoutError,
   mapHttpError,
-  type SDKErrorOptions,
+  type SuqoErrorOptions,
+  type KycRequiredErrorOptions,
   type ValidationErrorOptions,
-  type ValidationIssue,
+  type FieldErrors,
   type RateLimitErrorOptions,
-  type TimeoutErrorOptions,
   type HttpErrorInput,
 } from "./errors/index.js";
+
+export { SuqoClient, type SuqoClientOptions } from "./client.js";
+export type { SuqoEnvironment } from "./config/index.js";
+
+// .products/.subscriptions/.customers/.webhooks attach onto SuqoClient in a later ticket
+// (see docs/implementation-plan.md Ticket 4).

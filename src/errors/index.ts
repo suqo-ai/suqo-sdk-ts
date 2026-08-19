@@ -1,17 +1,17 @@
 export {
-  SDKError,
+  SuqoError,
+  SuqoConfigError,
   AuthenticationError,
-  PermissionError,
+  KycRequiredError,
   ValidationError,
   NotFoundError,
   RateLimitError,
   ServerError,
   NetworkError,
-  TimeoutError,
-  type SDKErrorOptions,
+  type SuqoErrorOptions,
+  type KycRequiredErrorOptions,
   type ValidationErrorOptions,
-  type ValidationIssue,
+  type FieldErrors,
   type RateLimitErrorOptions,
-  type TimeoutErrorOptions,
-} from "./SDKError.js";
+} from "./SuqoError.js";
 export { mapHttpError, type HttpErrorInput } from "./mapHttpError.js";

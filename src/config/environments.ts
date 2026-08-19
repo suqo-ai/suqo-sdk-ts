@@ -1,47 +1,62 @@
 /**
- * Environment → `baseUrl` resolution (RFC §9).
+ * Key-prefix → environment/base-URL inference (SDK-SPEC.md §2).
  *
  * @packageDocumentation
  */
+import { SuqoConfigError } from "../errors/SuqoError.js";
 
-/** The three environments {@link SdkConfig} can resolve a `baseUrl` from. */
-export const SUQO_ENVIRONMENTS = ["production", "staging", "local"] as const;
+/** The two environments a key prefix resolves to. Never selected explicitly — always inferred. */
+export type SuqoEnvironment = "sandbox" | "live";
 
-/** `"production" | "staging" | "local"` — resolves `baseUrl` internally, never a raw URL. */
-export type SuqoEnvironment = (typeof SUQO_ENVIRONMENTS)[number];
+const SANDBOX_BASE_URL = "https://test.be.suqo.ai";
+const LIVE_BASE_URL = "https://be.suqo.ai";
 
 /**
- * Reads an environment-variable override without assuming `process` exists — this SDK also runs
- * in browsers (dashboard, checkout widgets), where `process` is undefined unless a bundler shims
- * it.
+ * Ordered prefix → environment table. `su_test_key_` MUST be checked before `su_key_`
+ * (SDK-SPEC.md §2 rule 4) — the spec calls this out explicitly as an ordering requirement for any
+ * prefix matcher, so the order here is deliberate, not incidental.
  */
-function readEnvOverride(name: string): string | undefined {
-  const env = typeof process !== "undefined" ? process.env : undefined;
-  const value = env?.[name];
-  return value !== undefined && value.length > 0 ? value : undefined;
+const KEY_PREFIXES: ReadonlyArray<{ prefix: string; environment: SuqoEnvironment; baseUrl: string }> = [
+  { prefix: "su_test_key_", environment: "sandbox", baseUrl: SANDBOX_BASE_URL },
+  { prefix: "su_key_", environment: "live", baseUrl: LIVE_BASE_URL },
+];
+
+/** Result of inferring an environment + base URL from an API key. */
+export interface ResolvedEnvironment {
+  environment: SuqoEnvironment;
+  baseUrl: string;
 }
 
 /**
- * Default `baseUrl` per environment.
+ * Infers the environment and base URL from an API key's prefix — the whole configuration in the
+ * common case, no environment flag needed (SDK-SPEC.md §2).
  *
- * TODO(Phase 0): replace with the finalized production/staging base URLs once backend/infra
- * confirms them (implementation-plan.md Phase 0). Until then, each falls back to the agreed
- * environment-variable stub (`SUQO_<ENV>_BASE_URL`) so Phase 1 isn't blocked on that decision
- * (RFC Phase 1 dependency note).
+ * @param apiKey - The full API key. Matched with `startsWith`, treating the prefix as "starts
+ * with", never a substring search anywhere in the key.
+ * @param override - An explicit `baseUrl`, if the caller supplied one. Must agree with the
+ * inferred base URL or this throws — silence-and-trust-one is forbidden (SDK-SPEC.md §2 rule 3).
+ *
+ * @throws {SuqoConfigError} if `apiKey` matches neither prefix (rule 2), or if `override` is
+ * supplied and disagrees with the inferred base URL (rule 3). Thrown before any request is made.
  */
-export const DEFAULT_BASE_URLS: Readonly<Record<SuqoEnvironment, string>> = {
-  production: readEnvOverride("SUQO_PRODUCTION_BASE_URL") ?? "https://api.suqo.com",
-  staging: readEnvOverride("SUQO_STAGING_BASE_URL") ?? "https://staging-api.suqo.com",
-  local: readEnvOverride("SUQO_LOCAL_BASE_URL") ?? "http://localhost:8000",
-};
+export function resolveEnvironment(apiKey: string, override?: string): ResolvedEnvironment {
+  if (typeof apiKey !== "string" || apiKey.length === 0) {
+    throw new SuqoConfigError("A SUQO API key is required.");
+  }
 
-/**
- * Resolves the `baseUrl` for a given environment.
- *
- * `override`, when provided, always wins — it's the internal hook `SdkConfig` uses for
- * `__unsafeBaseUrlOverride` (local dev only; RFC §9). There is no public API that lets a caller
- * pass an arbitrary `baseUrl` alongside `environment` any other way.
- */
-export function resolveBaseUrl(environment: SuqoEnvironment, override?: string): string {
-  return override ?? DEFAULT_BASE_URLS[environment];
+  const match = KEY_PREFIXES.find(({ prefix }) => apiKey.startsWith(prefix));
+  if (!match) {
+    throw new SuqoConfigError(
+      'Malformed SUQO API key: expected prefix "su_key_" (live) or "su_test_key_" (sandbox).',
+    );
+  }
+
+  if (override !== undefined && override !== match.baseUrl) {
+    throw new SuqoConfigError(
+      `Environment mismatch: key implies ${match.baseUrl} but baseUrl was set to ${override}. ` +
+        "Remove baseUrl or use a matching key.",
+    );
+  }
+
+  return { environment: match.environment, baseUrl: override ?? match.baseUrl };
 }

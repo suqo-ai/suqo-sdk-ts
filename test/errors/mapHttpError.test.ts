@@ -1,65 +1,89 @@
 import { describe, expect, it } from "vitest";
+import { mapHttpError } from "../../src/errors/mapHttpError.js";
 import {
   AuthenticationError,
+  KycRequiredError,
   NotFoundError,
-  PermissionError,
   RateLimitError,
-  SDKError,
   ServerError,
+  SuqoError,
   ValidationError,
-} from "../../src/errors/SDKError.js";
-import { mapHttpError } from "../../src/errors/mapHttpError.js";
+} from "../../src/errors/SuqoError.js";
 
 describe("mapHttpError", () => {
-  it("maps 401 to AuthenticationError", () => {
-    expect(mapHttpError({ status: 401 })).toBeInstanceOf(AuthenticationError);
+  it("maps 401 to AuthenticationError, using the detail body as the message", () => {
+    const err = mapHttpError({ status: 401, body: { detail: "Invalid or inactive API key." } });
+    expect(err).toBeInstanceOf(AuthenticationError);
+    expect(err.message).toBe("Invalid or inactive API key.");
+    expect(err.status).toBe(401);
   });
 
-  it("maps 403 to PermissionError", () => {
-    expect(mapHttpError({ status: 403 })).toBeInstanceOf(PermissionError);
+  it("maps 403 to KycRequiredError, exposing statusCode from the KycError body", () => {
+    const err = mapHttpError({
+      status: 403,
+      body: { status_code: "pending", message: "KYC verification needed to perform this action." },
+    });
+    expect(err).toBeInstanceOf(KycRequiredError);
+    expect((err as KycRequiredError).statusCode).toBe("pending");
+    expect(err.message).toBe("KYC verification needed to perform this action.");
+  });
+
+  it("403 without a status_code leaves statusCode undefined rather than guessing", () => {
+    const err = mapHttpError({ status: 403, body: {} }) as KycRequiredError;
+    expect(err).toBeInstanceOf(KycRequiredError);
+    expect(err.statusCode).toBeUndefined();
+  });
+
+  it("maps a field-keyed 400 to ValidationError.fieldErrors, normalizing string values to arrays", () => {
+    const err = mapHttpError({
+      status: 400,
+      body: {
+        pbp_id: "PlanBillingPeriod with public_id '...' does not exist or is not visible.",
+        next_billing_cycle: ["next_billing_cycle must be in the future or today."],
+      },
+    }) as ValidationError;
+    expect(err).toBeInstanceOf(ValidationError);
+    expect(err.fieldErrors).toEqual({
+      pbp_id: ["PlanBillingPeriod with public_id '...' does not exist or is not visible."],
+      next_billing_cycle: ["next_billing_cycle must be in the future or today."],
+    });
+  });
+
+  it("maps a detail-shaped 400 (e.g. duplicate active subscription) to ValidationError.message, fieldErrors empty", () => {
+    const err = mapHttpError({
+      status: 400,
+      body: { detail: "An active subscription already exists for this buyer, product, and billing period." },
+    }) as ValidationError;
+    expect(err).toBeInstanceOf(ValidationError);
+    expect(err.message).toBe(
+      "An active subscription already exists for this buyer, product, and billing period.",
+    );
+    expect(err.fieldErrors).toEqual({});
   });
 
   it("maps 404 to NotFoundError", () => {
-    expect(mapHttpError({ status: 404 })).toBeInstanceOf(NotFoundError);
+    const err = mapHttpError({ status: 404, body: { detail: "Not found." } });
+    expect(err).toBeInstanceOf(NotFoundError);
+    expect(err.message).toBe("Not found.");
   });
 
-  it.each([400, 422])("maps %i to ValidationError with issues from the body", (status) => {
-    const err = mapHttpError({
-      status,
-      body: {
-        message: "Validation failed",
-        issues: [
-          { path: "email", message: "must be a valid email" },
-          { path: 42, message: "ignored" },
-        ],
-      },
-    });
-    expect(err).toBeInstanceOf(ValidationError);
-    expect(err.message).toBe("Validation failed");
-    expect((err as ValidationError).issues).toEqual([
-      { path: "email", message: "must be a valid email" },
-    ]);
-  });
-
-  it("maps 429 to RateLimitError carrying retryAfterMs", () => {
-    const err = mapHttpError({ status: 429, retryAfterMs: 5000 });
+  it("maps 429 to RateLimitError, carrying retryAfterMs when given (reserved — SDK-SPEC.md §10)", () => {
+    const err = mapHttpError({ status: 429, retryAfterMs: 5000 }) as RateLimitError;
     expect(err).toBeInstanceOf(RateLimitError);
-    expect((err as RateLimitError).retryAfterMs).toBe(5000);
+    expect(err.retryAfterMs).toBe(5000);
   });
 
   it.each([500, 502, 503, 504])("maps %i to ServerError", (status) => {
     expect(mapHttpError({ status })).toBeInstanceOf(ServerError);
   });
 
-  it("maps an unmapped status to a generic SDKError with a stable code", () => {
+  it("falls back to ServerError for a genuinely unmapped status, never the bare SuqoError base", () => {
     const err = mapHttpError({ status: 402 });
-    expect(err).toBeInstanceOf(SDKError);
-    expect(err).not.toBeInstanceOf(AuthenticationError);
-    expect(err.code).toBe("http_error");
-    expect(err.status).toBe(402);
+    expect(err).toBeInstanceOf(ServerError);
+    expect(err).toBeInstanceOf(SuqoError);
   });
 
-  it("falls back to a generic message when the body has none", () => {
+  it("falls back to a generic message when the body has neither detail nor message", () => {
     const err = mapHttpError({ status: 500, statusText: "Internal Server Error" });
     expect(err.message).toBe("Request failed with status 500 (Internal Server Error)");
   });
@@ -69,8 +93,17 @@ describe("mapHttpError", () => {
     expect(err.requestId).toBe("req_abc");
   });
 
-  it("only RateLimitError (429) carries retryAfterMs, not other 4xx errors", () => {
-    const err = mapHttpError({ status: 400 });
-    expect(err).not.toHaveProperty("retryAfterMs");
+  it("carries the raw body through as rawBody, unmodified", () => {
+    const body = { detail: "Not found." };
+    const err = mapHttpError({ status: 404, body });
+    expect(err.rawBody).toBe(body);
+  });
+
+  it("a field value that's neither a string nor a string array is skipped, not fabricated", () => {
+    const err = mapHttpError({
+      status: 400,
+      body: { weird_field: 42, good_field: "a real message" },
+    }) as ValidationError;
+    expect(err.fieldErrors).toEqual({ good_field: ["a real message"] });
   });
 });

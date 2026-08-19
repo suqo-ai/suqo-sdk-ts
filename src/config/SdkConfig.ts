@@ -1,75 +1,87 @@
-import { z } from "zod";
-import { ValidationError } from "../errors/SDKError.js";
-import { resolveBaseUrl, SUQO_ENVIRONMENTS, type SuqoEnvironment } from "./environments.js";
+import { resolveEnvironment, type SuqoEnvironment } from "./environments.js";
 
-/**
- * Input accepted by {@link SdkConfig}.
- *
- * `baseUrl` is deliberately not a field here — only `environment` resolves it, or
- * `__unsafeBaseUrlOverride` for local development, so a typo can never silently point a
- * production partner integration at the wrong host (RFC §9).
- */
+/** Input accepted by {@link SdkConfig} — the same shape `SuqoClient`'s constructor takes (addendum §5). */
 export interface SdkConfigInput {
-  /** `"production" | "staging" | "local"` — resolves `baseUrl` internally. */
-  environment: SuqoEnvironment;
+  /** The seller's API key. Its prefix determines the environment (SDK-SPEC.md §2) — never passed separately. */
+  apiKey: string;
   /**
-   * Escape hatch for local development only. Bypasses the `environment` → `baseUrl` table
-   * entirely. Deliberately verbose/awkward to type so it can't be reached by accident (RFC §9,
-   * implementation-plan.md Phase 10 exit criteria).
-   *
-   * @internal
+   * Optional explicit override. If set AND it disagrees with the key prefix, the constructor
+   * throws `SuqoConfigError`. Normally omit this.
    */
-  __unsafeBaseUrlOverride?: string;
+  baseUrl?: string;
+  /** Per-client default; per-call override also allowed by `http.ts` (Ticket 2). Default 30_000. */
+  timeoutMs?: number;
+  /** Read-retry tuning (reads only — writes are never retried, SDK-SPEC.md §8, §12). Default 2. */
+  maxRetries?: number;
+  /** Advanced: custom undici dispatcher for pool tuning, passed through opaquely to `fetch` (Ticket 2). */
+  dispatcher?: unknown;
 }
 
-/** Zod schema `SdkConfig` validates its input against at construction time (RFC Best Practice #18). */
-const sdkConfigInputSchema = z.object({
-  environment: z.enum(SUQO_ENVIRONMENTS, {
-    message: `\`environment\` must be one of: ${SUQO_ENVIRONMENTS.join(", ")}`,
-  }),
-  __unsafeBaseUrlOverride: z
-    .string()
-    .url("`__unsafeBaseUrlOverride` must be a valid absolute URL")
-    .optional(),
-});
+const DEFAULT_TIMEOUT_MS = 30_000;
+const DEFAULT_MAX_RETRIES = 2;
 
-/** Converts a Zod validation failure into the SDK's own {@link ValidationError}, never a raw `ZodError`. */
-function toValidationError(error: z.ZodError): ValidationError {
-  const issues = error.issues.map((issue) => ({
-    path: issue.path.join("."),
-    message: issue.message,
-  }));
-  return new ValidationError("Invalid SDK configuration.", { issues });
-}
+/** The `util.inspect` custom-inspection symbol, referenced by key so this file never needs to `import "node:util"`. */
+const NODE_INSPECT_CUSTOM = Symbol.for("nodejs.util.inspect.custom");
 
 /**
- * Resolved, immutable SDK configuration.
+ * Resolved, immutable SDK configuration (SDK-SPEC.md §2, §4).
  *
- * Validated at construction time — an invalid `SdkConfigInput` throws a {@link ValidationError}
- * immediately, before any request is ever made (RFC Best Practice #18: fail fast, not on first
- * request).
- *
- * This is the contract Phase 1 - Part 2 (`HttpCore`) builds on: `environment` and `baseUrl` are
- * stable and will only ever gain additional fields (e.g. `timeoutMs`, `retry`, `logger`) in later
- * parts, never change shape.
+ * Validated at construction time — a malformed key or a conflicting `baseUrl` override throws
+ * `SuqoConfigError` immediately, before any request is ever made. The API key is stored in a
+ * private class field, never a public/enumerable property, so it can never leak through
+ * `JSON.stringify`, `console.log`, or `util.inspect` (SDK-SPEC.md §4) — `toJSON` and the
+ * `util.inspect` custom-inspection symbol both redact it explicitly as well, so redaction holds
+ * even if a future refactor adds an enumerable field.
  *
  * @example
  * ```ts
- * const config = new SdkConfig({ environment: "production" });
- * config.baseUrl; // => "https://api.suqo.com"
+ * const config = new SdkConfig({ apiKey: "su_test_key_..." });
+ * config.baseUrl;     // => "https://test.be.suqo.ai"
+ * config.environment; // => "sandbox"
  * ```
  */
 export class SdkConfig {
-  /** `"production" | "staging" | "local"`. */
+  /** `"sandbox" | "live"` — inferred from the key prefix, never selected explicitly. */
   readonly environment: SuqoEnvironment;
-  /** The resolved base URL for this environment (or the `__unsafeBaseUrlOverride`, if given). */
+  /** The resolved base URL for this environment (or the caller's override, if it agreed). */
   readonly baseUrl: string;
+  /** Request timeout in milliseconds, per-client default (`http.ts` in Ticket 2 allows a per-call override). */
+  readonly timeoutMs: number;
+  /** Max retry attempts for idempotent reads. Writes are never retried regardless of this value. */
+  readonly maxRetries: number;
+  /** Opaque custom dispatcher for pool tuning, if supplied. Passed through to `fetch` unexamined. */
+  readonly dispatcher: unknown;
+
+  readonly #apiKey: string;
 
   constructor(input: SdkConfigInput) {
-    const parsed = sdkConfigInputSchema.safeParse(input);
-    if (!parsed.success) throw toValidationError(parsed.error);
+    const { environment, baseUrl } = resolveEnvironment(input.apiKey, input.baseUrl);
+    this.environment = environment;
+    this.baseUrl = baseUrl;
+    this.timeoutMs = input.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+    this.maxRetries = input.maxRetries ?? DEFAULT_MAX_RETRIES;
+    this.dispatcher = input.dispatcher;
+    this.#apiKey = input.apiKey;
+  }
 
-    this.environment = parsed.data.environment;
-    this.baseUrl = resolveBaseUrl(parsed.data.environment, parsed.data.__unsafeBaseUrlOverride);
+  /** The raw API key, for building the `Authorization: Bearer <key>` header (`http.ts`, Ticket 2). Never logged. */
+  get apiKey(): string {
+    return this.#apiKey;
+  }
+
+  /** Redacts the key so it never appears in `JSON.stringify` output (SDK-SPEC.md §4). */
+  toJSON(): Record<string, unknown> {
+    return {
+      environment: this.environment,
+      baseUrl: this.baseUrl,
+      timeoutMs: this.timeoutMs,
+      maxRetries: this.maxRetries,
+      apiKey: "[redacted]",
+    };
+  }
+
+  /** Redacts the key so it never appears in `util.inspect`/`console.log` output (SDK-SPEC.md §4). */
+  [NODE_INSPECT_CUSTOM](): Record<string, unknown> {
+    return this.toJSON();
   }
 }
