@@ -150,8 +150,12 @@ paths:
       tags: [Subscriptions]
       summary: Cancel a subscription
       description: >
-        Cancels a subscription. No request body. Sets `is_inactive = true` and
-        clears the billing cycle.
+        Schedules cancellation for the end of the current billing period. No
+        request body. Status moves to `pending_cancellation`; the subscription
+        stays active until the period ends, then transitions to `cancelled`.
+        Immediate cancellation (setting `is_inactive = true` right away) is
+        planned for a future release — not current behaviour (confirmed with
+        backend 2026-08-17).
 
         NOTE (write op): not auto-retryable until idempotency ships.
       parameters:
@@ -162,11 +166,11 @@ paths:
           description: Subscription UUID.
       responses:
         '200':
-          description: Cancelled.
+          description: Cancellation scheduled.
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Message' }
-              example: { message: "Subscription cancelled." }
+              example: { message: "Subscription will be cancelled at the end of the current billing period." }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/KycRequired' }
         '404': { $ref: '#/components/responses/NotFound' }
