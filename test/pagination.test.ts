@@ -68,6 +68,31 @@ describe("listAll", () => {
     expect(items).toEqual([]);
     expect(fetchNext).not.toHaveBeenCalled();
   });
+
+  it("throws instead of hanging forever if fetchNext never reaches next: null (found in review)", async () => {
+    // A stuck loop: every page claims there's a next one, so without the maxPages guard this
+    // would iterate forever. maxPages is overridden small so the test itself stays fast.
+    const firstPage = envelope([1], "https://api.example/?page=2");
+    const fetchNext = vi.fn(async () => envelope([2], "https://api.example/?page=2"));
+
+    await expect(async () => {
+      const items: number[] = [];
+      for await (const item of listAll(firstPage, fetchNext, 5)) {
+        items.push(item);
+      }
+    }).rejects.toThrow(/exceeded 5 pages/);
+  });
+
+  it("a legitimate multi-page sequence well under maxPages completes normally, no false positive", async () => {
+    const firstPage = envelope([1], "https://api.example/?page=2");
+    const fetchNext = vi.fn().mockResolvedValueOnce(envelope([2], null));
+
+    const items: number[] = [];
+    for await (const item of listAll(firstPage, fetchNext, 5)) {
+      items.push(item);
+    }
+    expect(items).toEqual([1, 2]);
+  });
 });
 
 describe("PaginationEnvelope / SubscriptionPaginationEnvelope shape", () => {

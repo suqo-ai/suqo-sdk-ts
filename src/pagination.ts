@@ -66,6 +66,14 @@ export function toPageQuery(params?: PageParams): QueryParams {
  * Manual `page`/`pageSize` access (via {@link toPageQuery}) remains available independently —
  * this iterator is additive, not a replacement (SDK-SPEC.md §6 requires both to keep working).
  *
+ * Guards against a `fetchNext` (or a server) that never reaches `next: null` — a real bug caught
+ * in review, not hypothetical, since the loop would otherwise trust the sequence to terminate
+ * forever. After `maxPages` pages, throws instead of hanging silently.
+ *
+ * @param maxPages - Safety cap on how many pages to follow before giving up. Defaults to a limit
+ * generous enough for any realistic result set (10,000 pages — millions of rows at the max page
+ * size) while still catching a genuine stuck loop quickly.
+ *
  * @example
  * ```ts
  * const firstPage = await suqo.subscriptions.list({ pageSize: 100 });
@@ -77,10 +85,20 @@ export function toPageQuery(params?: PageParams): QueryParams {
 export async function* listAll<T>(
   firstPage: PaginationEnvelope<T>,
   fetchNext: (nextUrl: string) => Promise<PaginationEnvelope<T>>,
+  maxPages = 10_000,
 ): AsyncIterableIterator<T> {
   let page: PaginationEnvelope<T> = firstPage;
+  let pagesSeen = 0;
 
   while (true) {
+    pagesSeen++;
+    if (pagesSeen > maxPages) {
+      throw new Error(
+        `listAll exceeded ${maxPages} pages without reaching next: null. This usually means the ` +
+          "server or the fetchNext callback isn't advancing — check for a stuck loop.",
+      );
+    }
+
     for (const item of page.results) {
       yield item;
     }
