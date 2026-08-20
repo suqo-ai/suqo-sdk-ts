@@ -1,3 +1,4 @@
+import { getEventListeners } from "node:events";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { HttpClient } from "../../src/http/HttpClient.js";
 import { SdkConfig } from "../../src/config/SdkConfig.js";
@@ -439,5 +440,24 @@ describe("HttpClient", () => {
       client({ maxRetries: 2 }).request({ method: "POST", path: "/api/v1/subscriptions" }),
     ).rejects.toBeInstanceOf(NetworkError);
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("#sleepOrAbort removes its abort listener even when the injected sleep rejects for an unrelated reason (found in review)", async () => {
+    vi.mocked(fetch).mockResolvedValue(new Response(JSON.stringify({ detail: "boom" }), { status: 500 }));
+
+    const rejectingSleep = () => Promise.reject(new Error("sleep implementation failed"));
+    const sdkConfig = new SdkConfig({ apiKey: "su_test_key_abc123", maxRetries: 1 });
+    const httpClient = new HttpClient(sdkConfig, { sleep: rejectingSleep });
+
+    const controller = new AbortController();
+    expect(getEventListeners(controller.signal, "abort")).toHaveLength(0);
+
+    await expect(
+      httpClient.request({ method: "GET", path: "/api/v1/products", signal: controller.signal }),
+    ).rejects.toThrow("sleep implementation failed");
+
+    // The precise proof: zero listeners remain on the caller's signal afterward, not "the
+    // request eventually settled" — a real leak would show growth here instead.
+    expect(getEventListeners(controller.signal, "abort")).toHaveLength(0);
   });
 });

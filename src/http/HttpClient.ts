@@ -219,10 +219,20 @@ export class HttpClient {
     await new Promise<void>((resolve, reject) => {
       const onAbort = () => reject(toNetworkError(signal.reason, timeoutMs, true));
       signal.addEventListener("abort", onAbort, { once: true });
-      this.#sleep(ms).then(() => {
-        signal.removeEventListener("abort", onAbort);
-        resolve();
-      }, reject);
+      // Clean up on BOTH branches, not just the fulfillment one (found in review) — an injected
+      // `sleep` that rejects for a reason unrelated to cancellation would otherwise leave
+      // `onAbort` attached to `signal` forever, since `{ once: true }` only self-removes when the
+      // "abort" event actually fires.
+      this.#sleep(ms).then(
+        () => {
+          signal.removeEventListener("abort", onAbort);
+          resolve();
+        },
+        (sleepError: unknown) => {
+          signal.removeEventListener("abort", onAbort);
+          reject(sleepError);
+        },
+      );
     });
   }
 
