@@ -1,10 +1,17 @@
-/**
- * `HttpCore` — the native-`fetch` wrapper and middleware pipeline (request → [auth, logging] →
- * fetch → [retry, error-mapping] → response) per RFC §6.
- *
- * Not yet implemented — lands in Phase 1 - Part 2 (HTTP Core, Middleware & Resilience), built on
- * top of this phase's `SdkConfig` and `mapHttpError()` contracts.
- *
- * @packageDocumentation
- */
-export {};
+export {
+  HttpClient,
+  type HttpClientOptions,
+  type HttpMethod,
+  type HttpGetRequestOptions,
+  type HttpPostRequestOptions,
+  type HttpRequestOptions,
+} from "./HttpClient.js";
+export { buildUrl, type QueryParams } from "./urlBuilder.js";
+export {
+  backoffDelayMs,
+  isRetryableFailure,
+  isRetryableMethod,
+  parseRetryAfterMs,
+  type RetryableFailureInput,
+} from "./retry.js";
+export { combineSignals, type CombinedSignal } from "./signals.js";
