@@ -191,10 +191,12 @@ export class HttpClient {
         // An explicit caller cancellation is never retried, even for a normally-retryable read —
         // continuing after the caller said "stop" would ignore what they asked for.
         const callerCancelled = options.signal?.aborted === true;
-        // A network-level failure (no response at all, or the body stream died) is always
-        // retryable by definition (isRetryableFailure's own networkError branch always returns
-        // true) — no need to call through it here just to re-derive a constant.
-        if (!callerCancelled && !isLastAttempt && retryable) {
+        // Routed through isRetryableFailure (not inlined) so the retry policy for a network-level
+        // failure lives in exactly one place — retry.ts — the same as the HTTP-status decision
+        // below. Found in review: an earlier version inlined this as "always true" for
+        // readability, which let this decision and retry.ts's own copy of it silently drift apart
+        // if the policy ever changed in only one of the two places.
+        if (!callerCancelled && !isLastAttempt && retryable && isRetryableFailure({ networkError: true })) {
           await this.#sleepOrAbort(backoffDelayMs(attempt - 1), options.signal, timeoutMs);
           continue;
         }
