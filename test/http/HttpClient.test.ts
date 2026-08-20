@@ -391,4 +391,53 @@ describe("HttpClient", () => {
     ).rejects.toThrow(TypeError);
     expect(fetchMock).not.toHaveBeenCalled();
   });
+
+  // A body-read failure: fetch() resolves fine (headers received), but the body stream dies
+  // afterward — a real, common undici/network failure, not a hypothetical.
+  function brokenBodyResponse(init: { ok: boolean; status: number; statusText?: string }): Response {
+    return {
+      ok: init.ok,
+      status: init.status,
+      statusText: init.statusText ?? "",
+      headers: new Headers(),
+      text: () => Promise.reject(new TypeError("terminated")),
+    } as unknown as Response;
+  }
+
+  it("a body-read failure on a 2xx is retried like a network error, not left unmapped (found in review)", async () => {
+    const fetchMock = vi
+      .mocked(fetch)
+      .mockResolvedValueOnce(brokenBodyResponse({ ok: true, status: 200 }))
+      .mockResolvedValueOnce(jsonResponse({ ok: true }));
+
+    const result = await client({ maxRetries: 2 }).request({ method: "GET", path: "/api/v1/products" });
+    expect(result).toEqual({ ok: true });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("a body-read failure on a non-2xx is retried like a network error too", async () => {
+    const fetchMock = vi
+      .mocked(fetch)
+      .mockResolvedValueOnce(brokenBodyResponse({ ok: false, status: 503 }))
+      .mockResolvedValueOnce(jsonResponse({ ok: true }));
+
+    const result = await client({ maxRetries: 2 }).request({ method: "GET", path: "/api/v1/products" });
+    expect(result).toEqual({ ok: true });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("gives up and throws NetworkError if the body-read failure persists past maxRetries", async () => {
+    vi.mocked(fetch).mockResolvedValue(brokenBodyResponse({ ok: true, status: 200 }));
+    await expect(
+      client({ maxRetries: 1 }).request({ method: "GET", path: "/api/v1/products" }),
+    ).rejects.toBeInstanceOf(NetworkError);
+  });
+
+  it("a write (POST) never retries a body-read failure either", async () => {
+    const fetchMock = vi.mocked(fetch).mockResolvedValue(brokenBodyResponse({ ok: false, status: 500 }));
+    await expect(
+      client({ maxRetries: 2 }).request({ method: "POST", path: "/api/v1/subscriptions" }),
+    ).rejects.toBeInstanceOf(NetworkError);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
 });

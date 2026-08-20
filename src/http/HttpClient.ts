@@ -1,5 +1,5 @@
 import { mapHttpError } from "../errors/mapHttpError.js";
-import { NetworkError } from "../errors/SuqoError.js";
+import { NetworkError, SuqoError } from "../errors/SuqoError.js";
 import type { SdkConfig } from "../config/index.js";
 import { buildUrl, type QueryParams } from "./urlBuilder.js";
 import { backoffDelayMs, isRetryableFailure, isRetryableMethod, parseRetryAfterMs } from "./retry.js";
@@ -151,47 +151,55 @@ export class HttpClient {
 
     for (let attempt = 1; ; attempt++) {
       const isLastAttempt = attempt >= maxAttempts;
-      let response: Response;
 
       try {
-        response = await this.#doFetch(url, options, timeoutMs);
+        const response = await this.#doFetch(url, options, timeoutMs);
+
+        if (response.ok) {
+          return (await parseJsonBody(response)) as TResponse;
+        }
+
+        // Reading the body can fail too (e.g. the connection resets mid-stream after headers
+        // already arrived fine) — that failure needs the exact same retry-or-network-error
+        // treatment as `#doFetch` itself failing, not an unmapped rejection escaping `request()`.
+        // Wrapping both in the same try/catch below (found in review) is what makes that happen.
+        const body = await parseJsonBody(response);
+        const retryAfterMs =
+          response.status === 429 ? parseRetryAfterMs(response.headers.get("Retry-After")) : undefined;
+
+        if (
+          !isLastAttempt &&
+          retryable &&
+          isRetryableFailure({ networkError: false, status: response.status })
+        ) {
+          await this.#sleepOrAbort(retryAfterMs ?? backoffDelayMs(attempt - 1), options.signal, timeoutMs);
+          continue;
+        }
+
+        throw mapHttpError({
+          status: response.status,
+          statusText: response.statusText,
+          body,
+          ...(retryAfterMs !== undefined ? { retryAfterMs } : {}),
+        });
       } catch (cause) {
+        // Already a correctly-classified SuqoError (from mapHttpError just above, or a caller
+        // cancellation/timeout from #sleepOrAbort) — pass it through unchanged, don't reclassify
+        // an already-final decision as a fresh network failure.
+        if (cause instanceof SuqoError) throw cause;
+
         // An explicit caller cancellation is never retried, even for a normally-retryable read —
         // continuing after the caller said "stop" would ignore what they asked for.
         const callerCancelled = options.signal?.aborted === true;
-        // A network failure (no response at all) is always retryable by definition
-        // (isRetryableFailure's own networkError branch always returns true) — no need to call
-        // through it here just to re-derive a constant.
+        // A network-level failure (no response at all, or the body stream died) is always
+        // retryable by definition (isRetryableFailure's own networkError branch always returns
+        // true) — no need to call through it here just to re-derive a constant.
         if (!callerCancelled && !isLastAttempt && retryable) {
           await this.#sleepOrAbort(backoffDelayMs(attempt - 1), options.signal, timeoutMs);
           continue;
         }
         throw toNetworkError(cause, timeoutMs, callerCancelled);
       }
-
-      if (response.ok) {
-        return (await parseJsonBody(response)) as TResponse;
-      }
-
-      const body = await parseJsonBody(response);
-      const retryAfterMs =
-        response.status === 429 ? parseRetryAfterMs(response.headers.get("Retry-After")) : undefined;
-
-      if (
-        !isLastAttempt &&
-        retryable &&
-        isRetryableFailure({ networkError: false, status: response.status })
-      ) {
-        await this.#sleepOrAbort(retryAfterMs ?? backoffDelayMs(attempt - 1), options.signal, timeoutMs);
-        continue;
-      }
-
-      throw mapHttpError({
-        status: response.status,
-        statusText: response.statusText,
-        body,
-        ...(retryAfterMs !== undefined ? { retryAfterMs } : {}),
-      });
     }
   }
 
