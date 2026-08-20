@@ -89,4 +89,12 @@ describe("parseRetryAfterMs", () => {
   it("still respects a legitimate value under the cap", () => {
     expect(parseRetryAfterMs("30")).toBe(30_000);
   });
+
+  it("returns undefined for an empty string, not 0 (found in review — Number('') is 0 in JS, not NaN)", () => {
+    expect(parseRetryAfterMs("")).toBeUndefined();
+  });
+
+  it("returns undefined for a whitespace-only value too", () => {
+    expect(parseRetryAfterMs("   ")).toBeUndefined();
+  });
 });

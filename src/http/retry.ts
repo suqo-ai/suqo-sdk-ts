@@ -67,7 +67,12 @@ const MAX_RETRY_AFTER_MS = 60_000;
  */
 export function parseRetryAfterMs(headerValue: string | null): number | undefined {
   if (headerValue === null) return undefined;
-  const seconds = Number(headerValue);
+  // `Number("")` (and whitespace-only strings) is `0` in JavaScript, not `NaN` — checked
+  // explicitly so an empty-but-present header is treated as unparseable, not "retry after 0ms"
+  // (found in review: this would otherwise hammer a server that just asked to slow down).
+  const trimmed = headerValue.trim();
+  if (trimmed.length === 0) return undefined;
+  const seconds = Number(trimmed);
   if (!Number.isFinite(seconds) || seconds < 0) return undefined;
   return Math.min(seconds * 1000, MAX_RETRY_AFTER_MS);
 }
