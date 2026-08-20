@@ -7,15 +7,22 @@ import { backoffDelayMs, isRetryableFailure, isRetryableMethod, parseRetryAfterM
 /** HTTP methods this client supports — every route in the API is one of these two (SDK-SPEC.md §1). */
 export type HttpMethod = "GET" | "POST";
 
-/** Options accepted by {@link HttpClient.request}. */
-export interface HttpRequestOptions {
+/**
+ * Options accepted by {@link HttpClient.request}. Generic on `TBody` so a call site can pass a
+ * concrete request type (e.g. `CreateSubscriptionRequest` from `openapi.yaml`, wired up in
+ * Ticket 4) and have it checked at compile time — `unknown` is only the *default* for callers
+ * that don't specify one, never a signal that bodies go untyped by design. `HttpClient` itself is
+ * internal (not exported from `src/index.ts`); the SDK's actual typed, consumer-facing contract
+ * lives one layer up, in each resource method's own public signature.
+ */
+export interface HttpRequestOptions<TBody = unknown> {
   method: HttpMethod;
   /** The route path, e.g. `/api/v1/products` — the trailing slash is guaranteed by `buildUrl`; don't add it yourself. */
   path: string;
   /** Query params, appended after the trailing slash. `undefined` values are skipped. */
   query?: QueryParams;
   /** JSON-serializable request body, for writes. Omit entirely for a bodyless write (e.g. `cancel`). */
-  body?: unknown;
+  body?: TBody;
   /** Per-call timeout override, in milliseconds. Defaults to `SdkConfig.timeoutMs`. */
   timeoutMs?: number;
 }
@@ -88,8 +95,13 @@ export class HttpClient {
    * Sends a request and returns the parsed 2xx body, or throws the `SuqoError` subclass
    * `mapHttpError` maps a non-2xx response to. Writes are never retried (SDK-SPEC.md §8, §12);
    * reads retry on network failure, `429`, or `5xx`, bounded by `SdkConfig.maxRetries`.
+   *
+   * Generic on both `TResponse` and `TBody` — e.g.
+   * `request<CreateSubscriptionResponse, CreateSubscriptionRequest>({ body, ... })` — so a
+   * resource method (Ticket 4) gets its request body checked against the exact shape it means to
+   * send, not just `unknown`.
    */
-  async request<T>(options: HttpRequestOptions): Promise<T> {
+  async request<TResponse, TBody = unknown>(options: HttpRequestOptions<TBody>): Promise<TResponse> {
     const url = buildUrl(this.#config.baseUrl, options.path, options.query);
     const retryable = isRetryableMethod(options.method);
     const maxAttempts = retryable ? this.#config.maxRetries + 1 : 1;
@@ -110,7 +122,7 @@ export class HttpClient {
       }
 
       if (response.ok) {
-        return (await parseJsonBody(response)) as T;
+        return (await parseJsonBody(response)) as TResponse;
       }
 
       const body = await parseJsonBody(response);
@@ -135,7 +147,11 @@ export class HttpClient {
     }
   }
 
-  async #doFetch(url: string, options: HttpRequestOptions, timeoutMs: number): Promise<Response> {
+  async #doFetch<TBody>(
+    url: string,
+    options: HttpRequestOptions<TBody>,
+    timeoutMs: number,
+  ): Promise<Response> {
     const isWrite = options.method !== "GET";
     const headers: Record<string, string> = {
       Authorization: `Bearer ${this.#config.apiKey}`,
