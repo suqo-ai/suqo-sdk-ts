@@ -3,37 +3,58 @@ import { NetworkError } from "../errors/SuqoError.js";
 import type { SdkConfig } from "../config/index.js";
 import { buildUrl, type QueryParams } from "./urlBuilder.js";
 import { backoffDelayMs, isRetryableFailure, isRetryableMethod, parseRetryAfterMs } from "./retry.js";
+import { combineSignals } from "./signals.js";
 
 /** HTTP methods this client supports — every route in the API is one of these two (SDK-SPEC.md §1). */
 export type HttpMethod = "GET" | "POST";
 
-/**
- * Options accepted by {@link HttpClient.request}. Generic on `TBody` so a call site can pass a
- * concrete request type (e.g. `CreateSubscriptionRequest` from `openapi.yaml`, wired up in
- * Ticket 4) and have it checked at compile time — `unknown` is only the *default* for callers
- * that don't specify one, never a signal that bodies go untyped by design. `HttpClient` itself is
- * internal (not exported from `src/index.ts`); the SDK's actual typed, consumer-facing contract
- * lives one layer up, in each resource method's own public signature.
- */
-export interface HttpRequestOptions<TBody = unknown> {
-  method: HttpMethod;
+/** Fields shared by every request, regardless of method. */
+interface HttpRequestOptionsBase {
   /** The route path, e.g. `/api/v1/products` — the trailing slash is guaranteed by `buildUrl`; don't add it yourself. */
   path: string;
   /** Query params, appended after the trailing slash. `undefined` values are skipped. */
   query?: QueryParams;
-  /** JSON-serializable request body, for writes. Omit entirely for a bodyless write (e.g. `cancel`). */
-  body?: TBody;
   /** Per-call timeout override, in milliseconds. Defaults to `SdkConfig.timeoutMs`. */
   timeoutMs?: number;
   /**
    * Optional caller-supplied signal for cancelling an in-flight request — e.g. the host
    * application's own request lifecycle ending, or an overall operation deadline spanning
-   * multiple SDK calls. Combined with the internal timeout signal; whichever fires first wins.
-   * An explicit caller cancellation is never retried, even for an otherwise-retryable read —
-   * retrying after the caller said "stop" would ignore what they asked for.
+   * multiple SDK calls. Combined with the internal timeout signal (whichever fires first wins)
+   * during the fetch itself, *and* observed during any retry backoff wait — cancelling mid-sleep
+   * doesn't have to wait for the sleep to finish first. An explicit caller cancellation is never
+   * retried, even for an otherwise-retryable read — retrying after the caller said "stop" would
+   * ignore what they asked for.
    */
   signal?: AbortSignal;
 }
+
+/**
+ * Options for a `GET` request. Never carries a body — every read in this API is `GET`
+ * (SDK-SPEC.md §1), and `fetch` itself rejects a body on `GET`. Enforced at the type level, not
+ * just by convention, so this can't be gotten wrong from a `TBody`-typed call site by accident.
+ */
+export interface HttpGetRequestOptions extends HttpRequestOptionsBase {
+  method: "GET";
+}
+
+/**
+ * Options for a `POST` request. Generic on `TBody` so a call site can pass a concrete request
+ * type (e.g. `CreateSubscriptionRequest` from `openapi.yaml`, wired up in Ticket 4) and have it
+ * checked at compile time — `unknown` is only the *default* for callers that don't specify one,
+ * never a signal that bodies go untyped by design.
+ */
+export interface HttpPostRequestOptions<TBody = unknown> extends HttpRequestOptionsBase {
+  method: "POST";
+  /** JSON-serializable request body. Omit entirely for a bodyless write (e.g. `cancel`). */
+  body?: TBody;
+}
+
+/**
+ * Options accepted by {@link HttpClient.request}. `HttpClient` itself is internal (not exported
+ * from `src/index.ts`); the SDK's actual typed, consumer-facing contract lives one layer up, in
+ * each resource method's own public signature.
+ */
+export type HttpRequestOptions<TBody = unknown> = HttpGetRequestOptions | HttpPostRequestOptions<TBody>;
 
 /** `RequestInit` extended with undici's non-standard `dispatcher` option (Node's built-in `fetch`, addendum §2). */
 interface FetchInit extends RequestInit {
@@ -42,24 +63,6 @@ interface FetchInit extends RequestInit {
 
 function defaultSleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-/**
- * Combines multiple signals into one that aborts as soon as any of them do. Hand-rolled rather
- * than the built-in `AbortSignal.any` (Node 18.17+/20.3+ only) so the SDK's stated Node 18+ floor
- * (addendum §1) holds without a caveat.
- */
-function combineSignals(signals: Array<AbortSignal | undefined>): AbortSignal {
-  const controller = new AbortController();
-  for (const signal of signals) {
-    if (!signal) continue;
-    if (signal.aborted) {
-      controller.abort(signal.reason);
-      break;
-    }
-    signal.addEventListener("abort", () => controller.abort(signal.reason), { once: true });
-  }
-  return controller.signal;
 }
 
 /**
@@ -105,10 +108,11 @@ export interface HttpClientOptions {
  *
  * Handles, in one place: the trailing-slash URL guarantee, the `Authorization`/`Content-Type`
  * headers, per-call timeout via `AbortSignal.timeout`, caller-supplied cancellation (`options.
- * signal`, combined with the timeout — whichever fires first wins), the read-only retry policy
- * (exponential backoff + jitter, honoring `Retry-After`), and feeding every non-2xx response
- * through `mapHttpError()` so callers only ever see a typed `SuqoError` subclass — never a raw
- * `fetch` rejection or an unparsed error body.
+ * signal`, combined with the timeout during the fetch and also observed during any retry backoff
+ * wait), the read-only retry policy (exponential backoff + jitter, honoring `Retry-After`,
+ * clamped so a misconfigured server can't stall a request indefinitely), and feeding every
+ * non-2xx response through `mapHttpError()` so callers only ever see a typed `SuqoError`
+ * subclass — never a raw `fetch` rejection or an unparsed error body.
  *
  * Not wired into `SuqoClient`/any resource yet — that lands in Ticket 4.
  */
@@ -132,6 +136,14 @@ export class HttpClient {
    * send, not just `unknown`.
    */
   async request<TResponse, TBody = unknown>(options: HttpRequestOptions<TBody>): Promise<TResponse> {
+    // Defense-in-depth beneath the type-level guarantee (HttpGetRequestOptions has no `body`
+    // field at all): a caller that bypasses TypeScript (a raw JS call, or an `as` cast) fails
+    // loudly here instead of either crashing deep inside fetch (the original bug) or — worse —
+    // silently dropping the body with no error at all, which would be even harder to debug.
+    if (options.method === "GET" && (options as { body?: unknown }).body !== undefined) {
+      throw new TypeError("HttpClient.request: a GET request cannot carry a body.");
+    }
+
     const url = buildUrl(this.#config.baseUrl, options.path, options.query);
     const retryable = isRetryableMethod(options.method);
     const maxAttempts = retryable ? this.#config.maxRetries + 1 : 1;
@@ -147,13 +159,11 @@ export class HttpClient {
         // An explicit caller cancellation is never retried, even for a normally-retryable read —
         // continuing after the caller said "stop" would ignore what they asked for.
         const callerCancelled = options.signal?.aborted === true;
-        if (
-          !callerCancelled &&
-          !isLastAttempt &&
-          retryable &&
-          isRetryableFailure({ networkError: true })
-        ) {
-          await this.#sleep(backoffDelayMs(attempt - 1));
+        // A network failure (no response at all) is always retryable by definition
+        // (isRetryableFailure's own networkError branch always returns true) — no need to call
+        // through it here just to re-derive a constant.
+        if (!callerCancelled && !isLastAttempt && retryable) {
+          await this.#sleepOrAbort(backoffDelayMs(attempt - 1), options.signal, timeoutMs);
           continue;
         }
         throw toNetworkError(cause, timeoutMs, callerCancelled);
@@ -172,7 +182,7 @@ export class HttpClient {
         retryable &&
         isRetryableFailure({ networkError: false, status: response.status })
       ) {
-        await this.#sleep(retryAfterMs ?? backoffDelayMs(attempt - 1));
+        await this.#sleepOrAbort(retryAfterMs ?? backoffDelayMs(attempt - 1), options.signal, timeoutMs);
         continue;
       }
 
@@ -183,6 +193,29 @@ export class HttpClient {
         ...(retryAfterMs !== undefined ? { retryAfterMs } : {}),
       });
     }
+  }
+
+  /**
+   * Sleeps for `ms`, but rejects immediately with a "cancelled" `NetworkError` if `signal` aborts
+   * *during* the wait — a caller cancelling mid-backoff doesn't have to wait for the sleep to
+   * finish first (found in review: the previous version ignored `signal` here entirely).
+   */
+  async #sleepOrAbort(ms: number, signal: AbortSignal | undefined, timeoutMs: number): Promise<void> {
+    if (!signal) {
+      await this.#sleep(ms);
+      return;
+    }
+    if (signal.aborted) {
+      throw toNetworkError(signal.reason, timeoutMs, true);
+    }
+    await new Promise<void>((resolve, reject) => {
+      const onAbort = () => reject(toNetworkError(signal.reason, timeoutMs, true));
+      signal.addEventListener("abort", onAbort, { once: true });
+      this.#sleep(ms).then(() => {
+        signal.removeEventListener("abort", onAbort);
+        resolve();
+      }, reject);
+    });
   }
 
   async #doFetch<TBody>(
@@ -200,14 +233,27 @@ export class HttpClient {
       headers["Content-Type"] = "application/json";
     }
 
-    const init: FetchInit = {
-      method: options.method,
-      headers,
-      signal: combineSignals([AbortSignal.timeout(timeoutMs), options.signal]),
-      ...(options.body !== undefined ? { body: JSON.stringify(options.body) } : {}),
-      ...(this.#config.dispatcher !== undefined ? { dispatcher: this.#config.dispatcher } : {}),
-    };
+    // `body` only exists on the POST branch of the HttpRequestOptions union — a GET can't carry
+    // one even at the type level (found in review: a GET-with-body used to be constructible,
+    // reach fetch, throw there, and get silently retried/masked as a generic NetworkError).
+    const body = options.method === "POST" ? options.body : undefined;
 
-    return fetch(url, init);
+    const { signal, cleanup } = combineSignals([AbortSignal.timeout(timeoutMs), options.signal]);
+    try {
+      const init: FetchInit = {
+        method: options.method,
+        headers,
+        signal,
+        ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+        ...(this.#config.dispatcher !== undefined ? { dispatcher: this.#config.dispatcher } : {}),
+      };
+
+      return await fetch(url, init);
+    } finally {
+      // Without this, a long-lived caller-supplied signal shared across many calls/attempts
+      // (e.g. paginating, each retried) accumulates one never-removed listener per attempt — a
+      // real leak found in review, not hypothetical.
+      cleanup();
+    }
   }
 }

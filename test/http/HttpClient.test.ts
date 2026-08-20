@@ -353,4 +353,42 @@ describe("HttpClient", () => {
     });
     expect(result).toEqual({ ok: true });
   });
+
+  it("a signal that aborts DURING a retry backoff wait rejects immediately, not after the sleep finishes (found in review)", async () => {
+    const fetchMock = vi
+      .mocked(fetch)
+      .mockImplementation(async () => new Response(JSON.stringify({ detail: "boom" }), { status: 500 }));
+
+    const sdkConfig = new SdkConfig({ apiKey: "su_test_key_abc123", maxRetries: 2 });
+    // Never resolves on its own — the ONLY way this test's promise can settle is the signal
+    // aborting mid-wait. Proves #sleepOrAbort actually races the sleep against the signal,
+    // instead of always waiting for the sleep first (the bug found in review).
+    const neverResolvingSleep = () => new Promise<void>(() => {});
+    const httpClient = new HttpClient(sdkConfig, { sleep: neverResolvingSleep });
+
+    const controller = new AbortController();
+    const promise = httpClient.request({
+      method: "GET",
+      path: "/api/v1/products",
+      signal: controller.signal,
+    });
+    // A macrotask, not a synchronous call — lets the first failed attempt's microtasks (the
+    // mocked fetch resolving, the retry check, #sleepOrAbort attaching its listener) run first,
+    // so this genuinely exercises "abort while waiting," not "already aborted before starting."
+    setTimeout(() => controller.abort(), 0);
+
+    await expect(promise).rejects.toBeInstanceOf(NetworkError);
+    await expect(promise).rejects.toMatchObject({ message: "Request cancelled" });
+    expect(fetchMock).toHaveBeenCalledTimes(1); // never reached a second attempt
+  });
+
+  it("a GET with a body throws immediately, before ever calling fetch (found in review — defense-in-depth beneath the type guarantee)", async () => {
+    const fetchMock = vi.mocked(fetch);
+    const invalidOptions = { method: "GET", path: "/api/v1/products", body: { oops: true } };
+
+    await expect(
+      client().request(invalidOptions as unknown as { method: "GET"; path: string }),
+    ).rejects.toThrow(TypeError);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
 });
