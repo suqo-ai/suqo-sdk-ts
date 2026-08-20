@@ -79,4 +79,14 @@ describe("parseRetryAfterMs", () => {
   it("accepts zero", () => {
     expect(parseRetryAfterMs("0")).toBe(0);
   });
+
+  it("clamps an absurd value instead of stalling indefinitely (found in review)", () => {
+    // A misconfigured/malicious server sending Retry-After: 86400 (a full day) must not be able
+    // to stall a request for that long with nothing bounding it.
+    expect(parseRetryAfterMs("86400")).toBe(60_000);
+  });
+
+  it("still respects a legitimate value under the cap", () => {
+    expect(parseRetryAfterMs("30")).toBe(30_000);
+  });
 });

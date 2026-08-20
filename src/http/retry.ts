@@ -51,14 +51,23 @@ export function backoffDelayMs(attempt: number): number {
 }
 
 /**
- * Parses a `Retry-After` header value into milliseconds. Only the seconds-delta form (e.g. `"5"`)
- * is supported — the common case for rate-limit headers; the HTTP-date form is out of scope for
- * now. Returns `undefined` if unparseable, so the caller falls back to computed backoff instead of
- * guessing (SDK-SPEC.md §8: "Respect Retry-After when present").
+ * Generous cap on a server-supplied `Retry-After`, distinct from `MAX_DELAY_MS` (computed
+ * backoff's own cap). `Retry-After` is explicit server guidance, worth respecting well past a
+ * guessed backoff's ceiling — but an unbounded value (misconfigured server, or a malicious one)
+ * must not stall a request indefinitely (found in review: a `Retry-After: 86400` would otherwise
+ * wait a full day with nothing bounding it).
+ */
+const MAX_RETRY_AFTER_MS = 60_000;
+
+/**
+ * Parses a `Retry-After` header value into milliseconds, clamped to `MAX_RETRY_AFTER_MS`. Only
+ * the seconds-delta form (e.g. `"5"`) is supported — the common case for rate-limit headers; the
+ * HTTP-date form is out of scope for now. Returns `undefined` if unparseable, so the caller falls
+ * back to computed backoff instead of guessing (SDK-SPEC.md §8: "Respect Retry-After when present").
  */
 export function parseRetryAfterMs(headerValue: string | null): number | undefined {
   if (headerValue === null) return undefined;
   const seconds = Number(headerValue);
   if (!Number.isFinite(seconds) || seconds < 0) return undefined;
-  return seconds * 1000;
+  return Math.min(seconds * 1000, MAX_RETRY_AFTER_MS);
 }
