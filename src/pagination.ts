@@ -55,3 +55,40 @@ export function toPageQuery(params?: PageParams): QueryParams {
     page_size: params?.pageSize,
   };
 }
+
+/**
+ * Auto-iterates every row across every page, following `next` until it's `null` (SDK-SPEC.md §6),
+ * without requiring manual page math. Deliberately decoupled from `HttpClient`/any resource: the
+ * caller supplies the already-fetched first page and a `fetchNext` callback that turns a `next`
+ * URL into the following page. This keeps pagination testable and reusable across every future
+ * paginated resource (Ticket 4) without this file needing to know how HTTP requests are made.
+ *
+ * Manual `page`/`pageSize` access (via {@link toPageQuery}) remains available independently —
+ * this iterator is additive, not a replacement (SDK-SPEC.md §6 requires both to keep working).
+ *
+ * @example
+ * ```ts
+ * const firstPage = await suqo.subscriptions.list({ pageSize: 100 });
+ * for await (const subscription of listAll(firstPage, fetchNextPage)) {
+ *   // subscription: Subscription
+ * }
+ * ```
+ */
+export async function* listAll<T>(
+  firstPage: PaginationEnvelope<T>,
+  fetchNext: (nextUrl: string) => Promise<PaginationEnvelope<T>>,
+): AsyncIterableIterator<T> {
+  let page: PaginationEnvelope<T> = firstPage;
+
+  while (true) {
+    for (const item of page.results) {
+      yield item;
+    }
+
+    if (page.next === null) {
+      return;
+    }
+
+    page = await fetchNext(page.next);
+  }
+}
