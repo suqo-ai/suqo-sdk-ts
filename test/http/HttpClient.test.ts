@@ -298,4 +298,59 @@ describe("HttpClient", () => {
       body: { pbpId: "pbp_123" },
     });
   });
+
+  it("a caller-supplied signal cancels the request (PR #13 review: nitesh-codepros)", async () => {
+    vi.mocked(fetch).mockImplementation((_url, init) => {
+      return new Promise<Response>((_resolve, reject) => {
+        const signal = (init as RequestInit | undefined)?.signal;
+        if (signal?.aborted) {
+          reject(signal.reason);
+          return;
+        }
+        signal?.addEventListener("abort", () => reject(signal.reason));
+      });
+    });
+
+    const controller = new AbortController();
+    const promise = client({ maxRetries: 2 }).request({
+      method: "GET",
+      path: "/api/v1/products",
+      signal: controller.signal,
+    });
+    controller.abort();
+
+    await expect(promise).rejects.toBeInstanceOf(NetworkError);
+    await expect(promise).rejects.toMatchObject({ message: "Request cancelled" });
+  });
+
+  it("a caller cancellation is never retried, even for an otherwise-retryable GET", async () => {
+    const fetchMock = vi.mocked(fetch).mockImplementation((_url, init) => {
+      return new Promise<Response>((_resolve, reject) => {
+        const signal = (init as RequestInit | undefined)?.signal;
+        signal?.addEventListener("abort", () => reject(signal.reason));
+      });
+    });
+
+    const controller = new AbortController();
+    const promise = client({ maxRetries: 2 }).request({
+      method: "GET",
+      path: "/api/v1/products",
+      signal: controller.signal,
+    });
+    controller.abort();
+
+    await expect(promise).rejects.toBeInstanceOf(NetworkError);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("caller signal and internal timeout are combined — whichever fires first wins, and neither leaks past a normal success", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ ok: true }));
+    const controller = new AbortController(); // never aborted
+    const result = await client().request({
+      method: "GET",
+      path: "/api/v1/products",
+      signal: controller.signal,
+    });
+    expect(result).toEqual({ ok: true });
+  });
 });

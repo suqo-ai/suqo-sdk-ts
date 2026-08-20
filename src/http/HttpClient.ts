@@ -25,6 +25,14 @@ export interface HttpRequestOptions<TBody = unknown> {
   body?: TBody;
   /** Per-call timeout override, in milliseconds. Defaults to `SdkConfig.timeoutMs`. */
   timeoutMs?: number;
+  /**
+   * Optional caller-supplied signal for cancelling an in-flight request — e.g. the host
+   * application's own request lifecycle ending, or an overall operation deadline spanning
+   * multiple SDK calls. Combined with the internal timeout signal; whichever fires first wins.
+   * An explicit caller cancellation is never retried, even for an otherwise-retryable read —
+   * retrying after the caller said "stop" would ignore what they asked for.
+   */
+  signal?: AbortSignal;
 }
 
 /** `RequestInit` extended with undici's non-standard `dispatcher` option (Node's built-in `fetch`, addendum §2). */
@@ -34,6 +42,24 @@ interface FetchInit extends RequestInit {
 
 function defaultSleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Combines multiple signals into one that aborts as soon as any of them do. Hand-rolled rather
+ * than the built-in `AbortSignal.any` (Node 18.17+/20.3+ only) so the SDK's stated Node 18+ floor
+ * (addendum §1) holds without a caveat.
+ */
+function combineSignals(signals: Array<AbortSignal | undefined>): AbortSignal {
+  const controller = new AbortController();
+  for (const signal of signals) {
+    if (!signal) continue;
+    if (signal.aborted) {
+      controller.abort(signal.reason);
+      break;
+    }
+    signal.addEventListener("abort", () => controller.abort(signal.reason), { once: true });
+  }
+  return controller.signal;
 }
 
 /**
@@ -51,10 +77,13 @@ async function parseJsonBody(response: Response): Promise<unknown> {
 }
 
 /**
- * Wraps a `fetch` rejection (network failure or `AbortSignal.timeout` firing) as a `NetworkError`
- * (SDK-SPEC.md §7 — covers timeouts too, no separate class).
+ * Wraps a `fetch` rejection (network failure, `AbortSignal.timeout` firing, or a caller
+ * cancellation) as a `NetworkError` (SDK-SPEC.md §7 — covers timeouts too, no separate class).
  */
-function toNetworkError(cause: unknown, timeoutMs: number): NetworkError {
+function toNetworkError(cause: unknown, timeoutMs: number, callerCancelled: boolean): NetworkError {
+  if (callerCancelled) {
+    return new NetworkError("Request cancelled", { cause });
+  }
   if (cause instanceof Error && cause.name === "TimeoutError") {
     return new NetworkError(`Request timed out after ${timeoutMs}ms`, { cause });
   }
@@ -75,10 +104,11 @@ export interface HttpClientOptions {
  * The fetch wrapper every resource calls through (SDK-SPEC.md §3, §4, §8; addendum §2, §10).
  *
  * Handles, in one place: the trailing-slash URL guarantee, the `Authorization`/`Content-Type`
- * headers, per-call timeout via `AbortSignal.timeout`, the read-only retry policy (exponential
- * backoff + jitter, honoring `Retry-After`), and feeding every non-2xx response through
- * `mapHttpError()` so callers only ever see a typed `SuqoError` subclass — never a raw `fetch`
- * rejection or an unparsed error body.
+ * headers, per-call timeout via `AbortSignal.timeout`, caller-supplied cancellation (`options.
+ * signal`, combined with the timeout — whichever fires first wins), the read-only retry policy
+ * (exponential backoff + jitter, honoring `Retry-After`), and feeding every non-2xx response
+ * through `mapHttpError()` so callers only ever see a typed `SuqoError` subclass — never a raw
+ * `fetch` rejection or an unparsed error body.
  *
  * Not wired into `SuqoClient`/any resource yet — that lands in Ticket 4.
  */
@@ -114,11 +144,19 @@ export class HttpClient {
       try {
         response = await this.#doFetch(url, options, timeoutMs);
       } catch (cause) {
-        if (!isLastAttempt && retryable && isRetryableFailure({ networkError: true })) {
+        // An explicit caller cancellation is never retried, even for a normally-retryable read —
+        // continuing after the caller said "stop" would ignore what they asked for.
+        const callerCancelled = options.signal?.aborted === true;
+        if (
+          !callerCancelled &&
+          !isLastAttempt &&
+          retryable &&
+          isRetryableFailure({ networkError: true })
+        ) {
           await this.#sleep(backoffDelayMs(attempt - 1));
           continue;
         }
-        throw toNetworkError(cause, timeoutMs);
+        throw toNetworkError(cause, timeoutMs, callerCancelled);
       }
 
       if (response.ok) {
@@ -165,7 +203,7 @@ export class HttpClient {
     const init: FetchInit = {
       method: options.method,
       headers,
-      signal: AbortSignal.timeout(timeoutMs),
+      signal: combineSignals([AbortSignal.timeout(timeoutMs), options.signal]),
       ...(options.body !== undefined ? { body: JSON.stringify(options.body) } : {}),
       ...(this.#config.dispatcher !== undefined ? { dispatcher: this.#config.dispatcher } : {}),
     };
