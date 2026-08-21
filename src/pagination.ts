@@ -6,8 +6,12 @@ import type { QueryParams } from "./http/urlBuilder.js";
  * @packageDocumentation
  */
 
-/** The page-number pagination envelope common to every list endpoint (SDK-SPEC.md §6). */
-export interface PaginationEnvelope<T> {
+/**
+ * The page-number pagination envelope common to every list endpoint (SDK-SPEC.md §6).
+ * Named `Page` per the cross-language SDK Naming Map v1.1 §06 (mirrors `openapi.yaml`'s
+ * `PaginationEnvelope` schema, renamed on the SDK surface only — the wire shape is unaffected).
+ */
+export interface Page<T> {
   /** Total row count across every page, not just this one. */
   count: number;
   /** URL of the next page, or `null` on the last page. */
@@ -32,8 +36,10 @@ export interface SubscriptionStatusCounts {
  * The Subscriptions list envelope: the common shape plus the four extra counts, surfaced
  * alongside `results` rather than replacing the common envelope shape (SDK-SPEC.md §6). Generic
  * over `T` so this file doesn't need to know about the `Subscription` type — Ticket 4 supplies it.
+ * Named `SubscriptionPage` per the Naming Map §06 (mirrors `openapi.yaml`'s
+ * `SubscriptionListEnvelope`, renamed on the SDK surface only).
  */
-export type SubscriptionPaginationEnvelope<T> = PaginationEnvelope<T> & SubscriptionStatusCounts;
+export type SubscriptionPage<T> = Page<T> & SubscriptionStatusCounts;
 
 /** Manual pagination params a caller can pass instead of using `listAll`. */
 export interface PageParams {
@@ -83,11 +89,11 @@ export function toPageQuery(params?: PageParams): QueryParams {
  * ```
  */
 export async function* listAll<T>(
-  firstPage: PaginationEnvelope<T>,
-  fetchNext: (nextUrl: string) => Promise<PaginationEnvelope<T>>,
+  firstPage: Page<T>,
+  fetchNext: (nextUrl: string) => Promise<Page<T>>,
   maxPages = 10_000,
 ): AsyncIterableIterator<T> {
-  let page: PaginationEnvelope<T> = firstPage;
+  let page: Page<T> = firstPage;
   let pagesSeen = 0;
 
   while (true) {

@@ -14,7 +14,7 @@ interface HttpRequestOptionsBase {
   path: string;
   /** Query params, appended after the trailing slash. `undefined` values are skipped. */
   query?: QueryParams;
-  /** Per-call timeout override, in milliseconds. Defaults to `SdkConfig.timeoutMs`. */
+  /** Per-call timeout override, in milliseconds. Defaults to `SdkConfig.timeout`. */
   timeoutMs?: number;
   /**
    * Optional caller-supplied signal for cancelling an in-flight request — e.g. the host
@@ -163,7 +163,7 @@ export class HttpClient {
 
     const retryable = isRetryableMethod(options.method);
     const maxAttempts = retryable ? this.#config.maxRetries + 1 : 1;
-    const timeoutMs = options.timeoutMs ?? this.#config.timeoutMs;
+    const timeoutMs = options.timeoutMs ?? this.#config.timeout;
 
     for (let attempt = 1; ; attempt++) {
       const isLastAttempt = attempt >= maxAttempts;
@@ -180,7 +180,7 @@ export class HttpClient {
         // treatment as `#doFetch` itself failing, not an unmapped rejection escaping `request()`.
         // Wrapping both in the same try/catch below (found in review) is what makes that happen.
         const body = await parseJsonBody(response);
-        const retryAfterMs =
+        const retryAfter =
           response.status === 429 ? parseRetryAfterMs(response.headers.get("Retry-After")) : undefined;
 
         if (
@@ -188,7 +188,7 @@ export class HttpClient {
           retryable &&
           isRetryableFailure({ networkError: false, status: response.status })
         ) {
-          await this.#sleepOrAbort(retryAfterMs ?? backoffDelayMs(attempt - 1), options.signal, timeoutMs);
+          await this.#sleepOrAbort(retryAfter ?? backoffDelayMs(attempt - 1), options.signal, timeoutMs);
           continue;
         }
 
@@ -196,7 +196,7 @@ export class HttpClient {
           status: response.status,
           statusText: response.statusText,
           body,
-          ...(retryAfterMs !== undefined ? { retryAfterMs } : {}),
+          ...(retryAfter !== undefined ? { retryAfter } : {}),
         });
       } catch (cause) {
         // Already a correctly-classified SuqoError (from mapHttpError just above, or a caller

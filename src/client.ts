@@ -10,8 +10,12 @@ export interface SuqoClientOptions {
    * constructor throws `SuqoConfigError`. Normally omit this.
    */
   baseUrl?: string;
-  /** Per-client default request timeout in milliseconds; per-call override also allowed by `http.ts` (Ticket 2). Default 30_000. */
-  timeoutMs?: number;
+  /**
+   * Per-client default request timeout in milliseconds; per-call override also allowed by
+   * `http.ts` (Ticket 2). Default 30_000. Named `timeout`, not `timeoutMs` — per SDK Naming Map
+   * v1.1, SDK-surface fields drop the `Ms` suffix.
+   */
+  timeout?: number;
   /** Max retry attempts for idempotent reads (reads only — writes are never retried, SDK-SPEC.md §8, §12). Default 2. */
   maxRetries?: number;
   /** Advanced: custom undici dispatcher for connection-pool tuning, passed through opaquely (Ticket 2). */
@@ -51,8 +55,8 @@ export class SuqoClient {
   }
 
   /** The effective request timeout in milliseconds (default 30_000). */
-  get timeoutMs(): number {
-    return this.#config.timeoutMs;
+  get timeout(): number {
+    return this.#config.timeout;
   }
 
   /** The effective max retry count for idempotent reads (default 2). */

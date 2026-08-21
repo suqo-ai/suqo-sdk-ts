@@ -39,7 +39,7 @@ describe("backoffDelayMs", () => {
     for (let i = 0; i < 50; i++) {
       const delay = backoffDelayMs(0);
       expect(delay).toBeGreaterThanOrEqual(0);
-      expect(delay).toBeLessThanOrEqual(200);
+      expect(delay).toBeLessThanOrEqual(500);
     }
   });
 
@@ -47,7 +47,7 @@ describe("backoffDelayMs", () => {
     for (let i = 0; i < 50; i++) {
       const delay = backoffDelayMs(10); // exponential cap would be huge; must clamp
       expect(delay).toBeGreaterThanOrEqual(0);
-      expect(delay).toBeLessThanOrEqual(5000);
+      expect(delay).toBeLessThanOrEqual(8000);
     }
   });
 
@@ -68,8 +68,26 @@ describe("parseRetryAfterMs", () => {
     expect(parseRetryAfterMs(null)).toBeUndefined();
   });
 
-  it("returns undefined for a non-numeric value rather than guessing", () => {
-    expect(parseRetryAfterMs("Wed, 21 Oct 2026 07:28:00 GMT")).toBeUndefined();
+  it("returns undefined for a genuinely unparseable value rather than guessing", () => {
+    expect(parseRetryAfterMs("banana")).toBeUndefined();
+  });
+
+  it("parses the HTTP-date form (RFC 7231) into ms until that date", () => {
+    const now = Date.parse("2026-01-01T00:00:00.000Z");
+    const tenSecondsOut = new Date(now + 10_000).toUTCString();
+    expect(parseRetryAfterMs(tenSecondsOut, now)).toBe(10_000);
+  });
+
+  it("an HTTP-date already in the past means 0 (retry now), not a negative value", () => {
+    const now = Date.parse("2026-01-01T00:00:00.000Z");
+    const tenSecondsAgo = new Date(now - 10_000).toUTCString();
+    expect(parseRetryAfterMs(tenSecondsAgo, now)).toBe(0);
+  });
+
+  it("clamps a far-future HTTP-date to MAX_RETRY_AFTER_MS, same as the numeric form", () => {
+    const now = Date.parse("2026-01-01T00:00:00.000Z");
+    const wayOut = new Date(now + 999_000).toUTCString();
+    expect(parseRetryAfterMs(wayOut, now)).toBe(60_000);
   });
 
   it("returns undefined for a negative value", () => {

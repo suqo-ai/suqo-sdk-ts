@@ -28,7 +28,7 @@ export interface HttpErrorInput {
   /** The backend's request id for this call, if one was returned (nice-to-have — Ticket 0 item 3). */
   requestId?: string;
   /** Suggested backoff derived from a `Retry-After` header, in milliseconds. Only meaningful for 429s. */
-  retryAfterMs?: number;
+  retryAfter?: number;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -88,7 +88,7 @@ function messageFrom(body: unknown, fallback: string): string {
  * ```
  */
 export function mapHttpError(input: HttpErrorInput): SuqoError {
-  const { status, statusText, body, requestId, retryAfterMs } = input;
+  const { status, statusText, body, requestId, retryAfter } = input;
   const fallbackMessage = `Request failed with status ${status}${statusText ? ` (${statusText})` : ""}`;
   // rawBody's declared type is `unknown`, so including it unconditionally is always valid under
   // exactOptionalPropertyTypes; requestId is narrower (string), so it's only spread in when
@@ -99,9 +99,9 @@ export function mapHttpError(input: HttpErrorInput): SuqoError {
     case 401:
       return new AuthenticationError(messageFrom(body, fallbackMessage), base);
     case 403: {
-      const statusCode = isRecord(body) && typeof body.status_code === "string" ? body.status_code : undefined;
+      const kycStatus = isRecord(body) && typeof body.status_code === "string" ? body.status_code : undefined;
       const message = messageFrom(body, "KYC verification needed to perform this action.");
-      return new KycRequiredError(message, { ...base, ...(statusCode !== undefined ? { statusCode } : {}) });
+      return new KycRequiredError(message, { ...base, ...(kycStatus !== undefined ? { kycStatus } : {}) });
     }
     case 400: {
       if (isDetailShaped(body)) {
@@ -114,7 +114,7 @@ export function mapHttpError(input: HttpErrorInput): SuqoError {
     case 429:
       return new RateLimitError(messageFrom(body, fallbackMessage), {
         ...base,
-        ...(retryAfterMs !== undefined ? { retryAfterMs } : {}),
+        ...(retryAfter !== undefined ? { retryAfter } : {}),
       });
     default:
       // 5xx and any genuinely unmapped status both land here. SDK-SPEC.md §7 doesn't define a

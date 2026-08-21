@@ -2,11 +2,11 @@ import { describe, expect, it, vi } from "vitest";
 import {
   listAll,
   toPageQuery,
-  type PaginationEnvelope,
-  type SubscriptionPaginationEnvelope,
+  type Page,
+  type SubscriptionPage,
 } from "../src/pagination.js";
 
-function envelope<T>(results: T[], next: string | null): PaginationEnvelope<T> {
+function envelope<T>(results: T[], next: string | null): Page<T> {
   return { count: results.length, next, previous: null, results };
 }
 
@@ -95,9 +95,9 @@ describe("listAll", () => {
   });
 });
 
-describe("PaginationEnvelope / SubscriptionPaginationEnvelope shape", () => {
+describe("Page / SubscriptionPage shape", () => {
   it("a plain envelope (e.g. Products) works fine with no extra counts present", () => {
-    const products: PaginationEnvelope<{ productId: string }> = envelope(
+    const products: Page<{ productId: string }> = envelope(
       [{ productId: "p1" }, { productId: "p2" }],
       null,
     );
@@ -106,7 +106,7 @@ describe("PaginationEnvelope / SubscriptionPaginationEnvelope shape", () => {
   });
 
   it("the Subscriptions extension surfaces the four extra counts alongside the common envelope, unbroken", () => {
-    const subscriptions: SubscriptionPaginationEnvelope<{ subscriptionId: string }> = {
+    const subscriptions: SubscriptionPage<{ subscriptionId: string }> = {
       ...envelope([{ subscriptionId: "s1" }], null),
       totalSubscriptions: 85,
       activeSubscriptions: 60,
@@ -125,7 +125,7 @@ describe("PaginationEnvelope / SubscriptionPaginationEnvelope shape", () => {
   });
 
   it("listAll works identically whether or not the envelope carries the extra Subscription counts", async () => {
-    const subscriptionsPage: SubscriptionPaginationEnvelope<number> = {
+    const subscriptionsPage: SubscriptionPage<number> = {
       ...envelope([1, 2], null),
       totalSubscriptions: 2,
       activeSubscriptions: 2,

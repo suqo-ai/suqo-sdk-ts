@@ -21,11 +21,11 @@ function jsonResponse(body: unknown, init: ResponseInit = {}): Response {
 /** Instant "sleep" so retry tests don't actually wait through real backoff delays. */
 const instantSleep = async () => {};
 
-function client(config: Partial<{ maxRetries: number; timeoutMs: number }> = {}): HttpClient {
+function client(config: Partial<{ maxRetries: number; timeout: number }> = {}): HttpClient {
   const sdkConfig = new SdkConfig({
     apiKey: "su_test_key_abc123",
     maxRetries: config.maxRetries ?? 2,
-    timeoutMs: config.timeoutMs ?? 30_000,
+    timeout: config.timeout ?? 30_000,
   });
   return new HttpClient(sdkConfig, { sleep: instantSleep });
 }
@@ -206,7 +206,7 @@ describe("HttpClient", () => {
     expect(sleep).toHaveBeenCalledWith(5000);
   });
 
-  it("still maps to RateLimitError with retryAfterMs when 429 persists past maxRetries", async () => {
+  it("still maps to RateLimitError with retryAfter when 429 persists past maxRetries", async () => {
     vi.mocked(fetch).mockResolvedValue(
       new Response(JSON.stringify({ detail: "slow down" }), {
         status: 429,
@@ -217,7 +217,7 @@ describe("HttpClient", () => {
       .request({ method: "GET", path: "/api/v1/products" })
       .catch((e: unknown) => e);
     expect(error).toBeInstanceOf(RateLimitError);
-    expect((error as RateLimitError).retryAfterMs).toBe(2000);
+    expect((error as RateLimitError).retryAfter).toBe(2000);
   });
 
   it("maps a real timeout (AbortSignal.timeout firing) to NetworkError", async () => {
@@ -232,7 +232,7 @@ describe("HttpClient", () => {
       });
     });
 
-    const sdkConfig = new SdkConfig({ apiKey: "su_key_abc123", maxRetries: 0, timeoutMs: 5 });
+    const sdkConfig = new SdkConfig({ apiKey: "su_key_abc123", maxRetries: 0, timeout: 5 });
     const httpClient = new HttpClient(sdkConfig, { sleep: instantSleep });
 
     const error = await httpClient
@@ -250,7 +250,7 @@ describe("HttpClient", () => {
       });
     });
 
-    const sdkConfig = new SdkConfig({ apiKey: "su_key_abc123", maxRetries: 0, timeoutMs: 30_000 });
+    const sdkConfig = new SdkConfig({ apiKey: "su_key_abc123", maxRetries: 0, timeout: 30_000 });
     const httpClient = new HttpClient(sdkConfig, { sleep: instantSleep });
 
     const error = await httpClient

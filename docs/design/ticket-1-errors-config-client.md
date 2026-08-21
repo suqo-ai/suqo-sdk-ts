@@ -63,13 +63,13 @@ classDiagram
   SuqoError <|-- NetworkError
 
   class KycRequiredError {
-    +statusCode: string or null
+    +kycStatus: string or null
   }
   class ValidationError {
     +fieldErrors: map of string to list of string
   }
   class RateLimitError {
-    +retryAfterMs: integer or null
+    +retryAfter: integer or null
   }
 ```
 
@@ -80,10 +80,10 @@ classDiagram
 | `SuqoError` | never thrown directly | `status`, `rawBody`, `requestId`, `message` | Base of every error the SDK throws. A catch-all `instanceof`/`isinstance` check against this class must catch everything. |
 | `SuqoConfigError` | construction-time only: malformed API key, or an explicit environment override that disagrees with the key | nothing extra | Never carries `status`/`rawBody` — there was no request to get them from. Thrown **before** any network call. |
 | `AuthenticationError` | HTTP 401 | nothing extra | Message comes from the response body's `detail` field. |
-| `KycRequiredError` | HTTP 403 | `statusCode` | `statusCode` comes from the response body's `status_code` field (the KYC status). Every 403 in this API is a KYC condition — there is no separate generic "forbidden" class. |
+| `KycRequiredError` | HTTP 403 | `kycStatus` | `kycStatus` comes from the response body's `status_code` field (the KYC status). Named `kycStatus`, not `statusCode` — per SDK Naming Map v1.1's rename register, `status_code` "reads as an HTTP status but carries a KYC status," and sits right next to the base class's real HTTP `status` field. Every 403 in this API is a KYC condition — there is no separate generic "forbidden" class. |
 | `ValidationError` | HTTP 400 | `fieldErrors` | See the dual-shape mapping rule below — this is the one class with real decision logic behind it. |
 | `NotFoundError` | HTTP 404 | nothing extra | |
-| `RateLimitError` | HTTP 429 | `retryAfterMs` | **Reserved** — the API doesn't enforce rate limits yet, so this is never thrown today. Exists so the SDK is forward-ready. |
+| `RateLimitError` | HTTP 429 | `retryAfter` | **Reserved** — the API doesn't enforce rate limits yet, so this is never thrown today. Exists so the SDK is forward-ready. Named `retryAfter`, not `retryAfterMs`, per SDK Naming Map v1.1 (SDK-surface fields drop the `Ms` suffix). |
 | `ServerError` | HTTP 5xx, and any genuinely unmapped status | nothing extra | See "design decisions" below for why unmapped codes land here instead of the base class. |
 | `NetworkError` | transport failure, timeout, or a caller-initiated cancellation | nothing extra | Covers all three — there's no separate timeout or cancellation class. |
 
@@ -93,7 +93,7 @@ This isn't a class — it's a **pure function contract** every language SDK must
 identically:
 
 ```
-function mapHttpError(status, statusText, body, requestId?, retryAfterMs?) -> SuqoError subclass
+function mapHttpError(status, statusText, body, requestId?, retryAfter?) -> SuqoError subclass
 ```
 
 Decision table (evaluate top to bottom, first match wins). Fallback message strings are given
@@ -103,11 +103,11 @@ developer switching languages sees identical error text:
 | status | body shape | → | Fallback message (if the body doesn't supply one) |
 |---|---|---|---|
 | 401 | `{ detail }` | `AuthenticationError(message = body.detail)` | `"Request failed with status 401"` |
-| 403 | `{ status_code, message }` | `KycRequiredError(message = body.message, statusCode = body.status_code)` | `"KYC verification needed to perform this action."` |
+| 403 | `{ status_code, message }` | `KycRequiredError(message = body.message, kycStatus = body.status_code)` | `"KYC verification needed to perform this action."` |
 | 400 | `{ detail }` present | `ValidationError(message = body.detail, fieldErrors = {})` | — (detail is required for this branch to match at all) |
 | 400 | field-keyed (`{ field: "msg" \| ["msg"] }`) | `ValidationError(message = fallback, fieldErrors = normalized(body))` | `"Validation failed."` |
 | 404 | `{ detail }` | `NotFoundError(message = body.detail)` | `"Not found."` |
-| 429 | any | `RateLimitError(message, retryAfterMs)` | `"Request failed with status 429"` |
+| 429 | any | `RateLimitError(message, retryAfter)` | `"Request failed with status 429"` |
 | 5xx, or anything else | any | `ServerError(message)` | `"Request failed with status {status}"` (+ ` ({statusText})` if available) |
 
 **Field-value normalization rule** (used by the 400 field-keyed branch): a field's value may
@@ -132,7 +132,7 @@ A language implementation is correct if and only if all of these hold:
       fallback `"Validation failed."` (not something derived from the fields).
 - [ ] A field's array-of-strings value survives unchanged; a plain-string value becomes a
       one-element list; a non-string/array value is dropped, not coerced.
-- [ ] `KycRequiredError.statusCode` is unset (not an empty string) when the body has no
+- [ ] `KycRequiredError.kycStatus` is unset (not an empty string) when the body has no
       `status_code`.
 
 ---
@@ -146,7 +146,7 @@ classDiagram
   class SdkConfig {
     +environment: "sandbox" | "live"
     +baseUrl: string
-    +timeoutMs: integer
+    +timeout: integer
     +maxRetries: integer
     +dispatcher: opaque, optional
     -apiKey: string  «hidden — see redaction contract»
@@ -162,7 +162,7 @@ This is what goes **in** — distinct from the fields shown above, which is what
 |---|---|---|---|
 | `apiKey` | string | **yes** | — |
 | `baseUrl` | string | no | inferred from `apiKey`'s prefix |
-| `timeoutMs` | integer | no | `30000` |
+| `timeout` | integer | no | `30000` |
 | `maxRetries` | integer | no | `2` |
 | `dispatcher` | opaque/implementation-defined | no | none |
 
@@ -213,7 +213,7 @@ config object and assert the raw key string is not present anywhere in the outpu
 
 | Field | Default | Overridable |
 |---|---|---|
-| `timeoutMs` | 30000 | per-client, and per-call (Ticket 2) |
+| `timeout` | 30000 | per-client, and per-call (Ticket 2) |
 | `maxRetries` | 2 | per-client |
 
 ### Conformance checklist — Step B
@@ -225,7 +225,7 @@ config object and assert the raw key string is not present anywhere in the outpu
 - [ ] A `baseUrl` override equal to the inferred URL is accepted silently.
 - [ ] A `baseUrl` override that disagrees with the inferred URL throws `SuqoConfigError` — it is
       never silently accepted or silently ignored.
-- [ ] `timeoutMs`/`maxRetries` default to `30000`/`2` when omitted, and honor an explicit value
+- [ ] `timeout`/`maxRetries` default to `30000`/`2` when omitted, and honor an explicit value
       when given.
 - [ ] Serializing/printing/logging the constructed object never contains the raw key string.
 
@@ -240,7 +240,7 @@ classDiagram
   class SuqoClient {
     +environment: "sandbox" | "live"
     +baseUrl: string
-    +timeoutMs: integer
+    +timeout: integer
     +maxRetries: integer
     -config: SdkConfig  «hidden»
   }
@@ -258,7 +258,7 @@ public entry point for that input shape.
 
 - Construction either succeeds completely or throws `SuqoConfigError` — there is no partially-
   constructed state.
-- Exposes `environment`, `baseUrl`, `timeoutMs`, `maxRetries` as read-only fields for
+- Exposes `environment`, `baseUrl`, `timeout`, `maxRetries` as read-only fields for
   introspection/debugging. Does **not** expose the raw API key as a public field — see Step B's
   redaction contract, which applies to the client too, not just the config it wraps.
 - At this stage, exposes nothing else. `.products`, `.subscriptions`, `.customers`, `.webhooks`
@@ -296,6 +296,18 @@ between language SDKs should see identical behavior:
 3. **`SdkConfig` (or its equivalent) is not part of the public API.** Only the client class is
    public. This matches `SDK-SPEC.md` §5's public surface, which only ever shows client
    construction, never a separate config object being constructed directly.
+
+4. **Renamed `KycRequiredError.statusCode`→`kycStatus`, `RateLimitError.retryAfterMs`→
+   `retryAfter`, and `SdkConfig`/`SuqoClientOptions.timeoutMs`→`timeout` (2026-08-21).** SDK
+   Naming Map v1.1's rename register calls out `statusCode` by name — it "reads as an HTTP status
+   but carries a KYC status," and sits right next to the base class's real HTTP `status` field, so
+   the two must stay visibly distinct. The `Ms`-suffix drops (`retryAfterMs`→`retryAfter`,
+   `timeoutMs`→`timeout`) follow the map's general rule that SDK-surface fields document their
+   unit rather than encoding it in the name. Purely renames — no field, no wire shape, no behavior
+   changed. See Ticket 2's design doc for the retry-constant value fix and the `parseRetryAfterMs`
+   HTTP-date functional fix that shipped alongside these renames. Applied retroactively to
+   already-shipped code, since this document and the map are both meant to be the same source of
+   truth going forward.
 
 ---
 

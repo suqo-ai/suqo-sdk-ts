@@ -80,7 +80,7 @@ interface SuqoClientOptions {
    *  the constructor throws SuqoConfigError. Normally omit this. */
   baseUrl?: string;
   /** Per-client default; per-call override also allowed. Default 30_000. */
-  timeoutMs?: number;
+  timeout?: number;
   /** Read-retry tuning. Writes are never retried (see spec §8, §12). */
   maxRetries?: number;      // default 2 (reads only)
   /** Advanced: custom undici dispatcher for pool tuning. */
@@ -180,7 +180,7 @@ try {
     e.fieldErrors;   // Record<string, string[]>  (empty if the 400 used `detail`)
     e.message;       // populated when the 400 was `{ detail: … }`
   } else if (e instanceof KycRequiredError) {
-    e.statusCode;    // the KYC status string
+    e.kycStatus;     // the KYC status string
   }
 }
 ```

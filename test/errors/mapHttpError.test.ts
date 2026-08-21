@@ -18,20 +18,20 @@ describe("mapHttpError", () => {
     expect(err.status).toBe(401);
   });
 
-  it("maps 403 to KycRequiredError, exposing statusCode from the KycError body", () => {
+  it("maps 403 to KycRequiredError, exposing kycStatus from the KycError body", () => {
     const err = mapHttpError({
       status: 403,
       body: { status_code: "pending", message: "KYC verification needed to perform this action." },
     });
     expect(err).toBeInstanceOf(KycRequiredError);
-    expect((err as KycRequiredError).statusCode).toBe("pending");
+    expect((err as KycRequiredError).kycStatus).toBe("pending");
     expect(err.message).toBe("KYC verification needed to perform this action.");
   });
 
-  it("403 without a status_code leaves statusCode undefined rather than guessing", () => {
+  it("403 without a status_code leaves kycStatus undefined rather than guessing", () => {
     const err = mapHttpError({ status: 403, body: {} }) as KycRequiredError;
     expect(err).toBeInstanceOf(KycRequiredError);
-    expect(err.statusCode).toBeUndefined();
+    expect(err.kycStatus).toBeUndefined();
   });
 
   it("maps a field-keyed 400 to ValidationError.fieldErrors, normalizing string values to arrays", () => {
@@ -67,10 +67,10 @@ describe("mapHttpError", () => {
     expect(err.message).toBe("Not found.");
   });
 
-  it("maps 429 to RateLimitError, carrying retryAfterMs when given (reserved — SDK-SPEC.md §10)", () => {
-    const err = mapHttpError({ status: 429, retryAfterMs: 5000 }) as RateLimitError;
+  it("maps 429 to RateLimitError, carrying retryAfter when given (reserved — SDK-SPEC.md §10)", () => {
+    const err = mapHttpError({ status: 429, retryAfter: 5000 }) as RateLimitError;
     expect(err).toBeInstanceOf(RateLimitError);
-    expect(err.retryAfterMs).toBe(5000);
+    expect(err.retryAfter).toBe(5000);
   });
 
   it.each([500, 502, 503, 504])("maps %i to ServerError", (status) => {

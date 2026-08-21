@@ -159,7 +159,7 @@ Normalized hierarchy (same names, idiomatic casing per language):
 | `SuqoError`           | base — never thrown directly                      | carries `status`, `rawBody`, best-effort `message` |
 | `SuqoConfigError`     | construction-time config problems                 | **malformed key**, env/prefix conflict (§2)        |
 | `AuthenticationError` | `401` (`detail: "Invalid or inactive API key."`)  |                                                    |
-| `KycRequiredError`    | `403` KYC not verified                            | exposes `statusCode` (the KYC status)              |
+| `KycRequiredError`    | `403` KYC not verified                            | exposes `kycStatus` (the KYC status)               |
 | `ValidationError`     | `400`                                             | exposes `fieldErrors: Record<string,string[]>`     |
 | `NotFoundError`       | `404`                                             |                                                    |
 | `RateLimitError`      | `429`                                             | **reserved** — not emitted until rate limiting ships (§10) |

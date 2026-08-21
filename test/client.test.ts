@@ -33,15 +33,15 @@ describe("SuqoClient", () => {
     expect(suqo.baseUrl).toBe("https://test.be.suqo.ai");
   });
 
-  it("defaults timeoutMs to 30_000 and maxRetries to 2", () => {
+  it("defaults timeout to 30_000 and maxRetries to 2", () => {
     const suqo = new SuqoClient({ apiKey: "su_key_abc123" });
-    expect(suqo.timeoutMs).toBe(30_000);
+    expect(suqo.timeout).toBe(30_000);
     expect(suqo.maxRetries).toBe(2);
   });
 
-  it("honors explicit timeoutMs and maxRetries", () => {
-    const suqo = new SuqoClient({ apiKey: "su_key_abc123", timeoutMs: 5000, maxRetries: 5 });
-    expect(suqo.timeoutMs).toBe(5000);
+  it("honors explicit timeout and maxRetries", () => {
+    const suqo = new SuqoClient({ apiKey: "su_key_abc123", timeout: 5000, maxRetries: 5 });
+    expect(suqo.timeout).toBe(5000);
     expect(suqo.maxRetries).toBe(5);
   });
 

@@ -35,8 +35,8 @@ export function isRetryableFailure(input: RetryableFailureInput): boolean {
   return input.status === 429 || (input.status >= 500 && input.status <= 599);
 }
 
-const BASE_DELAY_MS = 200;
-const MAX_DELAY_MS = 5_000;
+const BASE_DELAY_MS = 500;
+const MAX_DELAY_MS = 8_000;
 
 /**
  * "Full jitter" backoff (SDK-SPEC.md §8: exponential backoff + jitter, bounded attempts): a
@@ -60,19 +60,35 @@ export function backoffDelayMs(attempt: number): number {
 const MAX_RETRY_AFTER_MS = 60_000;
 
 /**
- * Parses a `Retry-After` header value into milliseconds, clamped to `MAX_RETRY_AFTER_MS`. Only
- * the seconds-delta form (e.g. `"5"`) is supported — the common case for rate-limit headers; the
- * HTTP-date form is out of scope for now. Returns `undefined` if unparseable, so the caller falls
- * back to computed backoff instead of guessing (SDK-SPEC.md §8: "Respect Retry-After when present").
+ * Parses a `Retry-After` header value into milliseconds, clamped to `MAX_RETRY_AFTER_MS`. Accepts
+ * both forms RFC 7231 §7.1.3 allows: the seconds-delta form (e.g. `"5"`) and the HTTP-date form
+ * (e.g. `"Wed, 21 Oct 2026 07:28:00 GMT"`) — accepting only the former is a common bug (SDK Naming
+ * Map v1.1), since real servers (and load balancers in front of them) send either. Returns
+ * `undefined` if neither form parses, so the caller falls back to computed backoff instead of
+ * guessing (SDK-SPEC.md §8: "Respect Retry-After when present").
+ *
+ * @param now - The current time in epoch ms, used to convert an HTTP-date into a delta.
+ *   Overridable for tests; defaults to `Date.now()`.
  */
-export function parseRetryAfterMs(headerValue: string | null): number | undefined {
+export function parseRetryAfterMs(headerValue: string | null, now: number = Date.now()): number | undefined {
   if (headerValue === null) return undefined;
   // `Number("")` (and whitespace-only strings) is `0` in JavaScript, not `NaN` — checked
   // explicitly so an empty-but-present header is treated as unparseable, not "retry after 0ms"
   // (found in review: this would otherwise hammer a server that just asked to slow down).
   const trimmed = headerValue.trim();
   if (trimmed.length === 0) return undefined;
+
   const seconds = Number(trimmed);
-  if (!Number.isFinite(seconds) || seconds < 0) return undefined;
-  return Math.min(seconds * 1000, MAX_RETRY_AFTER_MS);
+  if (Number.isFinite(seconds)) {
+    if (seconds < 0) return undefined;
+    return Math.min(seconds * 1000, MAX_RETRY_AFTER_MS);
+  }
+
+  // Not the delta-seconds form — try the HTTP-date form. `Date.parse` returns `NaN` for anything
+  // it can't parse, which also correctly rejects plain garbage strings rather than guessing.
+  const dateMs = Date.parse(trimmed);
+  if (Number.isNaN(dateMs)) return undefined;
+  // A date already in the past means "retry now," not "unparseable" or a negative wait.
+  const delta = Math.max(dateMs - now, 0);
+  return Math.min(delta, MAX_RETRY_AFTER_MS);
 }

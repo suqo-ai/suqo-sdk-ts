@@ -15,7 +15,10 @@ This ticket implements:
   extension, and the auto-iterator requirement ("SHOULD provide an auto-iterator... manual
   `page`/`pageSize` access remains available").
 - **openapi.yaml's `PaginationEnvelope`/`SubscriptionListEnvelope`/`Page`/`PageSize` parameters** —
-  the exact field names and query param names this ticket's types and mapping must match.
+  the exact field names and query param names this ticket's types and mapping must match. These
+  are the *wire* schema names (unaffected by the rename below, per Naming Map R1).
+- **SDK Naming Map v1.1 §06** — renames the SDK-surface types to `Page<T>`/`SubscriptionPage<T>`
+  (2026-08-21, applied retroactively — see "Design decisions & rationale" below).
 
 This ticket also **found and fixed a real bug in Ticket 2's `buildUrl`** while building against
 it — see "Design decisions & rationale" below. That fix lives in `http/urlBuilder.ts`, not this
@@ -42,7 +45,7 @@ function. None of it is wired to a real resource yet; that's Ticket 4.
 
 ```mermaid
 classDiagram
-  class PaginationEnvelope~T~ {
+  class Page~T~ {
     +count: integer
     +next: string or null
     +previous: string or null
@@ -54,27 +57,27 @@ classDiagram
     +dueSubscriptions: integer
     +inactiveSubscriptions: integer
   }
-  class SubscriptionPaginationEnvelope~T~ {
-    <<PaginationEnvelope~T~ & SubscriptionStatusCounts — intersection, not inheritance>>
+  class SubscriptionPage~T~ {
+    <<Page~T~ & SubscriptionStatusCounts — intersection, not inheritance>>
   }
-  PaginationEnvelope~T~ <.. SubscriptionPaginationEnvelope~T~
-  SubscriptionStatusCounts <.. SubscriptionPaginationEnvelope~T~
+  Page~T~ <.. SubscriptionPage~T~
+  SubscriptionStatusCounts <.. SubscriptionPage~T~
 ```
 
 ### Contracts
 
 | Type | Shape | Notes |
 |---|---|---|
-| `PaginationEnvelope<T>` | `count`, `next`, `previous`, `results` | The common shape every list endpoint returns. `T` is left generic on purpose — this file never needs to know about `Product`, `Subscription`, etc. |
+| `Page<T>` | `count`, `next`, `previous`, `results` | The common shape every list endpoint returns. `T` is left generic on purpose — this file never needs to know about `Product`, `Subscription`, etc. Named `Page` (not `PaginationEnvelope`) per SDK Naming Map v1.1 §06. |
 | `SubscriptionStatusCounts` | the 4 extra counts | Exists as its own named type (not inlined) so it can be combined with the base envelope without duplicating field definitions. |
-| `SubscriptionPaginationEnvelope<T>` | `PaginationEnvelope<T> & SubscriptionStatusCounts` | **Composed by intersection, not by subclassing.** The 4 extra counts sit *alongside* `results`, never replacing or restructuring the common envelope — a consumer that only knows about `PaginationEnvelope<T>` can still read `count`/`next`/`previous`/`results` off a `SubscriptionPaginationEnvelope<T>` value without any special-casing. |
+| `SubscriptionPage<T>` | `Page<T> & SubscriptionStatusCounts` | **Composed by intersection, not by subclassing.** The 4 extra counts sit *alongside* `results`, never replacing or restructuring the common envelope — a consumer that only knows about `Page<T>` can still read `count`/`next`/`previous`/`results` off a `SubscriptionPage<T>` value without any special-casing. Named `SubscriptionPage` per the Naming Map. |
 
 ### Conformance checklist — Step A
 
-- [ ] A products-style envelope (no extra counts) type-checks against `PaginationEnvelope<T>` with
+- [ ] A products-style envelope (no extra counts) type-checks against `Page<T>` with
       no unused/missing-field errors.
 - [ ] A subscriptions-style envelope (with the 4 extra counts) type-checks against
-      `SubscriptionPaginationEnvelope<T>` and *also* satisfies `PaginationEnvelope<T>` on its own
+      `SubscriptionPage<T>` and *also* satisfies `Page<T>` on its own
       — the extension must never break structural compatibility with the base shape.
 - [ ] The 4 extra count field names match `openapi.yaml`'s `SubscriptionListEnvelope` exactly
       (case-mapped per language): `total_subscriptions`, `active_subscriptions`,
@@ -110,8 +113,8 @@ function toPageQuery(params?: { page?: integer, pageSize?: integer }) -> { page,
 
 ```
 function listAll<T>(
-  firstPage: PaginationEnvelope<T>,
-  fetchNext: (nextUrl: string) -> Promise<PaginationEnvelope<T>>,
+  firstPage: Page<T>,
+  fetchNext: (nextUrl: string) -> Promise<Page<T>>,
   maxPages: integer = 10000,
 ) -> AsyncIterator<T>
 ```
@@ -122,6 +125,7 @@ function listAll<T>(
 | Termination | Yields every item of the current page, then — if `next` is `null` — stops. Otherwise calls `fetchNext(next)` and repeats. |
 | Safety cap | `maxPages` (default 10,000) bounds how many pages the loop will follow before giving up and raising an error, rather than trusting the sequence to terminate forever. This exists because of a real bug: an earlier version had no such cap, and a stuck `fetchNext` (or a misbehaving server) would hang the iterator indefinitely with unbounded memory growth. 10,000 is generous enough that no realistic dataset trips it, while still catching a genuine stuck loop. |
 | Manual access stays available | This iterator is additive. A caller who wants to manage `page`/`pageSize` manually (via Step B) never has to touch this function at all — SDK-SPEC.md §6 requires both paths to keep working side by side. |
+| Public name (Ticket 4) | This internal function's own name (`listAll`) is not necessarily the *public* resource method's name — SDK Naming Map v1.1 §04 calls the public method `autoPaging()`. Ticket 4 decides how the two connect. |
 
 ### Conformance checklist — Step C
 
@@ -132,8 +136,8 @@ function listAll<T>(
 - [ ] A sequence that never reaches `next: null` throws once `maxPages` is exceeded, rather than
       iterating forever.
 - [ ] A legitimate sequence well under `maxPages` is never falsely flagged.
-- [ ] The iterator behaves identically whether the envelope is a plain `PaginationEnvelope<T>` or
-      a `SubscriptionPaginationEnvelope<T>` — the extra counts must never interfere with iteration.
+- [ ] The iterator behaves identically whether the envelope is a plain `Page<T>` or
+      a `SubscriptionPage<T>` — the extra counts must never interfere with iteration.
 
 ---
 
@@ -161,11 +165,18 @@ function listAll<T>(
    very large dataset (or a deliberately small one, for testing) can override it, rather than
    being stuck with one global value baked into the function.
 
+4. **Renamed `PaginationEnvelope`/`SubscriptionPaginationEnvelope` to `Page`/`SubscriptionPage`
+   (2026-08-21).** SDK Naming Map v1.1 §06 mandates this exact SDK-surface naming, matching how it
+   also renames `PaginationEnvelope` in the map's own model-types table. Purely a rename — no
+   field, no behavior, no wire shape changed. Applied retroactively to already-shipped Ticket 3
+   code, since this document and the map are both meant to be the same source of truth going
+   forward.
+
 ---
 
 ## What's intentionally not in this doc
 
 - `HttpClient`/`buildUrl` themselves — Ticket 2's design doc (updated to reflect the absolute-URL
   fix above).
-- How a resource method (`subscriptions.list()`, `.listAll()`) actually wires `fetchNext` to a
+- How a resource method (`subscriptions.list()`, `.autoPaging()`) actually wires `fetchNext` to a
   real HTTP call — Ticket 4.
