@@ -145,6 +145,22 @@ export class HttpClient {
     }
 
     const url = buildUrl(this.#config.baseUrl, options.path, options.query);
+
+    // Security guard, found in review: buildUrl accepts an already-complete absolute URL as
+    // `path` (needed so a pagination `next` link, Ticket 3, can be followed as-is) — but this
+    // client attaches the real API key to every request unconditionally. Without this check, a
+    // `next` link that ever pointed off-host (a compromised proxy, a backend bug, tampering)
+    // would silently leak the key to that host. `path` being relative always resolves to
+    // `baseUrl`'s own origin by construction, so this only ever fires for an absolute `path`
+    // that's actually wrong.
+    if (new URL(url).origin !== new URL(this.#config.baseUrl).origin) {
+      throw new Error(
+        `Refusing to send a request to ${new URL(url).origin} — it does not match the configured ` +
+          `origin ${new URL(this.#config.baseUrl).origin}. This SDK never sends its API key to a ` +
+          "different host.",
+      );
+    }
+
     const retryable = isRetryableMethod(options.method);
     const maxAttempts = retryable ? this.#config.maxRetries + 1 : 1;
     const timeoutMs = options.timeoutMs ?? this.#config.timeoutMs;

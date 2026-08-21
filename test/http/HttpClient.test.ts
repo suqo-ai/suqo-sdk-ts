@@ -460,4 +460,29 @@ describe("HttpClient", () => {
     // request eventually settled" — a real leak would show growth here instead.
     expect(getEventListeners(controller.signal, "abort")).toHaveLength(0);
   });
+
+  it("refuses to send a request off-host, even when path is an already-complete absolute URL (found in review — key-leak guard)", async () => {
+    const fetchMock = vi.mocked(fetch);
+
+    await expect(
+      client().request({
+        method: "GET",
+        path: "https://evil.example.com/steal?x=1",
+      }),
+    ).rejects.toThrow(/does not match the configured origin/);
+
+    // The critical part of the guard: fetch is never even attempted, so the key is never sent.
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("still allows an absolute URL when it genuinely matches the configured origin (e.g. a real pagination next link)", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ ok: true }));
+
+    const result = await client().request({
+      method: "GET",
+      path: "https://test.be.suqo.ai/api/v1/subscriptions/?page=2",
+    });
+
+    expect(result).toEqual({ ok: true });
+  });
 });
