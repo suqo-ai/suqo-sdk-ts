@@ -312,3 +312,38 @@ Idempotency is **cancelled for v1** but recorded here so it drops in cleanly:
   stale-timestamp, and the body-reserialization trap).
 - **CI matrix** per supported runtime version; publish to the language's standard
   registry on tagged release.
+
+---
+
+## 16. Logging & observability
+
+Added 2026-08-21, in response to a gap flagged in review (no logging existed anywhere in the SDK
+or this spec — a genuine omission carried over from retiring the old RFC-based plan, not a
+deliberate decision).
+
+- **Opt-in, silent by default.** No log output of any kind unless the caller explicitly configures
+  a log level at construction. A library that logs unprompted is a bad citizen inside a host
+  application's own logging setup.
+- **Levels:** `error` < `warn` < `info` < `debug`, each level including everything the levels below
+  it log:
+  - `error` — the final failure, right before it's thrown to the caller.
+  - `warn` — adds retry attempts (a retry means something's not going smoothly and is worth
+    surfacing, even if the overall call eventually succeeds).
+  - `info` — adds a one-line summary per request: method, path, resulting status, duration.
+  - `debug` — adds full detail per attempt: the outgoing request, each retry's computed backoff
+    delay, cancellations.
+- **Single hook point.** All logging originates from the HTTP layer (the fetch wrapper) — the one
+  place every request, retry, timeout, and error already passes through. No other part of the SDK
+  needs its own logging logic.
+- **Metadata only — never the request/response body.** Even at `debug`, log lines carry method,
+  path, status, timing, and retry counters — never the actual JSON payload. This SDK's requests
+  routinely carry a buyer's name, phone, email, and address, plus financial amounts; logging full
+  bodies at any level risks leaking that into a host application's own logs.
+- **The API key is never logged, at any level** — this is the existing §4 rule, restated here
+  because it's the one absolute exception the "even `debug` shows everything" idea does not
+  override.
+- **Pluggable output (optional, may land as a later addition to this same capability):** beyond a
+  simple level setting that writes to the language's standard console/stderr, a caller may supply
+  their own logger implementation (e.g. an app's existing Winston/Pino instance) so output routes
+  wherever their application already sends logs. This is additive — a plain level setting must
+  work correctly with zero extra configuration before this exists.
