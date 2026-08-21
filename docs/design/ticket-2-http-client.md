@@ -52,9 +52,20 @@ function buildUrl(baseUrl, path, query?) -> string
 
 | Rule | Detail |
 |---|---|
-| Trailing slash | If `path` doesn't already end in `/`, one is added. Never assume the caller got it right — this is the SDK's last line of defense for SDK-SPEC.md §3, not a courtesy. |
+| Trailing slash | If the *path portion* doesn't already end in `/`, one is added. Never assume the caller got it right — this is the SDK's last line of defense for SDK-SPEC.md §3, not a courtesy. **Must be checked against the parsed path, not the raw input string** — see the correction below. |
 | Query placement | Query parameters are appended **after** the trailing slash: `.../products/?page=2`. |
 | Omitted values | A query value that is absent/null is skipped entirely, not sent as an empty parameter — so a caller can pass `{ page, pageSize }` straight through without pre-filtering. |
+| Absolute-URL input | `path` may also be an already-complete absolute URL with its own query string attached (e.g. a pagination `next` link, Ticket 3). `baseUrl` is then ignored, and any existing query string is preserved untouched; additional `query` params are merged in on top rather than replacing what's there. |
+
+**Correction (2026-08-21, found while building Ticket 3):** the original implementation checked
+"does the *raw input string* end in `/`" before parsing it as a URL. That's only safe when `path`
+is a bare relative path with no query string. The moment `path` is an already-complete URL with a
+query string attached (exactly `listAll`'s `fetchNext` contract), checking the raw string is wrong
+— it appends `/` after the query string instead of after the path, silently corrupting whichever
+query parameter happens to be last (`page_size=50` became `page_size=50/`, reproduced and
+confirmed). **The fix, and the rule any language's equivalent must follow: parse into a URL object
+first, then check/fix the trailing slash on the parsed path component specifically — never on the
+raw input string.**
 
 ### Conformance checklist — Step A
 
@@ -62,6 +73,10 @@ function buildUrl(baseUrl, path, query?) -> string
 - [ ] `buildUrl(base, "/api/v1/products/")` → unchanged, not doubled to `//`.
 - [ ] Query parameters land after the slash, in the order given.
 - [ ] A query value that's absent produces no parameter at all for that key.
+- [ ] An already-complete absolute URL with an existing query string (e.g.
+      `.../subscriptions/?page=2&page_size=50`) passes through **unchanged** — no query parameter
+      is corrupted by a stray trailing slash.
+- [ ] Additional query params merge onto an absolute URL's existing ones rather than replacing them.
 
 ---
 
