@@ -128,7 +128,7 @@ never lands in a log line.
 ```ts
 suqo.products.list({ page?, pageSize? })                 // -> ProductPage
 suqo.subscriptions.list({ page?, pageSize? })            // -> SubscriptionPage (+status counts)
-suqo.subscriptions.create({ pbpId, returnUrl, client })  // -> CreateSubscriptionResponse
+suqo.subscriptions.create({ pbpId, returnUrl, customer })  // -> CreateSubscriptionResponse
 suqo.subscriptions.cancel(id)                            // -> { message: string }
 suqo.subscriptions.updateBillingCycle({ subscriptionId, nextBillingCycle })
 suqo.customers.list()      // stub -> throws until documented (spec §11)
@@ -140,6 +140,19 @@ suqo.webhooks.verify({ rawBody, signature, timestamp, secret, toleranceSec? })
 - Method args are **camelCase**; the client maps to the API's snake_case
   (`pbpId` → `pbp_id`, `nextBillingCycle` → `next_billing_cycle`) at the
   serialization boundary. Callers never see snake_case.
+- `create`'s `customer` field is `client` on the wire (`specs/openapi.yaml`
+  `CreateSubscriptionRequest.client`) — renamed here because `client` already
+  names the SDK object itself. Same rename applies reading a subscription back:
+  its embedded record is typed `SubscriptionCustomer`, not `ClientRead`. Only
+  the root key is renamed; nested fields keep their wire names as-is
+  (SDK Naming Map v1.1, Customer boundary).
+- Every `*Request` schema on the wire (`CreateSubscriptionRequest`,
+  `UpdateBillingCycleRequest`) is a `*Params` type on the SDK surface
+  (`CreateSubscriptionParams`, `UpdateBillingCycleParams`) — "Request" reads as
+  an HTTP request object, which it isn't.
+- The `Message` wire schema (`cancel`/`updateBillingCycle`'s `{ message: string
+  }` response) is typed `MessageResponse` on the surface — `Message` would
+  collide with `SuqoError.message`.
 - Every path is built with the **trailing slash** baked in; query strings append
   after it.
 - **Decimal fields stay `string`** in all types (`price`, `amount`,
@@ -156,12 +169,15 @@ page.count;                // number
 page.activeSubscriptions;  // extended count (subscriptions list only)
 
 // Auto-iterate every page, following `next` until null:
-for await (const sub of suqo.subscriptions.listAll({ pageSize: 100 })) {
+for await (const sub of suqo.subscriptions.autoPaging({ pageSize: 100 })) {
   // sub: Subscription
 }
 ```
 
-`listAll` returns an `AsyncIterableIterator`; it stops when `next` is `null`.
+`autoPaging` returns an `AsyncIterableIterator`; it stops when `next` is
+`null`. (Internally it's powered by `pagination.ts`'s `listAll()` generator —
+that name stays internal; `autoPaging` is what the resource method exposes,
+per SDK Naming Map v1.1 §04.)
 
 ---
 

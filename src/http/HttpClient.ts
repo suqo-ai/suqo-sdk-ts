@@ -39,9 +39,11 @@ export interface HttpGetRequestOptions extends HttpRequestOptionsBase {
 
 /**
  * Options for a `POST` request. Generic on `TBody` so a call site can pass a concrete request
- * type (e.g. `CreateSubscriptionRequest` from `openapi.yaml`, wired up in Ticket 4) and have it
- * checked at compile time — `unknown` is only the *default* for callers that don't specify one,
- * never a signal that bodies go untyped by design.
+ * type (e.g. `CreateSubscriptionParams`, wired up in Ticket 4 — the SDK-surface type for
+ * `openapi.yaml`'s `CreateSubscriptionRequest` schema; SDK Naming Map v1.1 renames every
+ * `*Request` wire schema to `*Params` on the surface, since "Request" reads as an HTTP request
+ * object, not an SDK input) and have it checked at compile time — `unknown` is only the *default*
+ * for callers that don't specify one, never a signal that bodies go untyped by design.
  */
 export interface HttpPostRequestOptions<TBody = unknown> extends HttpRequestOptionsBase {
   method: "POST";
@@ -131,7 +133,7 @@ export class HttpClient {
    * reads retry on network failure, `429`, or `5xx`, bounded by `SdkConfig.maxRetries`.
    *
    * Generic on both `TResponse` and `TBody` — e.g.
-   * `request<CreateSubscriptionResponse, CreateSubscriptionRequest>({ body, ... })` — so a
+   * `request<CreateSubscriptionResponse, CreateSubscriptionParams>({ body, ... })` — so a
    * resource method (Ticket 4) gets its request body checked against the exact shape it means to
    * send, not just `unknown`.
    */

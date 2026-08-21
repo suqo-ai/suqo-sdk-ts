@@ -273,7 +273,9 @@ describe("HttpClient", () => {
   });
 
   it("request<TResponse, TBody> checks the body against TBody at compile time (PR #13 review: nitesh-codepros)", async () => {
-    interface CreateSubscriptionRequest {
+    // Named Params, not Request, per SDK Naming Map v1.1: "Request" reads as an HTTP request
+    // object, not an SDK input — the eventual Ticket 4 type is CreateSubscriptionParams.
+    interface CreateSubscriptionParams {
       pbpId: string;
       returnUrl: string;
     }
@@ -281,7 +283,7 @@ describe("HttpClient", () => {
     vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ subscriptionId: "abc" }, { status: 201 }));
 
     // A correctly-typed body compiles and round-trips through fetch unmodified.
-    await client().request<{ subscriptionId: string }, CreateSubscriptionRequest>({
+    await client().request<{ subscriptionId: string }, CreateSubscriptionParams>({
       method: "POST",
       path: "/api/v1/subscriptions",
       body: { pbpId: "pbp_123", returnUrl: "https://example.com/return" },
@@ -290,10 +292,10 @@ describe("HttpClient", () => {
     expect(init?.body).toBe(JSON.stringify({ pbpId: "pbp_123", returnUrl: "https://example.com/return" }));
 
     vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ subscriptionId: "abc" }, { status: 201 }));
-    await client().request<{ subscriptionId: string }, CreateSubscriptionRequest>({
+    await client().request<{ subscriptionId: string }, CreateSubscriptionParams>({
       method: "POST",
       path: "/api/v1/subscriptions",
-      // @ts-expect-error a body missing required fields of CreateSubscriptionRequest must not
+      // @ts-expect-error a body missing required fields of CreateSubscriptionParams must not
       // typecheck — this is the concrete proof the generic actually enforces the typed pattern,
       // not just documents an intention.
       body: { pbpId: "pbp_123" },
