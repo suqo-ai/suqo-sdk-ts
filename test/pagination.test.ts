@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  bridgeAutoPaging,
   listAll,
   toPageQuery,
   type Page,
@@ -92,6 +93,48 @@ describe("listAll", () => {
       items.push(item);
     }
     expect(items).toEqual([1, 2]);
+  });
+});
+
+describe("bridgeAutoPaging", () => {
+  it("awaits the first-page promise, then delegates to listAll unchanged", async () => {
+    const firstPage = Promise.resolve(envelope([1, 2], "https://api.example/?page=2"));
+    const fetchNext = vi.fn().mockResolvedValueOnce(envelope([3], null));
+
+    const items: number[] = [];
+    for await (const item of bridgeAutoPaging(firstPage, fetchNext)) {
+      items.push(item);
+    }
+    expect(items).toEqual([1, 2, 3]);
+  });
+
+  it("returns an iterator immediately without starting work — nothing runs before the caller iterates", async () => {
+    // Proof, not assumption: the first-page promise is intentionally never awaited by the test
+    // before iterating. If bridgeAutoPaging() itself kicked off work eagerly instead of only when
+    // iteration starts, `resolved` would already be true here.
+    let resolved = false;
+    const firstPage = Promise.resolve(envelope([1], null)).then((page) => {
+      resolved = true;
+      return page;
+    });
+
+    const iterator = bridgeAutoPaging(firstPage, vi.fn());
+    expect(resolved).toBe(false);
+
+    const items: number[] = [];
+    for await (const item of iterator) items.push(item);
+    expect(items).toEqual([1]);
+    expect(resolved).toBe(true);
+  });
+
+  it("propagates maxPages through to the underlying listAll", async () => {
+    const firstPage = Promise.resolve(envelope([1], "https://api.example/?page=2"));
+    const fetchNext = vi.fn(async () => envelope([2], "https://api.example/?page=2"));
+
+    await expect(async () => {
+      const items: number[] = [];
+      for await (const item of bridgeAutoPaging(firstPage, fetchNext, 3)) items.push(item);
+    }).rejects.toThrow(/exceeded 3 pages/);
   });
 });
 

@@ -116,3 +116,39 @@ export async function* listAll<T>(
     page = await fetchNext(page.next);
   }
 }
+
+/**
+ * Bridges {@link listAll} to a resource's public `.autoPaging()` method (SDK Naming Map v1.1 §04
+ * — the public name is `.autoPaging()`; `listAll` stays this file's own internal engine name, per
+ * Ticket 3's design doc). Named `bridgeAutoPaging`, not `autoPaging`, specifically so it never
+ * shares a name with the public method that calls it — the two would still resolve correctly
+ * either way (a class method name isn't a lexical binding inside its own body), but a distinct
+ * name means nobody has to reason through that to be sure.
+ *
+ * The only difference from calling {@link listAll} directly is accepting the first page as a
+ * `Promise` rather than an already-resolved value — a resource method's `.autoPaging()` has to
+ * kick off that first request itself (e.g. `this.list(params)`), and returning an
+ * `AsyncIterableIterator` immediately (instead of `async function` + `await`) means nothing runs
+ * until the caller actually starts iterating, matching every other async generator's behavior.
+ *
+ * Still fully decoupled from `HttpClient`/any resource, same as {@link listAll} — this file never
+ * imports anything from the HTTP layer.
+ *
+ * @example
+ * ```ts
+ * autoPaging(params?: PageParams): AsyncIterableIterator<Product> {
+ *   return bridgeAutoPaging(this.list(params), (nextUrl) =>
+ *     this.#http.request<Page<Product>>({ method: "GET", path: nextUrl }),
+ *   );
+ * }
+ * ```
+ */
+export function bridgeAutoPaging<T>(
+  firstPage: Promise<Page<T>>,
+  fetchNext: (nextUrl: string) => Promise<Page<T>>,
+  maxPages = 10_000,
+): AsyncIterableIterator<T> {
+  return (async function* () {
+    yield* listAll(await firstPage, fetchNext, maxPages);
+  })();
+}
