@@ -8,6 +8,7 @@ import {
   ValidationError,
   type FieldErrors,
 } from "./SuqoError.js";
+import { isRecord } from "../utils/index.js";
 
 /**
  * The shape {@link mapHttpError} needs from a completed HTTP response. Deliberately not a
@@ -29,10 +30,6 @@ export interface HttpErrorInput {
   requestId?: string;
   /** Suggested backoff derived from a `Retry-After` header, in milliseconds. Only meaningful for 429s. */
   retryAfter?: number;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
 }
 
 /** True when `body` is the `DetailError` shape (`{ detail: "msg" }`) rather than field-keyed. */
