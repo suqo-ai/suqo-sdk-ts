@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   bridgeAutoPaging,
+  deserializePage,
   listAll,
   toPageQuery,
   type Page,
@@ -135,6 +136,26 @@ describe("bridgeAutoPaging", () => {
       const items: number[] = [];
       for await (const item of bridgeAutoPaging(firstPage, fetchNext, 3)) items.push(item);
     }).rejects.toThrow(/exceeded 3 pages/);
+  });
+});
+
+describe("deserializePage", () => {
+  it("maps each result item through deserializeItem, leaving count/next/previous untouched", () => {
+    const wire = envelope([{ product_id: "p1" }, { product_id: "p2" }], "https://api.example/?page=2");
+    const page = deserializePage(wire, (item) => ({ productId: item.product_id }));
+
+    expect(page).toEqual({
+      count: 2,
+      next: "https://api.example/?page=2",
+      previous: null,
+      results: [{ productId: "p1" }, { productId: "p2" }],
+    });
+  });
+
+  it("an empty results array maps to an empty array, not an error", () => {
+    const wire = envelope<{ product_id: string }>([], null);
+    const page = deserializePage(wire, (item) => ({ productId: item.product_id }));
+    expect(page.results).toEqual([]);
   });
 });
 

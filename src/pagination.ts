@@ -63,6 +63,25 @@ export function toPageQuery(params?: PageParams): QueryParams {
 }
 
 /**
+ * Maps a {@link Page}'s `results` through `deserializeItem`, leaving `count`/`next`/`previous`
+ * untouched — those three field names already match the wire exactly (`openapi.yaml`
+ * `PaginationEnvelope`), only `results`' items need any per-resource field mapping. Shared by
+ * every paginated resource so each one only has to supply its own item deserializer, not
+ * re-implement unwrapping the envelope.
+ */
+export function deserializePage<TWireItem, T>(
+  wire: Page<TWireItem>,
+  deserializeItem: (item: TWireItem) => T,
+): Page<T> {
+  return {
+    count: wire.count,
+    next: wire.next,
+    previous: wire.previous,
+    results: wire.results.map(deserializeItem),
+  };
+}
+
+/**
  * Auto-iterates every row across every page, following `next` until it's `null` (SDK-SPEC.md §6),
  * without requiring manual page math. Deliberately decoupled from `HttpClient`/any resource: the
  * caller supplies the already-fetched first page and a `fetchNext` callback that turns a `next`
