@@ -92,6 +92,15 @@ describe("mapHttpError", () => {
     expect(err.fieldErrors).toEqual({ "billing.client": ["not the customer boundary — a coincidental nested name"] });
   });
 
+  it("a field value shaped as a list of objects is skipped, not recursed into with numeric-index paths (found in review)", () => {
+    const err = mapHttpError({
+      status: 400,
+      body: { billing: [{ business_name: ["required"] }] },
+    }) as ValidationError;
+    expect(err.fieldErrors).toEqual({});
+    expect(err.fieldErrors).not.toHaveProperty("billing.0.business_name");
+  });
+
   it("maps a detail-shaped 400 (e.g. duplicate active subscription) to ValidationError.message, fieldErrors empty", () => {
     const err = mapHttpError({
       status: 400,

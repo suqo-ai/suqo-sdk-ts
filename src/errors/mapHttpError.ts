@@ -50,6 +50,13 @@ function isDetailShaped(body: unknown): body is { detail: string } {
  * API surface today. A value that's neither a string, a string array, nor a nested object worth
  * recursing into is skipped rather than guessed at — this never fabricates a message it wasn't
  * given.
+ *
+ * The nested-object check explicitly excludes arrays (`!Array.isArray(value)`), even though
+ * `isRecord` alone would let one through — `typeof anArray === "object"` in JavaScript. Without
+ * that exclusion, a field value shaped as a list of objects (e.g.
+ * `{"billing": [{"business_name": ["required"]}]}`) would get recursed into using the array's
+ * numeric indices as path segments (`billing.0.business_name`) instead of being skipped, silently
+ * contradicting the rule stated above (found in review, reproduced).
  */
 function fieldErrorsFrom(body: unknown, pathPrefix = ""): FieldErrors {
   if (!isRecord(body)) return {};
@@ -62,7 +69,7 @@ function fieldErrorsFrom(body: unknown, pathPrefix = ""): FieldErrors {
       fieldErrors[path] = [value];
     } else if (Array.isArray(value) && value.every((item) => typeof item === "string")) {
       fieldErrors[path] = value;
-    } else if (isRecord(value)) {
+    } else if (isRecord(value) && !Array.isArray(value)) {
       Object.assign(fieldErrors, fieldErrorsFrom(value, path));
     }
   }
