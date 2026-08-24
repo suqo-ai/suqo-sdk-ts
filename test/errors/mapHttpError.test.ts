@@ -49,6 +49,49 @@ describe("mapHttpError", () => {
     });
   });
 
+  it("flattens a nested client validation error to customer.<field> (confirmed live 2026-08-24, POST /subscriptions/)", () => {
+    // Real response body, captured live: a missing customer.phone comes back nested under
+    // "client" as an object, not a flat "client.phone" key — SDK Naming Map v1.1 Open Question A.
+    const err = mapHttpError({
+      status: 400,
+      body: { client: { phone: ["This field is required."] } },
+    }) as ValidationError;
+    expect(err.fieldErrors).toEqual({ "customer.phone": ["This field is required."] });
+    expect(err.fieldErrors).not.toHaveProperty("client.phone");
+  });
+
+  it("flattens multiple nested customer fields independently, each under its own customer.<field> key", () => {
+    const err = mapHttpError({
+      status: 400,
+      body: {
+        client: {
+          phone: ["This field is required."],
+          email: "Enter a valid email address.",
+        },
+      },
+    }) as ValidationError;
+    expect(err.fieldErrors).toEqual({
+      "customer.phone": ["This field is required."],
+      "customer.email": ["Enter a valid email address."],
+    });
+  });
+
+  it("renames a whole-object client error (string/array, not nested) straight to customer, with no dot-path", () => {
+    const err = mapHttpError({
+      status: 400,
+      body: { client: "This field is required." },
+    }) as ValidationError;
+    expect(err.fieldErrors).toEqual({ customer: ["This field is required."] });
+  });
+
+  it("a field literally named client NESTED under another field is left untouched — only the root client key renames", () => {
+    const err = mapHttpError({
+      status: 400,
+      body: { billing: { client: ["not the customer boundary — a coincidental nested name"] } },
+    }) as ValidationError;
+    expect(err.fieldErrors).toEqual({ "billing.client": ["not the customer boundary — a coincidental nested name"] });
+  });
+
   it("maps a detail-shaped 400 (e.g. duplicate active subscription) to ValidationError.message, fieldErrors empty", () => {
     const err = mapHttpError({
       status: 400,

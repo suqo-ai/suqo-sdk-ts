@@ -262,8 +262,13 @@ is not attached here (Ticket 5) — it makes no network call and needs no key.
 
 - `webhooks.verify()` — Ticket 5.
 - Contract/mock-server testing strategy — Ticket 7.
-- **Open question A** (are field-error keys translated `client`→`customer` too, e.g.
-  `client.phone`?) — unresolved in SDK Naming Map v1.1 itself; not decided, not implemented.
+- **Open question A — RESOLVED (2026-08-24).** Confirmed with lead: yes, translate. Confirmed
+  live against `POST /subscriptions/`: a validation failure on the customer payload nests errors
+  under `client` as a real object (`{"client": {"phone": ["This field is required."]}}`), not a
+  flat dotted key — exactly the "path-aware rewriting, not a flat key swap" the map warned this
+  would need. Implemented in `mapHttpError.ts`'s `fieldErrorsFrom` (Ticket 1) — see that file and
+  its design doc for the actual mapping logic; this ticket's resources didn't need any change
+  themselves, since the translation lives entirely in the error mapper.
 - **Open question B** (does the auto-iterator yield rows or pages; do the four subscription counts
   repeat on every page or only the first?) — also unresolved in the map; this ticket's
   `autoPaging()` yields individual rows (Ticket 3's `listAll` already made that choice), and

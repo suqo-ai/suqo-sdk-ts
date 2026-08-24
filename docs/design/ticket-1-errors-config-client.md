@@ -112,8 +112,16 @@ developer switching languages sees identical error text:
 
 **Field-value normalization rule** (used by the 400 field-keyed branch): a field's value may
 arrive as a single string or an array of strings on the wire; the mapper must normalize it to a
-list of strings either way. A value that's neither (e.g. a number) is dropped from the result
-rather than guessed at.
+list of strings either way. A value that's neither a string, a string array, nor a nested object
+(see below) is dropped from the result rather than guessed at.
+
+**Customer-boundary rewrite rule (SDK Naming Map v1.1 Open Question A, resolved 2026-08-24):** the
+wire's root-level `client` key is renamed to `customer`, and — because a validation failure on a
+nested field comes back as a real nested object rather than a flat dotted key (confirmed live:
+`{"client": {"phone": ["This field is required."]}}`) — the mapper recurses into any nested
+object value, flattening it into dot-path keys (`customer.phone`). This rewrite fires only for the
+exact root-level `client` key; a field genuinely named `client` nested somewhere else (none exist
+in the documented API surface today) is left untouched.
 
 **Shape-detection rule**: a body is "detail-shaped" if and only if it has a `detail` key. This is
 reliable because the API never uses `detail` as an actual field name in the field-keyed shape.
@@ -130,6 +138,9 @@ A language implementation is correct if and only if all of these hold:
 - [ ] A 400 with a `detail` key produces `fieldErrors` = empty, `message` = that detail text.
 - [ ] A 400 with field-keyed data produces `fieldErrors` populated, `message` = the literal
       fallback `"Validation failed."` (not something derived from the fields).
+- [ ] A field-keyed 400 with a nested `client` object (e.g. `{"client": {"phone": [...]}}`)
+      produces `fieldErrors["customer.phone"]`, not `fieldErrors["client"]` or a dropped value.
+- [ ] A `client` key nested inside some other field (not at the root) is left as-is, unrenamed.
 - [ ] A field's array-of-strings value survives unchanged; a plain-string value becomes a
       one-element list; a non-string/array value is dropped, not coerced.
 - [ ] `KycRequiredError.kycStatus` is unset (not an empty string) when the body has no
@@ -308,6 +319,16 @@ between language SDKs should see identical behavior:
    HTTP-date functional fix that shipped alongside these renames. Applied retroactively to
    already-shipped code, since this document and the map are both meant to be the same source of
    truth going forward.
+
+5. **Field-error keys ARE translated `client`→`customer`, path-aware (2026-08-24).** SDK Naming
+   Map v1.1 left this genuinely open ("Open Question A") — even the map's own author didn't have
+   an answer yet. Resolved by two things, in order: the lead's explicit call ("we need to rewrite
+   error keys to customer"), then confirming live against `POST /subscriptions/` that a nested
+   validation failure comes back as a real nested object
+   (`{"client": {"phone": ["This field is required."]}}`), not a flat dotted key — which settled
+   *how* to implement it, not just *whether* to. A flat key-swap would have silently dropped this
+   case entirely, since the old normalization rule only accepted a string or string-array value
+   per field, never a nested object.
 
 ---
 

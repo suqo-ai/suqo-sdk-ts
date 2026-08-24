@@ -38,18 +38,32 @@ function isDetailShaped(body: unknown): body is { detail: string } {
 }
 
 /**
- * Normalizes a `FieldError` body (`{ field: "msg" | ["msg"] }`) into `Record<string, string[]>`.
- * A field's value that's neither a string nor a string array is skipped rather than guessed at —
- * this never fabricates a message it wasn't given.
+ * Normalizes a `FieldError` body into `Record<string, string[]>`, flattening nested objects into
+ * dot-path keys (`customer.phone`) and renaming the wire's root `client` key to `customer` on the
+ * way — SDK Naming Map v1.1 Open Question A, resolved (2026-08-24, confirmed live against
+ * `POST /subscriptions/`): a validation failure on the customer payload nests errors under
+ * `client` as a real object (`{"client": {"phone": ["This field is required."]}}`), not a flat
+ * dotted key — so this needs path-aware rewriting, not a flat key swap, exactly as the map warned.
+ *
+ * Only the **root-level** `client` key is renamed (`pathPrefix === ""` below) — a field genuinely
+ * named `client` nested somewhere else wouldn't be, though no such field exists in the documented
+ * API surface today. A value that's neither a string, a string array, nor a nested object worth
+ * recursing into is skipped rather than guessed at — this never fabricates a message it wasn't
+ * given.
  */
-function fieldErrorsFrom(body: unknown): FieldErrors {
+function fieldErrorsFrom(body: unknown, pathPrefix = ""): FieldErrors {
   if (!isRecord(body)) return {};
   const fieldErrors: FieldErrors = {};
-  for (const [field, value] of Object.entries(body)) {
+  for (const [rawKey, value] of Object.entries(body)) {
+    const key = pathPrefix === "" && rawKey === "client" ? "customer" : rawKey;
+    const path = pathPrefix === "" ? key : `${pathPrefix}.${key}`;
+
     if (typeof value === "string") {
-      fieldErrors[field] = [value];
+      fieldErrors[path] = [value];
     } else if (Array.isArray(value) && value.every((item) => typeof item === "string")) {
-      fieldErrors[field] = value;
+      fieldErrors[path] = value;
+    } else if (isRecord(value)) {
+      Object.assign(fieldErrors, fieldErrorsFrom(value, path));
     }
   }
   return fieldErrors;
@@ -71,7 +85,10 @@ function messageFrom(body: unknown, fallback: string): string {
  *
  * Handles both documented 400 body shapes: a field-keyed body populates
  * `ValidationError.fieldErrors`; a `detail`-shaped body (e.g. the duplicate-active-subscription
- * case) populates `ValidationError.message` instead, with `fieldErrors` left empty.
+ * case) populates `ValidationError.message` instead, with `fieldErrors` left empty. A field-keyed
+ * body's `client` key (the wire name for the subscription customer payload) is renamed to
+ * `customer` and flattened into dot-path keys (`customer.phone`) — SDK Naming Map v1.1 Open
+ * Question A, resolved: yes, translate.
  *
  * Does not handle `fetch` throwing or an `AbortSignal` firing — those have no HTTP status and are
  * constructed directly as `NetworkError` by `http.ts` (Ticket 2).
