@@ -144,11 +144,17 @@ export async function* listAll<T>(
  * either way (a class method name isn't a lexical binding inside its own body), but a distinct
  * name means nobody has to reason through that to be sure.
  *
- * The only difference from calling {@link listAll} directly is accepting the first page as a
- * `Promise` rather than an already-resolved value — a resource method's `.autoPaging()` has to
- * kick off that first request itself (e.g. `this.list(params)`), and returning an
- * `AsyncIterableIterator` immediately (instead of `async function` + `await`) means nothing runs
- * until the caller actually starts iterating, matching every other async generator's behavior.
+ * Takes the first page as a **thunk** (`() => Promise<Page<T>>`), not an already-started
+ * `Promise` — this is deliberate, not a style choice. A resource method's `.autoPaging()` calls
+ * `this.list(params)` to build that first request; if that call happened eagerly (i.e. the caller
+ * passed the `Promise` itself), it would start firing the instant `.autoPaging()` is invoked, not
+ * when the caller actually begins iterating — and a rejection sitting unhandled between those two
+ * moments is a genuine `unhandledRejection`, which terminates a Node process by default (found in
+ * review, reproduced: calling `.autoPaging()` then doing anything else before iterating, on a
+ * request that fails, crashes the process — confirmed both with and without a handler attached).
+ * Wrapping the call in a thunk (`() => this.list(params)`) defers it until the async generator
+ * body actually runs `fetchFirstPage()`, which only happens once the caller starts iterating —
+ * matching every other async generator's behavior for real, not just by the doc comment's claim.
  *
  * Still fully decoupled from `HttpClient`/any resource, same as {@link listAll} — this file never
  * imports anything from the HTTP layer.
@@ -156,18 +162,18 @@ export async function* listAll<T>(
  * @example
  * ```ts
  * autoPaging(params?: PageParams): AsyncIterableIterator<Product> {
- *   return bridgeAutoPaging(this.list(params), (nextUrl) =>
+ *   return bridgeAutoPaging(() => this.list(params), (nextUrl) =>
  *     this.#http.request<Page<Product>>({ method: "GET", path: nextUrl }),
  *   );
  * }
  * ```
  */
 export function bridgeAutoPaging<T>(
-  firstPage: Promise<Page<T>>,
+  fetchFirstPage: () => Promise<Page<T>>,
   fetchNext: (nextUrl: string) => Promise<Page<T>>,
   maxPages = 10_000,
 ): AsyncIterableIterator<T> {
   return (async function* () {
-    yield* listAll(await firstPage, fetchNext, maxPages);
+    yield* listAll(await fetchFirstPage(), fetchNext, maxPages);
   })();
 }

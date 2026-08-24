@@ -156,7 +156,7 @@ export class SubscriptionsResource {
    * (SDK-SPEC.md §6). Manual `list({ page, pageSize })` remains available independently.
    */
   autoPaging(params?: PageParams): AsyncIterableIterator<Subscription> {
-    return bridgeAutoPaging(this.list(params), async (nextUrl) => {
+    return bridgeAutoPaging(() => this.list(params), async (nextUrl) => {
       const wire = await this.#http.request<WireSubscriptionListEnvelope>({ method: "GET", path: nextUrl });
       return deserializeSubscriptionPage(wire);
     });

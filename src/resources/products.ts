@@ -133,7 +133,7 @@ export class ProductsResource {
    * additive, not a replacement.
    */
   autoPaging(params?: PageParams): AsyncIterableIterator<Product> {
-    return bridgeAutoPaging(this.list(params), async (nextUrl) => {
+    return bridgeAutoPaging(() => this.list(params), async (nextUrl) => {
       const wire = await this.#http.request<Page<WireProduct>>({ method: "GET", path: nextUrl });
       return deserializePage(wire, deserializeProduct);
     });
