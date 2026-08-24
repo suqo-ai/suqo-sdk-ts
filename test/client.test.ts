@@ -1,6 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { SuqoClient } from "../src/client.js";
 import { SuqoConfigError } from "../src/errors/SuqoError.js";
+import { ProductsResource } from "../src/resources/products.js";
+import { SubscriptionsResource } from "../src/resources/subscriptions.js";
+import { CustomersResource } from "../src/resources/customers.js";
 
 describe("SuqoClient", () => {
   it("resolves sandbox for a su_test_key_ key and never throws for a well-formed key", () => {
@@ -45,10 +48,38 @@ describe("SuqoClient", () => {
     expect(suqo.maxRetries).toBe(5);
   });
 
-  it("exposes no .products/.subscriptions/.customers/.webhooks yet — that's a later ticket", () => {
+  it("attaches .products/.subscriptions/.customers, all sharing one HttpClient — no .webhooks yet (Ticket 5)", () => {
     const suqo = new SuqoClient({ apiKey: "su_key_abc123" });
-    expect((suqo as unknown as Record<string, unknown>).products).toBeUndefined();
-    expect((suqo as unknown as Record<string, unknown>).subscriptions).toBeUndefined();
+    expect(suqo.products).toBeInstanceOf(ProductsResource);
+    expect(suqo.subscriptions).toBeInstanceOf(SubscriptionsResource);
+    expect(suqo.customers).toBeInstanceOf(CustomersResource);
+    expect((suqo as unknown as Record<string, unknown>).webhooks).toBeUndefined();
+  });
+
+  it("a resource attached to the client actually makes requests through it (end-to-end wiring proof)", async () => {
+    vi.stubGlobal("fetch", vi.fn());
+    try {
+      vi.mocked(fetch).mockResolvedValueOnce(
+        new Response(JSON.stringify({ count: 0, next: null, previous: null, results: [] }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+      );
+      const suqo = new SuqoClient({ apiKey: "su_test_key_abc123" });
+      await suqo.products.list();
+      expect(fetch).toHaveBeenCalledWith(
+        "https://test.be.suqo.ai/api/v1/products/",
+        expect.objectContaining({ headers: expect.objectContaining({ Authorization: "Bearer su_test_key_abc123" }) }),
+      );
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("each SuqoClient instance gets its own resources, not shared across instances", () => {
+    const a = new SuqoClient({ apiKey: "su_key_abc123" });
+    const b = new SuqoClient({ apiKey: "su_key_def456" });
+    expect(a.products).not.toBe(b.products);
   });
 
   it("the key never appears in JSON.stringify output", () => {

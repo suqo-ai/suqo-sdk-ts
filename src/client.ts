@@ -1,5 +1,7 @@
 import { SdkConfig } from "./config/index.js";
 import type { SuqoEnvironment } from "./config/index.js";
+import { HttpClient } from "./http/HttpClient.js";
+import { ProductsResource, SubscriptionsResource, CustomersResource } from "./resources/index.js";
 
 /** Options accepted by {@link SuqoClient}'s constructor (SDK-SPEC.md §2, §4; addendum §5). */
 export interface SuqoClientOptions {
@@ -33,15 +35,27 @@ export interface SuqoClientOptions {
  * else to configure in the common case (SDK-SPEC.md §2). Construction throws `SuqoConfigError`
  * immediately on a malformed key, or on a `baseUrl` override that disagrees with the key.
  *
- * This shell is deliberately thin for now: it resolves and holds configuration only.
- * `.products`/`.subscriptions`/`.customers`/`.webhooks` attach onto this same instance in a later
- * ticket, once `http.ts` exists for them to call through (docs/implementation-plan.md Ticket 4).
+ * `.products`/`.subscriptions`/`.customers` all share this one instance's `HttpClient` — same
+ * `baseUrl`/`apiKey`/`timeout`/`maxRetries` for every call, regardless of which resource makes it.
+ * `.webhooks` is not attached here — it makes no network call and needs no key, so it lands in
+ * Ticket 5 instead (docs/implementation-plan.md).
  */
 export class SuqoClient {
   readonly #config: SdkConfig;
 
+  /** Browse the seller's active products (SDK-SPEC.md §5, §6). The only resource that works pre-KYC. */
+  readonly products: ProductsResource;
+  /** Create, list, and manage subscriptions (SDK-SPEC.md §5, §6, §7). */
+  readonly subscriptions: SubscriptionsResource;
+  /** List and retrieve the seller's customers — read-only (SDK-SPEC.md §5, §6). */
+  readonly customers: CustomersResource;
+
   constructor(options: SuqoClientOptions) {
     this.#config = new SdkConfig(options);
+    const http = new HttpClient(this.#config);
+    this.products = new ProductsResource(http);
+    this.subscriptions = new SubscriptionsResource(http);
+    this.customers = new CustomersResource(http);
   }
 
   /** `"sandbox" | "live"` — inferred from the key prefix, never selected explicitly (SDK-SPEC.md §2). */

@@ -25,4 +25,23 @@ describe("public export surface", () => {
     expect(suqo.environment).toBe("sandbox");
     expect(suqo.baseUrl).toBe("https://test.be.suqo.ai");
   });
+
+  it("attaches .products/.subscriptions/.customers onto the client built from the public surface", () => {
+    const suqo = new sdk.SuqoClient({ apiKey: "su_test_key_abc123" });
+    expect(suqo.products).toBeDefined();
+    expect(suqo.subscriptions).toBeDefined();
+    expect(suqo.customers).toBeDefined();
+  });
+
+  it("exports the pagination runtime helpers", () => {
+    expect(sdk.toPageQuery).toBeTypeOf("function");
+    expect(sdk.listAll).toBeTypeOf("function");
+    expect(sdk.bridgeAutoPaging).toBeTypeOf("function");
+    expect(sdk.deserializePage).toBeTypeOf("function");
+  });
+
+  it("exports SubscriptionStatus with every wire value", () => {
+    expect(sdk.SubscriptionStatus.Active).toBe("active");
+    expect(sdk.SubscriptionStatus.PendingCheckout).toBe("pending_checkout");
+  });
 });
