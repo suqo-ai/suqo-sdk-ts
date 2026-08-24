@@ -132,6 +132,24 @@ describe("deserializeProduct", () => {
     const product = deserializeProduct({ ...wireProduct, vat: null });
     expect(product.vat).toBeNull();
   });
+
+  it("an entirely omitted vat key degrades to null instead of crashing (found in review)", () => {
+    const { vat: _vat, ...withoutVat } = wireProduct;
+    const product = deserializeProduct(withoutVat);
+    expect(product.vat).toBeNull();
+  });
+
+  it("an entirely omitted plan key degrades to an empty array instead of crashing (found in review)", () => {
+    const { plan: _plan, ...withoutPlan } = wireProduct;
+    const product = deserializeProduct(withoutPlan);
+    expect(product.plan).toEqual([]);
+  });
+
+  it("an entirely omitted billing_periods key degrades to an empty array instead of crashing (found in review)", () => {
+    const { billing_periods: _billingPeriods, ...planWithoutBillingPeriods } = wirePlan;
+    const plan = deserializePlan(planWithoutBillingPeriods);
+    expect(plan.billingPeriods).toEqual([]);
+  });
 });
 
 describe("ProductsResource", () => {

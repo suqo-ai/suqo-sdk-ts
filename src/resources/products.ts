@@ -28,7 +28,10 @@ interface WirePlan {
   plan_id: string;
   plan_name: string;
   description: string;
-  billing_periods: WireBillingPeriod[];
+  // Optional, not required — `openapi.yaml`'s Product schema has no `required` list at all, so
+  // omitting this key entirely is spec-legal (found in review: the deserializer used to assume
+  // it was always present and crashed on `.map()` when it wasn't).
+  billing_periods?: WireBillingPeriod[];
 }
 
 interface WireProductVat {
@@ -45,9 +48,11 @@ interface WireProduct {
   is_active: boolean;
   terms_and_conditions: string;
   features_and_benefits: string;
-  vat: WireProductVat | null;
+  // Optional (not just nullable) and `plan` optional too — same reasoning as `WirePlan.billing_periods`
+  // above: no `required` list on this schema, so both are legally omittable, not just nullable.
+  vat?: WireProductVat | null;
   product_image: string[];
-  plan: WirePlan[];
+  plan?: WirePlan[];
   total_subscribers: string;
   created_at: string;
   updated_at: string;
@@ -75,7 +80,10 @@ export function deserializePlan(wire: WirePlan): Plan {
     planId: wire.plan_id,
     planName: wire.plan_name,
     description: wire.description,
-    billingPeriods: wire.billing_periods.map(deserializeBillingPeriod),
+    // `openapi.yaml`'s Product schema has no `required` list at all, so `billing_periods` being
+    // omitted entirely (not just an empty array) is spec-legal — `?? []` degrades to an empty
+    // list instead of `.map` throwing on `undefined` (found in review, reproduced).
+    billingPeriods: (wire.billing_periods ?? []).map(deserializeBillingPeriod),
   };
 }
 
@@ -97,9 +105,14 @@ export function deserializeProduct(wire: WireProduct): Product {
     isActive: wire.is_active,
     termsAndConditions: wire.terms_and_conditions,
     featuresAndBenefits: wire.features_and_benefits,
-    vat: wire.vat === null ? null : deserializeProductVat(wire.vat),
+    // `== null` (not `=== null`) is deliberate — it catches both an explicit `null` and an
+    // entirely omitted `vat` key. `openapi.yaml` has no `required` list for Product, so omitting
+    // `vat` is spec-legal, and the old `=== null` check crashed on `deserializeProductVat(undefined)`
+    // when that happened (found in review, reproduced).
+    vat: wire.vat == null ? null : deserializeProductVat(wire.vat),
     productImage: wire.product_image,
-    plan: wire.plan.map(deserializePlan),
+    // Same reasoning as `billingPeriods` above — `plan` being omitted entirely is spec-legal.
+    plan: (wire.plan ?? []).map(deserializePlan),
     totalSubscribers: wire.total_subscribers,
     createdAt: wire.created_at,
     updatedAt: wire.updated_at,
