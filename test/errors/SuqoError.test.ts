@@ -74,17 +74,17 @@ describe("SuqoError hierarchy", () => {
     expect(withoutFields.fieldErrors).toEqual({});
   });
 
-  it("KycRequiredError carries statusCode when provided, undefined otherwise", () => {
-    const withCode = new KycRequiredError("KYC needed", { statusCode: "pending" });
-    expect(withCode.statusCode).toBe("pending");
+  it("KycRequiredError carries kycStatus when provided, undefined otherwise", () => {
+    const withCode = new KycRequiredError("KYC needed", { kycStatus: "pending" });
+    expect(withCode.kycStatus).toBe("pending");
 
     const withoutCode = new KycRequiredError("KYC needed");
-    expect(withoutCode.statusCode).toBeUndefined();
+    expect(withoutCode.kycStatus).toBeUndefined();
   });
 
-  it("RateLimitError carries retryAfterMs when provided", () => {
-    const err = new RateLimitError("slow down", { retryAfterMs: 2000 });
-    expect(err.retryAfterMs).toBe(2000);
+  it("RateLimitError carries retryAfter when provided", () => {
+    const err = new RateLimitError("slow down", { retryAfter: 2000 });
+    expect(err.retryAfter).toBe(2000);
   });
 
   it("base SuqoError is constructible, but the SDK itself never throws it directly (SDK-SPEC.md §7)", () => {

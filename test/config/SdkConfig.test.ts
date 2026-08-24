@@ -33,21 +33,21 @@ describe("SdkConfig", () => {
     expect(config.baseUrl).toBe("https://test.be.suqo.ai");
   });
 
-  it("defaults timeoutMs to 30_000 and maxRetries to 2", () => {
+  it("defaults timeout to 30_000 and maxRetries to 2", () => {
     const config = new SdkConfig({ apiKey: "su_key_abc123" });
-    expect(config.timeoutMs).toBe(30_000);
+    expect(config.timeout).toBe(30_000);
     expect(config.maxRetries).toBe(2);
   });
 
-  it("honors explicit timeoutMs, maxRetries, and dispatcher", () => {
+  it("honors explicit timeout, maxRetries, and dispatcher", () => {
     const dispatcher = { custom: true };
     const config = new SdkConfig({
       apiKey: "su_key_abc123",
-      timeoutMs: 5000,
+      timeout: 5000,
       maxRetries: 5,
       dispatcher,
     });
-    expect(config.timeoutMs).toBe(5000);
+    expect(config.timeout).toBe(5000);
     expect(config.maxRetries).toBe(5);
     expect(config.dispatcher).toBe(dispatcher);
   });

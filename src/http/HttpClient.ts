@@ -14,7 +14,7 @@ interface HttpRequestOptionsBase {
   path: string;
   /** Query params, appended after the trailing slash. `undefined` values are skipped. */
   query?: QueryParams;
-  /** Per-call timeout override, in milliseconds. Defaults to `SdkConfig.timeoutMs`. */
+  /** Per-call timeout override, in milliseconds. Defaults to `SdkConfig.timeout`. */
   timeoutMs?: number;
   /**
    * Optional caller-supplied signal for cancelling an in-flight request — e.g. the host
@@ -39,9 +39,11 @@ export interface HttpGetRequestOptions extends HttpRequestOptionsBase {
 
 /**
  * Options for a `POST` request. Generic on `TBody` so a call site can pass a concrete request
- * type (e.g. `CreateSubscriptionRequest` from `openapi.yaml`, wired up in Ticket 4) and have it
- * checked at compile time — `unknown` is only the *default* for callers that don't specify one,
- * never a signal that bodies go untyped by design.
+ * type (e.g. `CreateSubscriptionParams`, wired up in Ticket 4 — the SDK-surface type for
+ * `openapi.yaml`'s `CreateSubscriptionRequest` schema; SDK Naming Map v1.1 renames every
+ * `*Request` wire schema to `*Params` on the surface, since "Request" reads as an HTTP request
+ * object, not an SDK input) and have it checked at compile time — `unknown` is only the *default*
+ * for callers that don't specify one, never a signal that bodies go untyped by design.
  */
 export interface HttpPostRequestOptions<TBody = unknown> extends HttpRequestOptionsBase {
   method: "POST";
@@ -131,7 +133,7 @@ export class HttpClient {
    * reads retry on network failure, `429`, or `5xx`, bounded by `SdkConfig.maxRetries`.
    *
    * Generic on both `TResponse` and `TBody` — e.g.
-   * `request<CreateSubscriptionResponse, CreateSubscriptionRequest>({ body, ... })` — so a
+   * `request<CreateSubscriptionResponse, CreateSubscriptionParams>({ body, ... })` — so a
    * resource method (Ticket 4) gets its request body checked against the exact shape it means to
    * send, not just `unknown`.
    */
@@ -163,7 +165,7 @@ export class HttpClient {
 
     const retryable = isRetryableMethod(options.method);
     const maxAttempts = retryable ? this.#config.maxRetries + 1 : 1;
-    const timeoutMs = options.timeoutMs ?? this.#config.timeoutMs;
+    const timeoutMs = options.timeoutMs ?? this.#config.timeout;
 
     for (let attempt = 1; ; attempt++) {
       const isLastAttempt = attempt >= maxAttempts;
@@ -180,7 +182,7 @@ export class HttpClient {
         // treatment as `#doFetch` itself failing, not an unmapped rejection escaping `request()`.
         // Wrapping both in the same try/catch below (found in review) is what makes that happen.
         const body = await parseJsonBody(response);
-        const retryAfterMs =
+        const retryAfter =
           response.status === 429 ? parseRetryAfterMs(response.headers.get("Retry-After")) : undefined;
 
         if (
@@ -188,7 +190,7 @@ export class HttpClient {
           retryable &&
           isRetryableFailure({ networkError: false, status: response.status })
         ) {
-          await this.#sleepOrAbort(retryAfterMs ?? backoffDelayMs(attempt - 1), options.signal, timeoutMs);
+          await this.#sleepOrAbort(retryAfter ?? backoffDelayMs(attempt - 1), options.signal, timeoutMs);
           continue;
         }
 
@@ -196,7 +198,7 @@ export class HttpClient {
           status: response.status,
           statusText: response.statusText,
           body,
-          ...(retryAfterMs !== undefined ? { retryAfterMs } : {}),
+          ...(retryAfter !== undefined ? { retryAfter } : {}),
         });
       } catch (cause) {
         // Already a correctly-classified SuqoError (from mapHttpError just above, or a caller

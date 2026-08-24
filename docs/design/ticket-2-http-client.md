@@ -98,19 +98,22 @@ function parseRetryAfterMs(headerValue: string or null) -> integer or undefined
 |---|---|
 | `isRetryableMethod` | **Single switch** (SDK-SPEC.md §8, §12): only `GET` returns `true` today. Every read in this API is `GET`, every write is `POST`; writes never retry because the backend has no idempotency keys yet. The moment it does, this is the one function that flips. |
 | `isRetryableFailure` | `true` if there was no response at all (network failure), or if the response status is `429`, or a `5xx`. `false` for everything else (400/401/403/404). |
-| `backoffDelayMs(attempt)` | "Full jitter": a random value between `0` and `min(MAX_DELAY_MS, BASE_DELAY_MS × 2^attempt)`. `BASE_DELAY_MS = 200`, `MAX_DELAY_MS = 5000`. `attempt` is 0-indexed (0 = the first retry). |
-| `parseRetryAfterMs` | Parses the numeric-seconds form of a `Retry-After` header into milliseconds, clamped to `MAX_RETRY_AFTER_MS = 60000`. Returns "unparseable" (not `0`) for: a `null`/missing header, a negative value, a non-numeric value, **and an empty or whitespace-only value** — a naive `string-to-number` cast in several languages (JavaScript included) turns `""` into `0`, which must be special-cased explicitly rather than trusted. |
+| `backoffDelayMs(attempt)` | "Full jitter": a random value between `0` and `min(MAX_DELAY_MS, BASE_DELAY_MS × 2^attempt)`. `BASE_DELAY_MS = 500`, `MAX_DELAY_MS = 8000` (SDK Naming Map v1.1 — corrected from an earlier 200/5000, a value mismatch, not a naming one). `attempt` is 0-indexed (0 = the first retry). |
+| `parseRetryAfterMs` | Parses a `Retry-After` header into milliseconds, clamped to `MAX_RETRY_AFTER_MS = 60000`. Accepts **both** forms RFC 7231 §7.1.3 allows: the numeric seconds-delta form (`"5"`) and the HTTP-date form (`"Wed, 21 Oct 2026 07:28:00 GMT"`) — accepting only the former was a real functional gap, flagged by SDK Naming Map v1.1 as "a common bug," since real servers and the load balancers in front of them send either form. An HTTP-date already in the past resolves to `0` (retry now), never negative. Returns "unparseable" (not `0`) for: a `null`/missing header, a negative numeric value, a value that's neither a valid number nor a valid date, **and an empty or whitespace-only value** — a naive `string-to-number` cast in several languages (JavaScript included) turns `""` into `0`, which must be special-cased explicitly rather than trusted. |
 
 ### Conformance checklist — Step B
 
 - [ ] `isRetryableMethod("GET")` is `true`; `isRetryableMethod("POST")` is `false`.
 - [ ] A network failure (no response) is always retryable.
 - [ ] `429` and every `5xx` are retryable; `400`/`401`/`403`/`404` are not.
-- [ ] `backoffDelayMs(0)` never exceeds `200`; `backoffDelayMs` at a high attempt number never
-      exceeds `5000` regardless of how large the exponent grows.
+- [ ] `backoffDelayMs(0)` never exceeds `500`; `backoffDelayMs` at a high attempt number never
+      exceeds `8000` regardless of how large the exponent grows.
 - [ ] `parseRetryAfterMs("5")` → `5000`. `parseRetryAfterMs("86400")` → clamped to `60000`, not the
       literal day-long value. `parseRetryAfterMs("")`, `parseRetryAfterMs("   ")`, and
       `parseRetryAfterMs(null)` all → "unparseable," never `0`.
+- [ ] `parseRetryAfterMs` also accepts the HTTP-date form: a date 10s in the future → `~10000`; a
+      date already in the past → `0`, not negative or "unparseable"; a date far enough out clamps
+      to `60000` exactly like the numeric form does.
 
 ---
 
@@ -156,7 +159,7 @@ classDiagram
     -sleep: function(ms) -> Promise  «hidden, injectable for tests»
     +request(options) Promise~TResponse~
   }
-  HttpClient --> SdkConfig : reads baseUrl, apiKey, timeoutMs, maxRetries, dispatcher
+  HttpClient --> SdkConfig : reads baseUrl, apiKey, timeout, maxRetries, dispatcher
 ```
 
 ### Constructor input contract
@@ -176,7 +179,7 @@ classDiagram
 | `path` | string | yes | Passed through `buildUrl` (Step A) — never pre-slash it yourself. |
 | `query` | map of string to scalar, optional | no | Same omission rule as Step A. |
 | `body` | request-shape, generic | **only on `POST`** | A `GET` cannot carry a body — enforced at the type level where the language supports it (a union/variant type with two cases, one per method), and defensively at runtime regardless, so a caller that bypasses the type system still fails loudly and immediately rather than the request reaching the network layer malformed. |
-| `timeoutMs` | integer, optional | no | Defaults to `SdkConfig.timeoutMs`. Bounds each individual attempt, not the whole call including retries. |
+| `timeoutMs` | integer, optional | no | Defaults to `SdkConfig.timeout`. Bounds each individual attempt, not the whole call including retries. Per-call option keeps the `Ms` suffix (it's an override parameter, not the resolved config field the naming map's rename targets) — see Ticket 1's design doc for the `SdkConfig.timeout` rename. |
 | `signal` | Signal, optional | no | Caller-supplied cancellation (Step C). Combined with the per-attempt timeout signal. |
 
 ### The request algorithm
@@ -188,7 +191,7 @@ function request(options) -> TResponse:
   url = buildUrl(config.baseUrl, options.path, options.query)
   retryable = isRetryableMethod(options.method)
   maxAttempts = retryable ? config.maxRetries + 1 : 1
-  timeoutMs = options.timeoutMs ?? config.timeoutMs
+  timeoutMs = options.timeoutMs ?? config.timeout
 
   for attempt = 1, 2, 3, ... :
     isLastAttempt = attempt >= maxAttempts
@@ -201,13 +204,13 @@ function request(options) -> TResponse:
 
       body = parse(response.body)                    # a read failure here is treated as a
                                                        # network failure below, not swallowed
-      retryAfterMs = response.status == 429 ? parseRetryAfterMs(header) : undefined
+      retryAfter = response.status == 429 ? parseRetryAfterMs(header) : undefined
 
       if not isLastAttempt and retryable and isRetryableFailure(false, response.status):
-        sleepOrAbort(retryAfterMs ?? backoffDelayMs(attempt - 1), options.signal)
+        sleepOrAbort(retryAfter ?? backoffDelayMs(attempt - 1), options.signal)
         continue
 
-      throw mapHttpError(response.status, response.statusText, body, retryAfterMs)  # Ticket 1
+      throw mapHttpError(response.status, response.statusText, body, retryAfter)  # Ticket 1
 
     catch cause:
       if cause is already a mapped SDK error: rethrow unchanged   # don't reclassify a final decision
@@ -271,6 +274,17 @@ sleep to finish first.
    call through the function rather than hardcode `true` at the call site. Two code paths encoding
    the same policy independently will eventually drift if the policy ever changes in only one of
    them.
+
+4. **Renamed `RateLimitError.retryAfterMs`→`retryAfter` and `SdkConfig`/`SuqoClientOptions.
+   timeoutMs`→`timeout` (2026-08-21).** SDK Naming Map v1.1: SDK-surface fields drop the `Ms`
+   suffix (the unit is documented, not encoded in the name). Purely renames — no field, no wire
+   shape changed. The per-call `request()` option `timeoutMs` is unaffected — it's an override
+   parameter, not the resolved config field the map's rule targets. Also corrected `BASE_DELAY_MS`/
+   `MAX_DELAY_MS` from `200`/`5000` to `500`/`8000` (a value fix, not a naming one), and taught
+   `parseRetryAfterMs` to accept the HTTP-date form of `Retry-After`, not just delta-seconds — a
+   real functional gap the map flagged as "a common bug." Applied retroactively to already-shipped
+   Ticket 1/2 code, since this document and the map are both meant to be the same source of truth
+   going forward.
 
 ---
 

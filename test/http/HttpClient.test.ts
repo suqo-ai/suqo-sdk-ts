@@ -21,11 +21,11 @@ function jsonResponse(body: unknown, init: ResponseInit = {}): Response {
 /** Instant "sleep" so retry tests don't actually wait through real backoff delays. */
 const instantSleep = async () => {};
 
-function client(config: Partial<{ maxRetries: number; timeoutMs: number }> = {}): HttpClient {
+function client(config: Partial<{ maxRetries: number; timeout: number }> = {}): HttpClient {
   const sdkConfig = new SdkConfig({
     apiKey: "su_test_key_abc123",
     maxRetries: config.maxRetries ?? 2,
-    timeoutMs: config.timeoutMs ?? 30_000,
+    timeout: config.timeout ?? 30_000,
   });
   return new HttpClient(sdkConfig, { sleep: instantSleep });
 }
@@ -206,7 +206,7 @@ describe("HttpClient", () => {
     expect(sleep).toHaveBeenCalledWith(5000);
   });
 
-  it("still maps to RateLimitError with retryAfterMs when 429 persists past maxRetries", async () => {
+  it("still maps to RateLimitError with retryAfter when 429 persists past maxRetries", async () => {
     vi.mocked(fetch).mockResolvedValue(
       new Response(JSON.stringify({ detail: "slow down" }), {
         status: 429,
@@ -217,7 +217,7 @@ describe("HttpClient", () => {
       .request({ method: "GET", path: "/api/v1/products" })
       .catch((e: unknown) => e);
     expect(error).toBeInstanceOf(RateLimitError);
-    expect((error as RateLimitError).retryAfterMs).toBe(2000);
+    expect((error as RateLimitError).retryAfter).toBe(2000);
   });
 
   it("maps a real timeout (AbortSignal.timeout firing) to NetworkError", async () => {
@@ -232,7 +232,7 @@ describe("HttpClient", () => {
       });
     });
 
-    const sdkConfig = new SdkConfig({ apiKey: "su_key_abc123", maxRetries: 0, timeoutMs: 5 });
+    const sdkConfig = new SdkConfig({ apiKey: "su_key_abc123", maxRetries: 0, timeout: 5 });
     const httpClient = new HttpClient(sdkConfig, { sleep: instantSleep });
 
     const error = await httpClient
@@ -250,7 +250,7 @@ describe("HttpClient", () => {
       });
     });
 
-    const sdkConfig = new SdkConfig({ apiKey: "su_key_abc123", maxRetries: 0, timeoutMs: 30_000 });
+    const sdkConfig = new SdkConfig({ apiKey: "su_key_abc123", maxRetries: 0, timeout: 30_000 });
     const httpClient = new HttpClient(sdkConfig, { sleep: instantSleep });
 
     const error = await httpClient
@@ -273,7 +273,9 @@ describe("HttpClient", () => {
   });
 
   it("request<TResponse, TBody> checks the body against TBody at compile time (PR #13 review: nitesh-codepros)", async () => {
-    interface CreateSubscriptionRequest {
+    // Named Params, not Request, per SDK Naming Map v1.1: "Request" reads as an HTTP request
+    // object, not an SDK input — the eventual Ticket 4 type is CreateSubscriptionParams.
+    interface CreateSubscriptionParams {
       pbpId: string;
       returnUrl: string;
     }
@@ -281,7 +283,7 @@ describe("HttpClient", () => {
     vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ subscriptionId: "abc" }, { status: 201 }));
 
     // A correctly-typed body compiles and round-trips through fetch unmodified.
-    await client().request<{ subscriptionId: string }, CreateSubscriptionRequest>({
+    await client().request<{ subscriptionId: string }, CreateSubscriptionParams>({
       method: "POST",
       path: "/api/v1/subscriptions",
       body: { pbpId: "pbp_123", returnUrl: "https://example.com/return" },
@@ -290,10 +292,10 @@ describe("HttpClient", () => {
     expect(init?.body).toBe(JSON.stringify({ pbpId: "pbp_123", returnUrl: "https://example.com/return" }));
 
     vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ subscriptionId: "abc" }, { status: 201 }));
-    await client().request<{ subscriptionId: string }, CreateSubscriptionRequest>({
+    await client().request<{ subscriptionId: string }, CreateSubscriptionParams>({
       method: "POST",
       path: "/api/v1/subscriptions",
-      // @ts-expect-error a body missing required fields of CreateSubscriptionRequest must not
+      // @ts-expect-error a body missing required fields of CreateSubscriptionParams must not
       // typecheck — this is the concrete proof the generic actually enforces the typed pattern,
       // not just documents an intention.
       body: { pbpId: "pbp_123" },

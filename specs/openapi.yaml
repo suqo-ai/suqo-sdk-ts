@@ -4,8 +4,8 @@ info:
   version: 1.0.0
   description: >
     Public, API-key-authenticated endpoints for third-party consumers. Read your
-    products, create and manage subscriptions, and (later) list your customers
-    directly from your own software.
+    products, create and manage subscriptions, and list your customers directly
+    from your own software.
 
     This document is the single source of truth for the SUQO SDKs. Language SDKs
     generate their request/response models from it; the human docs at
@@ -46,7 +46,7 @@ tags:
   - name: Subscriptions
     description: List, create, cancel, and set the billing cycle of subscriptions.
   - name: Customers
-    description: STUB — not yet specified. Endpoints to be added when documented.
+    description: List and retrieve customers. Read-only — no create/update/delete.
 
 paths:
   /api/v1/products/:
@@ -210,12 +210,93 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/KycRequired' }
 
+  /api/v1/subscriptions/{id}/resume/:
+    post:
+      operationId: resumeSubscription
+      tags: [Subscriptions]
+      summary: Resume a subscription
+      description: >
+        Resumes a subscription. Confirmed public with backend (2026-08-18);
+        the response shape below matches Swagger's example but is not
+        independently confirmed the way Customers was — treated as
+        likely-correct-but-unverified (docs/implementation-plan.md Ticket 4).
+
+        NOTE (write op): not auto-retryable until idempotency ships.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+          description: Subscription UUID.
+      responses:
+        '200':
+          description: Resumed.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Message' }
+              example: { message: "Subscription resumed." }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/KycRequired' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
   # -------------------------------------------------------------------------
-  # CUSTOMERS — STUB. Not yet specified. When the Customers page is provided,
-  # add `/api/v1/customers/` (list) and `/api/v1/customers/{id}/` (retrieve)
-  # here and a Customer schema below. Structure is intentionally additive:
-  # adding this resource must not change any existing path or schema.
+  # subscriptions/{id}/ (retrieve) is intentionally NOT specified here yet.
+  # The route exists and is public, but its real response shape is
+  # unconfirmed — Swagger collapses `client`/`product` to plain "string" for
+  # it, the same tool-limitation seen elsewhere, so it can't be trusted as a
+  # source. Do not add it until backend sends a real sample response
+  # (docs/implementation-plan.md Ticket 4).
   # -------------------------------------------------------------------------
+
+  /api/v1/customers/:
+    get:
+      operationId: listCustomers
+      tags: [Customers]
+      summary: List customers
+      description: >
+        Lists the authenticated seller's customers. Paginated. Read-only.
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: Paginated list of customers.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PaginationEnvelope'
+                  - type: object
+                    properties:
+                      results:
+                        type: array
+                        items: { $ref: '#/components/schemas/Customer' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/KycRequired' }
+
+  /api/v1/customers/{id}/:
+    get:
+      operationId: retrieveCustomer
+      tags: [Customers]
+      summary: Retrieve a customer
+      description: Retrieves a single customer by id. Read-only.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+          description: >
+            Customer id. Integer, not a UUID — this resource breaks from the
+            UUID convention every other resource in this API uses.
+      responses:
+        '200':
+          description: The customer.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Customer' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/KycRequired' }
+        '404': { $ref: '#/components/responses/NotFound' }
 
 components:
   securitySchemes:
@@ -502,6 +583,26 @@ components:
       type: object
       properties:
         message: { type: string }
+
+    Customer:
+      type: object
+      required: [id, created_at]
+      description: >
+        A seller's customer, confirmed live 2026-08-18 by two independent
+        sources (BE Swagger + suqo.ai/docs/api/customers agree). Uses
+        buyer_* field prefixes, not the client.* nesting Subscriptions uses —
+        this is a genuinely different resource with its own convention,
+        carried through as-is rather than forced into the same shape.
+      properties:
+        id:
+          type: integer
+          description: >
+            Customer id. Integer, not a UUID — breaks from the UUID
+            convention every other resource in this API uses.
+        buyer_phone: { type: [string, 'null'] }
+        buyer_email: { type: [string, 'null'] }
+        full_name: { type: [string, 'null'] }
+        created_at: { type: string, format: date-time }
 
     DetailError:
       type: object

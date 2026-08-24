@@ -78,18 +78,23 @@ export class AuthenticationError extends SuqoError {}
 
 /** Options accepted by {@link KycRequiredError}. */
 export interface KycRequiredErrorOptions extends SuqoErrorOptions {
-  /** The KYC status code from the response body's `status_code` field (openapi.yaml `KycError`). */
-  statusCode?: string;
+  /**
+   * The KYC status code from the response body's `status_code` field (openapi.yaml `KycError`).
+   * Named `kycStatus`, not `statusCode` — per SDK Naming Map v1.1's rename register, `status_code`
+   * "reads as an HTTP status but carries a KYC status," and sits right next to the base class's
+   * real HTTP `status` field, so the two must stay visibly distinct.
+   */
+  kycStatus?: string;
 }
 
 /** 403 — the owning seller has not completed KYC verification (SDK-SPEC.md §7). */
 export class KycRequiredError extends SuqoError {
-  /** The KYC status code from the response body, if present. */
-  readonly statusCode?: string;
+  /** The KYC status code from the response body, if present. See {@link KycRequiredErrorOptions.kycStatus}. */
+  readonly kycStatus?: string;
 
   constructor(message: string, options: KycRequiredErrorOptions = {}) {
     super(message, options);
-    if (options.statusCode !== undefined) this.statusCode = options.statusCode;
+    if (options.kycStatus !== undefined) this.kycStatus = options.kycStatus;
   }
 }
 
@@ -125,8 +130,12 @@ export class NotFoundError extends SuqoError {}
 
 /** Options accepted by {@link RateLimitError}. */
 export interface RateLimitErrorOptions extends SuqoErrorOptions {
-  /** Suggested backoff derived from a `Retry-After` header, in milliseconds, if present. */
-  retryAfterMs?: number;
+  /**
+   * Suggested backoff derived from a `Retry-After` header, in milliseconds, if present. Named
+   * `retryAfter`, not `retryAfterMs` — per SDK Naming Map v1.1, SDK-surface fields drop the `Ms`
+   * suffix; the unit is documented, not encoded in the name.
+   */
+  retryAfter?: number;
 }
 
 /**
@@ -135,12 +144,12 @@ export interface RateLimitErrorOptions extends SuqoErrorOptions {
  * (SDK-SPEC.md §10).
  */
 export class RateLimitError extends SuqoError {
-  /** Suggested backoff derived from a `Retry-After` header, in milliseconds, if present. */
-  readonly retryAfterMs?: number;
+  /** Suggested backoff derived from a `Retry-After` header, in milliseconds, if present. See {@link RateLimitErrorOptions.retryAfter}. */
+  readonly retryAfter?: number;
 
   constructor(message: string, options: RateLimitErrorOptions = {}) {
     super(message, options);
-    if (options.retryAfterMs !== undefined) this.retryAfterMs = options.retryAfterMs;
+    if (options.retryAfter !== undefined) this.retryAfter = options.retryAfter;
   }
 }
 

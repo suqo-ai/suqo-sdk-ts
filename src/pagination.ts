@@ -6,8 +6,12 @@ import type { QueryParams } from "./http/urlBuilder.js";
  * @packageDocumentation
  */
 
-/** The page-number pagination envelope common to every list endpoint (SDK-SPEC.md §6). */
-export interface PaginationEnvelope<T> {
+/**
+ * The page-number pagination envelope common to every list endpoint (SDK-SPEC.md §6).
+ * Named `Page` per the cross-language SDK Naming Map v1.1 §06 (mirrors `openapi.yaml`'s
+ * `PaginationEnvelope` schema, renamed on the SDK surface only — the wire shape is unaffected).
+ */
+export interface Page<T> {
   /** Total row count across every page, not just this one. */
   count: number;
   /** URL of the next page, or `null` on the last page. */
@@ -32,8 +36,10 @@ export interface SubscriptionStatusCounts {
  * The Subscriptions list envelope: the common shape plus the four extra counts, surfaced
  * alongside `results` rather than replacing the common envelope shape (SDK-SPEC.md §6). Generic
  * over `T` so this file doesn't need to know about the `Subscription` type — Ticket 4 supplies it.
+ * Named `SubscriptionPage` per the Naming Map §06 (mirrors `openapi.yaml`'s
+ * `SubscriptionListEnvelope`, renamed on the SDK surface only).
  */
-export type SubscriptionPaginationEnvelope<T> = PaginationEnvelope<T> & SubscriptionStatusCounts;
+export type SubscriptionPage<T> = Page<T> & SubscriptionStatusCounts;
 
 /** Manual pagination params a caller can pass instead of using `listAll`. */
 export interface PageParams {
@@ -53,6 +59,25 @@ export function toPageQuery(params?: PageParams): QueryParams {
   return {
     page: params?.page,
     page_size: params?.pageSize,
+  };
+}
+
+/**
+ * Maps a {@link Page}'s `results` through `deserializeItem`, leaving `count`/`next`/`previous`
+ * untouched — those three field names already match the wire exactly (`openapi.yaml`
+ * `PaginationEnvelope`), only `results`' items need any per-resource field mapping. Shared by
+ * every paginated resource so each one only has to supply its own item deserializer, not
+ * re-implement unwrapping the envelope.
+ */
+export function deserializePage<TWireItem, T>(
+  wire: Page<TWireItem>,
+  deserializeItem: (item: TWireItem) => T,
+): Page<T> {
+  return {
+    count: wire.count,
+    next: wire.next,
+    previous: wire.previous,
+    results: wire.results.map(deserializeItem),
   };
 }
 
@@ -83,11 +108,11 @@ export function toPageQuery(params?: PageParams): QueryParams {
  * ```
  */
 export async function* listAll<T>(
-  firstPage: PaginationEnvelope<T>,
-  fetchNext: (nextUrl: string) => Promise<PaginationEnvelope<T>>,
+  firstPage: Page<T>,
+  fetchNext: (nextUrl: string) => Promise<Page<T>>,
   maxPages = 10_000,
 ): AsyncIterableIterator<T> {
-  let page: PaginationEnvelope<T> = firstPage;
+  let page: Page<T> = firstPage;
   let pagesSeen = 0;
 
   while (true) {
@@ -109,4 +134,46 @@ export async function* listAll<T>(
 
     page = await fetchNext(page.next);
   }
+}
+
+/**
+ * Bridges {@link listAll} to a resource's public `.autoPaging()` method (SDK Naming Map v1.1 §04
+ * — the public name is `.autoPaging()`; `listAll` stays this file's own internal engine name, per
+ * Ticket 3's design doc). Named `bridgeAutoPaging`, not `autoPaging`, specifically so it never
+ * shares a name with the public method that calls it — the two would still resolve correctly
+ * either way (a class method name isn't a lexical binding inside its own body), but a distinct
+ * name means nobody has to reason through that to be sure.
+ *
+ * Takes the first page as a **thunk** (`() => Promise<Page<T>>`), not an already-started
+ * `Promise` — this is deliberate, not a style choice. A resource method's `.autoPaging()` calls
+ * `this.list(params)` to build that first request; if that call happened eagerly (i.e. the caller
+ * passed the `Promise` itself), it would start firing the instant `.autoPaging()` is invoked, not
+ * when the caller actually begins iterating — and a rejection sitting unhandled between those two
+ * moments is a genuine `unhandledRejection`, which terminates a Node process by default (found in
+ * review, reproduced: calling `.autoPaging()` then doing anything else before iterating, on a
+ * request that fails, crashes the process — confirmed both with and without a handler attached).
+ * Wrapping the call in a thunk (`() => this.list(params)`) defers it until the async generator
+ * body actually runs `fetchFirstPage()`, which only happens once the caller starts iterating —
+ * matching every other async generator's behavior for real, not just by the doc comment's claim.
+ *
+ * Still fully decoupled from `HttpClient`/any resource, same as {@link listAll} — this file never
+ * imports anything from the HTTP layer.
+ *
+ * @example
+ * ```ts
+ * autoPaging(params?: PageParams): AsyncIterableIterator<Product> {
+ *   return bridgeAutoPaging(() => this.list(params), (nextUrl) =>
+ *     this.#http.request<Page<Product>>({ method: "GET", path: nextUrl }),
+ *   );
+ * }
+ * ```
+ */
+export function bridgeAutoPaging<T>(
+  fetchFirstPage: () => Promise<Page<T>>,
+  fetchNext: (nextUrl: string) => Promise<Page<T>>,
+  maxPages = 10_000,
+): AsyncIterableIterator<T> {
+  return (async function* () {
+    yield* listAll(await fetchFirstPage(), fetchNext, maxPages);
+  })();
 }

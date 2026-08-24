@@ -104,7 +104,7 @@ client.products.list({ page?, pageSize? })
 
 client.subscriptions.list({ page?, pageSize? })
                  -> paginated Subscription list + status counts
-client.subscriptions.create({ pbpId, returnUrl, client })
+client.subscriptions.create({ pbpId, returnUrl, customer })
                  -> CreateSubscriptionResponse (status: pending_checkout, checkout_url)
 client.subscriptions.cancel(id)
                  -> { message }
@@ -118,6 +118,13 @@ client.webhooks.verify({ rawBody, signature, timestamp, secret })
 - **Decimal fields are strings.** `price`, `amount`, `total_subscribers`, etc.
   arrive as strings to avoid float rounding. The SDK MUST NOT coerce them to
   floats. Expose them as strings (or a decimal type), never `number`.
+- **`client` on the wire is `customer` on the SDK surface.** The API's create
+  payload and every subscription's embedded record use the key `client`
+  (`specs/openapi.yaml`) — the SDK renames it to `customer` at the
+  serialization boundary in both directions, since `client` collides with the
+  SDK's own client object. `rawBody` is never translated. See SDK Naming Map
+  v1.1's rename register and Customer-boundary section for the full rule,
+  including the three distinct customer-shaped types this implies.
 - **Do not treat `return_url`/`checkout_url` as payment confirmation.** The
   `create` result gives a `checkout_url` to redirect the buyer to; the true
   outcome arrives via webhooks (§9). SDK docs must say so at the `create` method.
@@ -159,7 +166,7 @@ Normalized hierarchy (same names, idiomatic casing per language):
 | `SuqoError`           | base — never thrown directly                      | carries `status`, `rawBody`, best-effort `message` |
 | `SuqoConfigError`     | construction-time config problems                 | **malformed key**, env/prefix conflict (§2)        |
 | `AuthenticationError` | `401` (`detail: "Invalid or inactive API key."`)  |                                                    |
-| `KycRequiredError`    | `403` KYC not verified                            | exposes `statusCode` (the KYC status)              |
+| `KycRequiredError`    | `403` KYC not verified                            | exposes `kycStatus` (the KYC status)               |
 | `ValidationError`     | `400`                                             | exposes `fieldErrors: Record<string,string[]>`     |
 | `NotFoundError`       | `404`                                             |                                                    |
 | `RateLimitError`      | `429`                                             | **reserved** — not emitted until rate limiting ships (§10) |

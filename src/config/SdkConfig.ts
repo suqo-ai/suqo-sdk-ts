@@ -9,8 +9,12 @@ export interface SdkConfigInput {
    * throws `SuqoConfigError`. Normally omit this.
    */
   baseUrl?: string;
-  /** Per-client default; per-call override also allowed by `http.ts` (Ticket 2). Default 30_000. */
-  timeoutMs?: number;
+  /**
+   * Per-client default request timeout in milliseconds; per-call override also allowed by
+   * `http.ts` (Ticket 2). Default 30_000. Named `timeout`, not `timeoutMs` — per SDK Naming Map
+   * v1.1, SDK-surface fields drop the `Ms` suffix; the unit is documented, not encoded in the name.
+   */
+  timeout?: number;
   /** Read-retry tuning (reads only — writes are never retried, SDK-SPEC.md §8, §12). Default 2. */
   maxRetries?: number;
   /** Advanced: custom undici dispatcher for pool tuning, passed through opaquely to `fetch` (Ticket 2). */
@@ -46,7 +50,7 @@ export class SdkConfig {
   /** The resolved base URL for this environment (or the caller's override, if it agreed). */
   readonly baseUrl: string;
   /** Request timeout in milliseconds, per-client default (`http.ts` in Ticket 2 allows a per-call override). */
-  readonly timeoutMs: number;
+  readonly timeout: number;
   /** Max retry attempts for idempotent reads. Writes are never retried regardless of this value. */
   readonly maxRetries: number;
   /** Opaque custom dispatcher for pool tuning, if supplied. Passed through to `fetch` unexamined. */
@@ -58,7 +62,7 @@ export class SdkConfig {
     const { environment, baseUrl } = resolveEnvironment(input.apiKey, input.baseUrl);
     this.environment = environment;
     this.baseUrl = baseUrl;
-    this.timeoutMs = input.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+    this.timeout = input.timeout ?? DEFAULT_TIMEOUT_MS;
     this.maxRetries = input.maxRetries ?? DEFAULT_MAX_RETRIES;
     this.dispatcher = input.dispatcher;
     this.#apiKey = input.apiKey;
@@ -74,7 +78,7 @@ export class SdkConfig {
     return {
       environment: this.environment,
       baseUrl: this.baseUrl,
-      timeoutMs: this.timeoutMs,
+      timeout: this.timeout,
       maxRetries: this.maxRetries,
       apiKey: "[redacted]",
     };
