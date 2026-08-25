@@ -57,6 +57,19 @@ export class WebhooksResource {
   verify(options: VerifyWebhookOptions): boolean {
     const { rawBody, signature, timestamp, secret, toleranceSec = DEFAULT_TOLERANCE_SEC } = options;
 
+    // The types say these are always strings (or a Buffer for rawBody), but that's only a
+    // compile-time promise — a caller reading a header via `req.header(...)!` (the exact pattern
+    // this class's own TSDoc example recommends) gets `string | undefined` at runtime, and the
+    // `!` doesn't make the value real if the header is genuinely missing. Without this guard,
+    // a missing header crashed here instead of returning the documented `false` (found in
+    // review, reproduced: undefined signature/timestamp/rawBody each threw a raw TypeError).
+    if (typeof signature !== "string" || typeof timestamp !== "string" || typeof secret !== "string") {
+      return false;
+    }
+    if (typeof rawBody !== "string" && !Buffer.isBuffer(rawBody)) {
+      return false;
+    }
+
     if (!signature.startsWith(SIGNATURE_PREFIX)) return false;
     const providedHex = signature.slice(SIGNATURE_PREFIX.length);
     // Buffer.from(str, "hex") silently truncates at the first invalid hex character instead of

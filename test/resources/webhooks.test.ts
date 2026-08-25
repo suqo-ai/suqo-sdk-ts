@@ -78,6 +78,26 @@ describe("WebhooksResource.verify", () => {
     expect(webhooks().verify({ rawBody, signature, timestamp, secret: "whsec_wrong_secret" })).toBe(false);
   });
 
+  it("a missing/undefined signature, timestamp, secret, or rawBody returns false instead of throwing (found in review)", () => {
+    // Reproduces the real-world trigger: req.header(...)! reads string | undefined at runtime --
+    // the "!" is only a compile-time promise, not a guarantee the header actually exists.
+    const rawBody = JSON.stringify({ event: "checkout.succeeded" });
+    const timestamp = nowSeconds();
+    const signature = sign(rawBody, timestamp);
+    const w = webhooks();
+
+    expect(w.verify({ rawBody, signature: undefined as unknown as string, timestamp, secret: SECRET })).toBe(
+      false,
+    );
+    expect(w.verify({ rawBody, signature, timestamp: undefined as unknown as string, secret: SECRET })).toBe(
+      false,
+    );
+    expect(w.verify({ rawBody, signature, timestamp, secret: undefined as unknown as string })).toBe(false);
+    expect(
+      w.verify({ rawBody: undefined as unknown as string, signature, timestamp, secret: SECRET }),
+    ).toBe(false);
+  });
+
   it("a signature missing the sha256= prefix fails, never crashes", () => {
     const rawBody = JSON.stringify({ event: "checkout.succeeded" });
     const timestamp = nowSeconds();
