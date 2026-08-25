@@ -47,10 +47,14 @@ synchronous, local computation. That's the single fact that shapes every other d
 
 ```mermaid
 classDiagram
-  class CheckoutSucceededEvent { +event: "checkout.succeeded" +subscription_id +amount +status: "succeeded" }
-  class CheckoutFailedEvent { +event: "checkout.failed" +subscription_id +amount +status: "failed" }
-  class SubscriptionStatusChangedEvent { +event: "subscription.status_changed" +subscription_id +previous_status +current_status +changed_at }
-  class WebhookEvent { <<union of the three above>> }
+  class SubscriptionWebhookEventBase { +subscription_id }
+  class CheckoutSucceededEvent { +event: "checkout.succeeded" +amount +status: "succeeded" }
+  class CheckoutFailedEvent { +event: "checkout.failed" +amount +status: "failed" }
+  class SubscriptionStatusChangedEvent { +event: "subscription.status_changed" +previous_status +current_status +changed_at }
+  class WebhookEvent { <<union of the three concrete events>> }
+  SubscriptionWebhookEventBase <|-- CheckoutSucceededEvent
+  SubscriptionWebhookEventBase <|-- CheckoutFailedEvent
+  SubscriptionWebhookEventBase <|-- SubscriptionStatusChangedEvent
   WebhookEvent <.. CheckoutSucceededEvent
   WebhookEvent <.. CheckoutFailedEvent
   WebhookEvent <.. SubscriptionStatusChangedEvent
@@ -61,6 +65,7 @@ classDiagram
 | Rule | Detail |
 |---|---|
 | **Deliberately snake_case** | Every other model type in this SDK is camelCase, converted explicitly from the wire by a deserializer (Ticket 4). These three types are the one exception: `verify()` never parses the body — it only checks the signature and returns a `boolean`. A caller runs `JSON.parse(rawBody)` themselves, and that genuinely produces snake_case keys, since nothing converts them. Typing these as camelCase would describe a shape that doesn't exist at runtime — the same class of bug found (and fixed) twice in Ticket 4's resource layer, avoided here by not making the mistake in the first place. |
+| **`subscription_id` factored into `SubscriptionWebhookEventBase`** (added 2026-08-25, per the lead's request) | All three confirmed events share this field, but the base is named for *subscription* events specifically, not a generic `BaseWebhookEvent` — `subscription_id` is common here because all three happen to be about a subscription, not because every event SUQO will ever send is guaranteed to carry one. A future event about a different resource (e.g. customer- or payout-level) would need its own base, not be forced through this one. Not exported — an internal implementation detail; only the three concrete event types and the `WebhookEvent` union are public. |
 | `amount` stays a string | Decimal string, never coerced to a number — SDK-SPEC.md §9, consistent with every other money-shaped field in the SDK. |
 | `status` is a literal, not the general enum | `"succeeded"`/`"failed"` are always exactly that one value per event — narrower than reusing a general payment-status enum that doesn't exist elsewhere in this API. |
 | `previous_status`/`current_status` reuse `SubscriptionStatus` | Same values as `Subscription.status` elsewhere in the SDK (`openapi.yaml`'s `SubscriptionStatus` schema) — no reason to invent a second enum for the same wire values. |
@@ -73,6 +78,8 @@ classDiagram
 - [ ] `amount` is typed as a string in both checkout events, never a number.
 - [ ] `previous_status`/`current_status` accept the same values as `Subscription.status` elsewhere
       in the SDK, not a separately-defined, possibly-drifting enum.
+- [ ] `SubscriptionWebhookEventBase` is not exported from the public surface — only the three
+      concrete event types and `WebhookEvent` are.
 
 ---
 
