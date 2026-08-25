@@ -60,10 +60,15 @@ export {
   type CreateSubscriptionResponse,
   type UpdateBillingCycleParams,
   type MessageResponse,
+  type CheckoutSucceededEvent,
+  type CheckoutFailedEvent,
+  type SubscriptionStatusChangedEvent,
+  type WebhookEvent,
 } from "./models/index.js";
 
-// .webhooks attaches onto SuqoClient in a later ticket — it makes no network call and needs no
-// key, so it doesn't share Ticket 4's HttpClient wiring (see docs/implementation-plan.md Ticket 5).
-// ProductsResource/SubscriptionsResource/CustomersResource are intentionally NOT exported here —
-// consumers reach them through suqo.products/.subscriptions/.customers, never by constructing one
-// directly (SDK-SPEC.md §5's public surface never shows a resource class being constructed).
+export type { VerifyWebhookOptions } from "./resources/webhooks.js";
+
+// ProductsResource/SubscriptionsResource/CustomersResource/WebhooksResource are intentionally NOT
+// exported here — consumers reach them through suqo.products/.subscriptions/.customers/.webhooks,
+// never by constructing one directly (SDK-SPEC.md §5's public surface never shows a resource
+// class being constructed).

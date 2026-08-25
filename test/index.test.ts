@@ -26,11 +26,13 @@ describe("public export surface", () => {
     expect(suqo.baseUrl).toBe("https://test.be.suqo.ai");
   });
 
-  it("attaches .products/.subscriptions/.customers onto the client built from the public surface", () => {
+  it("attaches .products/.subscriptions/.customers/.webhooks onto the client built from the public surface", () => {
     const suqo = new sdk.SuqoClient({ apiKey: "su_test_key_abc123" });
     expect(suqo.products).toBeDefined();
     expect(suqo.subscriptions).toBeDefined();
     expect(suqo.customers).toBeDefined();
+    expect(suqo.webhooks).toBeDefined();
+    expect(suqo.webhooks.verify).toBeTypeOf("function");
   });
 
   it("exports the pagination runtime helpers", () => {

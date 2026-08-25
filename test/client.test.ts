@@ -4,6 +4,7 @@ import { SuqoConfigError } from "../src/errors/SuqoError.js";
 import { ProductsResource } from "../src/resources/products.js";
 import { SubscriptionsResource } from "../src/resources/subscriptions.js";
 import { CustomersResource } from "../src/resources/customers.js";
+import { WebhooksResource } from "../src/resources/webhooks.js";
 
 describe("SuqoClient", () => {
   it("resolves sandbox for a su_test_key_ key and never throws for a well-formed key", () => {
@@ -48,12 +49,12 @@ describe("SuqoClient", () => {
     expect(suqo.maxRetries).toBe(5);
   });
 
-  it("attaches .products/.subscriptions/.customers, all sharing one HttpClient — no .webhooks yet (Ticket 5)", () => {
+  it("attaches .products/.subscriptions/.customers (sharing one HttpClient) and .webhooks (independent, no HttpClient needed)", () => {
     const suqo = new SuqoClient({ apiKey: "su_key_abc123" });
     expect(suqo.products).toBeInstanceOf(ProductsResource);
     expect(suqo.subscriptions).toBeInstanceOf(SubscriptionsResource);
     expect(suqo.customers).toBeInstanceOf(CustomersResource);
-    expect((suqo as unknown as Record<string, unknown>).webhooks).toBeUndefined();
+    expect(suqo.webhooks).toBeInstanceOf(WebhooksResource);
   });
 
   it("a resource attached to the client actually makes requests through it (end-to-end wiring proof)", async () => {
@@ -74,6 +75,15 @@ describe("SuqoClient", () => {
     } finally {
       vi.unstubAllGlobals();
     }
+  });
+
+  it("suqo.webhooks.verify() actually works when reached through the client (end-to-end wiring proof)", () => {
+    const suqo = new SuqoClient({ apiKey: "su_test_key_abc123" });
+    // Deliberately using a bogus signature -- this isn't testing verify()'s own logic (that's
+    // webhooks.test.ts), just that it's genuinely reachable and callable off the client.
+    expect(suqo.webhooks.verify({ rawBody: "{}", signature: "sha256=bad", timestamp: "0", secret: "x" })).toBe(
+      false,
+    );
   });
 
   it("each SuqoClient instance gets its own resources, not shared across instances", () => {
