@@ -34,8 +34,17 @@ export interface VerifyWebhookOptions {
 
 const DEFAULT_TOLERANCE_SEC = 300;
 const SIGNATURE_PREFIX = "sha256=";
-/** A hex-encoded SHA-256 digest is always exactly 64 lowercase hex characters (32 bytes). */
-const HEX_DIGEST_RE = /^[0-9a-f]+$/i;
+/**
+ * A hex-encoded SHA-256 digest is always exactly 64 hex characters (32 bytes) — the `{64}` is
+ * deliberate, not just `+`. `+` alone only checks *which* characters are used, not *how many*;
+ * a 3-character string like `"abc"` would pass a `+`-based check despite `Buffer.from("abc",
+ * "hex")` still silently truncating to 1 byte, exactly the failure mode this check exists to
+ * prevent (found in review: the `+` version let that through, and only "worked" by accident
+ * because a separate, later length-equality check happened to catch the resulting mismatch —
+ * this regex is now the thing that actually guarantees it, not a lucky side effect of something
+ * else).
+ */
+const HEX_DIGEST_RE = /^[0-9a-f]{64}$/i;
 
 export class WebhooksResource {
   /**

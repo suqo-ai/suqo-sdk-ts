@@ -115,6 +115,17 @@ describe("WebhooksResource.verify", () => {
     ).toBe(false);
   });
 
+  it("a valid-hex but wrong-length signature fails on length alone, not silently truncated to a matching length (found in review)", () => {
+    // "abc" is entirely valid hex characters, so a character-set-only check would have let it
+    // through -- Buffer.from("abc", "hex") would then silently truncate it to 1 byte instead of
+    // rejecting it outright. The regex now requires exactly 64 hex characters, catching this
+    // before any byte conversion happens at all.
+    const rawBody = JSON.stringify({ event: "checkout.succeeded" });
+    const timestamp = nowSeconds();
+
+    expect(webhooks().verify({ rawBody, signature: "sha256=abc", timestamp, secret: SECRET })).toBe(false);
+  });
+
   it("an empty timestamp fails rather than being treated as epoch 0", () => {
     const rawBody = JSON.stringify({ event: "checkout.succeeded" });
     expect(webhooks().verify({ rawBody, signature: "sha256=" + "a".repeat(64), timestamp: "", secret: SECRET })).toBe(
