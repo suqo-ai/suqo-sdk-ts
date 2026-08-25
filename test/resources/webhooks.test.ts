@@ -19,6 +19,31 @@ function webhooks(): WebhooksResource {
 }
 
 describe("WebhooksResource.verify", () => {
+  it("matches a hardcoded, independently-computed HMAC test vector (found in review)", () => {
+    // Deliberately NOT using this file's own sign() helper -- that helper mirrors verify()'s
+    // exact two-.update()-call construction, so a shared bug in both would go unnoticed by every
+    // other test in this file. This expected digest was computed once, separately, via a
+    // single-concatenation .update() call (different code, same inputs) and pasted in as a plain
+    // literal -- an actual independent check against the real algorithm, not an echo of this
+    // file's own assumptions.
+    const secret = "whsec_known_test_vector";
+    const timestamp = "1735689600"; // fixed, not "now" -- this vector must stay valid forever
+    const rawBody =
+      '{"event":"checkout.succeeded","subscription_id":"8f3c2b10-4d5e-4a91-9b77-1c2d3e4f5a6b","amount":"1500.00","status":"succeeded"}';
+    const knownGoodHex = "8feaf9906f3fad1686ee060928dbead151bf57963c29e0166755242adadee467";
+
+    // toleranceSec generously large (~10 years) since `timestamp` is a fixed past date, not
+    // "now" -- this test must keep passing no matter how much later it's actually run.
+    const result = webhooks().verify({
+      rawBody,
+      signature: `sha256=${knownGoodHex}`,
+      timestamp,
+      secret,
+      toleranceSec: 315_360_000,
+    });
+    expect(result).toBe(true);
+  });
+
   it("a genuinely valid signature verifies as true", () => {
     const rawBody = JSON.stringify({ event: "checkout.succeeded" });
     const timestamp = nowSeconds();
