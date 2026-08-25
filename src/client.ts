@@ -1,7 +1,7 @@
 import { SdkConfig } from "./config/index.js";
 import type { SuqoEnvironment } from "./config/index.js";
 import { HttpClient } from "./http/HttpClient.js";
-import { ProductsResource, SubscriptionsResource, CustomersResource } from "./resources/index.js";
+import { ProductsResource, SubscriptionsResource, CustomersResource, WebhooksResource } from "./resources/index.js";
 
 /** Options accepted by {@link SuqoClient}'s constructor (SDK-SPEC.md §2, §4; addendum §5). */
 export interface SuqoClientOptions {
@@ -37,8 +37,8 @@ export interface SuqoClientOptions {
  *
  * `.products`/`.subscriptions`/`.customers` all share this one instance's `HttpClient` — same
  * `baseUrl`/`apiKey`/`timeout`/`maxRetries` for every call, regardless of which resource makes it.
- * `.webhooks` is not attached here — it makes no network call and needs no key, so it lands in
- * Ticket 5 instead (docs/implementation-plan.md).
+ * `.webhooks` is deliberately **not** wired to that shared `HttpClient` — it makes no network
+ * call and needs no key at all (SDK-SPEC.md §9), so it's constructed independently.
  */
 export class SuqoClient {
   readonly #config: SdkConfig;
@@ -49,6 +49,8 @@ export class SuqoClient {
   readonly subscriptions: SubscriptionsResource;
   /** List and retrieve the seller's customers — read-only (SDK-SPEC.md §5, §6). */
   readonly customers: CustomersResource;
+  /** Verify inbound webhook deliveries (SDK-SPEC.md §9). Makes no network call, needs no key. */
+  readonly webhooks: WebhooksResource;
 
   constructor(options: SuqoClientOptions) {
     this.#config = new SdkConfig(options);
@@ -56,6 +58,7 @@ export class SuqoClient {
     this.products = new ProductsResource(http);
     this.subscriptions = new SubscriptionsResource(http);
     this.customers = new CustomersResource(http);
+    this.webhooks = new WebhooksResource();
   }
 
   /** `"sandbox" | "live"` — inferred from the key prefix, never selected explicitly (SDK-SPEC.md §2). */
