@@ -28,6 +28,8 @@ describe("contract: response decoding", () => {
     expect(product?.productId).toBe("de337e17-59a1-4dea-b8b2-1877b9813ebc");
     expect(product?.isActive).toBe(true);
     expect(product?.totalSubscribers).toBe("1");
+    expect(product?.termsAndConditions).toBe("Standard terms apply.");
+    expect(product?.featuresAndBenefits).toBe("Includes priority support.");
     expect(product?.plan[0]?.billingPeriods[0]?.pbpId).toBe("pbp_a1104f81b");
     expect(product?.plan[0]?.billingPeriods[0]?.price).toBe("500.00");
 
@@ -46,6 +48,23 @@ describe("contract: response decoding", () => {
     expect(subscription?.subscriptionId).toBe("30b0af58-c8bc-4f79-9917-51208b73a0ed");
     expect(subscription?.customer.fullName).toBe("Jane Doe");
     expect(subscription?.product.pbpId).toBe("pbp_a1104f81b");
+
+    // billing/shipping deliberately non-null in the fixture (found in review) — this is the one
+    // genuinely asymmetric part of the customer/client boundary: unprefixed here on the read
+    // side (business_name), unlike ClientWrite's billing_-prefixed fields. Asserting on it here
+    // is what actually exercises that path, not just the flat top-level fields.
+    expect(subscription?.customer.billing).toEqual({
+      businessName: "Doe Traders",
+      email: "billing@example.com",
+      address: "Lalitpur",
+      panVat: "123456789",
+    });
+    expect(subscription?.customer.shipping).toEqual({
+      phone: "9811111111",
+      fullName: "John Doe",
+      email: "john@example.com",
+      address: "Bhaktapur",
+    });
 
     expect(subscription).not.toHaveProperty("client");
     expect(subscription).not.toHaveProperty("subscription_id");

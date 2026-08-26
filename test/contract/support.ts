@@ -96,8 +96,10 @@ const mockProduct = {
   description: "",
   type: "tiered",
   is_active: true,
-  terms_and_conditions: null,
-  features_and_benefits: null,
+  // openapi.yaml declares both as plain `{ type: string }` — non-nullable — not `null` (found in
+  // review: the fixture must match what it claims to mirror, since nothing else checks it).
+  terms_and_conditions: "Standard terms apply.",
+  features_and_benefits: "Includes priority support.",
   vat: { is_vat_active: false, vat_type: "inclusive", vat_percentage: "0.00" },
   product_image: [],
   plan: [mockPlan],
@@ -106,13 +108,17 @@ const mockProduct = {
   updated_at: "2026-01-02T00:00:00Z",
 };
 
+// Non-null billing/shipping, deliberately (found in review) — an all-null fixture would never
+// exercise SubscriptionCustomer's billing/shipping deserialization at all, the one genuinely
+// asymmetric part of the customer/client boundary (unprefixed here on the read side, unlike
+// ClientWrite's billing_-prefixed fields — see src/resources/serialization.ts).
 const mockClientRead = {
   phone: "9800000000",
   full_name: "Jane Doe",
   email: "jane@example.com",
   address: "Kathmandu",
-  billing: null,
-  shipping: null,
+  billing: { business_name: "Doe Traders", email: "billing@example.com", address: "Lalitpur", pan_vat: "123456789" },
+  shipping: { phone: "9811111111", full_name: "John Doe", email: "john@example.com", address: "Bhaktapur" },
 };
 
 const mockSubscriptionProduct = {

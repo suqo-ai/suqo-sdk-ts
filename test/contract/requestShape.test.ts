@@ -1,4 +1,4 @@
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { SuqoClient } from "../../src/client.js";
 import { getCapturedRequests, getLastRequest, resetCapturedRequests, server } from "./support.js";
 
@@ -19,8 +19,6 @@ function client(): SuqoClient {
 }
 
 describe("contract: outgoing request shape", () => {
-  beforeEach(() => resetCapturedRequests());
-
   describe("trailing slash — every built URL, including with query params", () => {
     it("products.list() with no params", async () => {
       await client().products.list();

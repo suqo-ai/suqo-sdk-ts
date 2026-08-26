@@ -1,4 +1,4 @@
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { SuqoClient } from "../../src/client.js";
 import { getLastRequest, resetCapturedRequests, server } from "./support.js";
 
@@ -15,10 +15,6 @@ afterEach(() => {
 afterAll(() => server.close());
 
 describe("contract-test harness", () => {
-  beforeEach(() => {
-    resetCapturedRequests();
-  });
-
   it("a real SuqoClient call is actually intercepted by the mock server, end to end", async () => {
     const suqo = new SuqoClient({ apiKey: "su_test_key_abc123" });
     const page = await suqo.products.list();
