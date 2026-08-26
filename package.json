@@ -35,6 +35,8 @@
     "test:watch": "vitest",
     "lint": "eslint . --ext .ts",
     "format": "prettier --write .",
+    "codegen": "openapi-typescript specs/openapi.yaml -o src/generated/schema.ts",
+    "codegen:check": "npm run codegen && git diff --exit-code src/generated/schema.ts",
     "prepare": "node scripts/install-git-hooks.mjs",
     "prepublishOnly": "npm run typecheck && npm run test && npm run build"
   },
@@ -52,6 +54,7 @@
     "@typescript-eslint/eslint-plugin": "^7.0.0",
     "@typescript-eslint/parser": "^7.0.0",
     "eslint": "^8.57.0",
+    "openapi-typescript": "^7.13.0",
     "prettier": "^3.2.0",
     "tsup": "^8.0.0",
     "typescript": "^5.4.0",
