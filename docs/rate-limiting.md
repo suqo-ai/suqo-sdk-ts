@@ -36,6 +36,27 @@ ships:
   when present, with exponential backoff and jitter. No SDK update will be
   required for read retries to respect rate-limit backoff once it arrives.
 
+## Quota metadata — named, not yet built
+
+Beyond `Retry-After`, the SDK Naming Map (v1.3 §8) already reserves names for
+quota metadata, following the [IETF `RateLimit-*` draft][ratelimit-draft] that
+GitHub and Cloudflare have converged on:
+
+| Response header | SDK field |
+|---|---|
+| `RateLimit-Limit` | `rateLimitLimit` |
+| `RateLimit-Remaining` | `rateLimitRemaining` |
+| `RateLimit-Reset` | `rateLimitReset` |
+
+None of these exist in the SDK today — the API doesn't send the headers, and
+no code reads them. They're listed here only so the names are settled ahead of
+time, the same reasoning as the rest of this page. Where exactly they'll
+surface (on every response, only on `RateLimitError`, or something else) is
+still open — this page will be updated with the real shape once that's
+decided and the headers actually start arriving.
+
+[ratelimit-draft]: https://datatracker.ietf.org/doc/draft-ietf-httpapi-ratelimit-headers/
+
 ## Recommended client backoff
 
 Once rate limiting is live, catch `RateLimitError` and back off using its
