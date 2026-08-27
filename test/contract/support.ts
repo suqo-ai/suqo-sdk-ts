@@ -15,7 +15,7 @@ import { setupServer } from "msw/node";
  * @packageDocumentation
  */
 
-const SANDBOX_BASE_URL = "https://test.be.suqo.ai";
+const SANDBOX_BASE_URL = "https://test-be.suqo.ai";
 
 /** One HTTP call as the mock server actually received it — what the contract tests assert against. */
 export interface CapturedRequest {

@@ -39,7 +39,7 @@ not pass an environment flag in the normal case.
 
 | Key prefix     | Environment | Base URL                    |
 | -------------- | ----------- | --------------------------- |
-| `su_test_key_` | Sandbox     | `https://test.be.suqo.ai`   |
+| `su_test_key_` | Sandbox     | `https://test-be.suqo.ai`   |
 | `su_key_`      | Live        | `https://be.suqo.ai`        |
 
 Rules:

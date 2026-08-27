@@ -190,7 +190,7 @@ identically, in this exact order:
 function resolveEnvironment(apiKey, override?) -> { environment, baseUrl }
 
 1. If apiKey is empty or not a string → throw SuqoConfigError("A SUQO API key is required.")
-2. If apiKey starts with "su_test_key_" → environment = sandbox, baseUrl = https://test.be.suqo.ai
+2. If apiKey starts with "su_test_key_" → environment = sandbox, baseUrl = https://test-be.suqo.ai
 3. Else if apiKey starts with "su_key_"  → environment = live,    baseUrl = https://be.suqo.ai
 4. Else → throw SuqoConfigError('Malformed SUQO API key: expected prefix "su_key_" (live) or
    "su_test_key_" (sandbox).')
@@ -229,7 +229,7 @@ config object and assert the raw key string is not present anywhere in the outpu
 
 ### Conformance checklist — Step B
 
-- [ ] `su_test_key_…` → `environment = "sandbox"`, `baseUrl = "https://test.be.suqo.ai"`.
+- [ ] `su_test_key_…` → `environment = "sandbox"`, `baseUrl = "https://test-be.suqo.ai"`.
 - [ ] `su_key_…` → `environment = "live"`, `baseUrl = "https://be.suqo.ai"`.
 - [ ] An empty string or non-string `apiKey` throws `SuqoConfigError`, not a lower-level type error.
 - [ ] A key matching neither prefix throws `SuqoConfigError` with the exact malformed-key message.

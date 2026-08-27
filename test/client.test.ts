@@ -10,7 +10,7 @@ describe("SuqoClient", () => {
   it("resolves sandbox for a su_test_key_ key and never throws for a well-formed key", () => {
     const suqo = new SuqoClient({ apiKey: "su_test_key_abc123" });
     expect(suqo.environment).toBe("sandbox");
-    expect(suqo.baseUrl).toBe("https://test.be.suqo.ai");
+    expect(suqo.baseUrl).toBe("https://test-be.suqo.ai");
   });
 
   it("resolves live for a su_key_ key", () => {
@@ -32,9 +32,9 @@ describe("SuqoClient", () => {
   it("accepts a matching baseUrl override", () => {
     const suqo = new SuqoClient({
       apiKey: "su_test_key_abc123",
-      baseUrl: "https://test.be.suqo.ai",
+      baseUrl: "https://test-be.suqo.ai",
     });
-    expect(suqo.baseUrl).toBe("https://test.be.suqo.ai");
+    expect(suqo.baseUrl).toBe("https://test-be.suqo.ai");
   });
 
   it("defaults timeout to 30_000 and maxRetries to 2", () => {
@@ -69,7 +69,7 @@ describe("SuqoClient", () => {
       const suqo = new SuqoClient({ apiKey: "su_test_key_abc123" });
       await suqo.products.list();
       expect(fetch).toHaveBeenCalledWith(
-        "https://test.be.suqo.ai/api/v1/products/",
+        "https://test-be.suqo.ai/api/v1/products/",
         expect.objectContaining({ headers: expect.objectContaining({ Authorization: "Bearer su_test_key_abc123" }) }),
       );
     } finally {

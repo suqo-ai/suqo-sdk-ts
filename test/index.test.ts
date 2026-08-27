@@ -23,7 +23,7 @@ describe("public export surface", () => {
     expect(sdk.SuqoClient).toBeTypeOf("function");
     const suqo = new sdk.SuqoClient({ apiKey: "su_test_key_abc123" });
     expect(suqo.environment).toBe("sandbox");
-    expect(suqo.baseUrl).toBe("https://test.be.suqo.ai");
+    expect(suqo.baseUrl).toBe("https://test-be.suqo.ai");
   });
 
   it("attaches .products/.subscriptions/.customers/.webhooks onto the client built from the public surface", () => {

@@ -44,7 +44,7 @@ describe("HttpClient", () => {
     await client().request({ method: "GET", path: "/api/v1/products" });
 
     expect(fetch).toHaveBeenCalledWith(
-      "https://test.be.suqo.ai/api/v1/products/",
+      "https://test-be.suqo.ai/api/v1/products/",
       expect.anything(),
     );
   });
@@ -58,7 +58,7 @@ describe("HttpClient", () => {
     });
 
     expect(fetch).toHaveBeenCalledWith(
-      "https://test.be.suqo.ai/api/v1/subscriptions/?page=2&page_size=50",
+      "https://test-be.suqo.ai/api/v1/subscriptions/?page=2&page_size=50",
       expect.anything(),
     );
   });
@@ -482,7 +482,7 @@ describe("HttpClient", () => {
 
     const result = await client().request({
       method: "GET",
-      path: "https://test.be.suqo.ai/api/v1/subscriptions/?page=2",
+      path: "https://test-be.suqo.ai/api/v1/subscriptions/?page=2",
     });
 
     expect(result).toEqual({ ok: true });

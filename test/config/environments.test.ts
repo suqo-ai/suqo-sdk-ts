@@ -6,7 +6,7 @@ describe("resolveEnvironment", () => {
   it("su_test_key_ prefix resolves to sandbox", () => {
     const result = resolveEnvironment("su_test_key_abc123");
     expect(result.environment).toBe("sandbox");
-    expect(result.baseUrl).toBe("https://test.be.suqo.ai");
+    expect(result.baseUrl).toBe("https://test-be.suqo.ai");
   });
 
   it("su_key_ prefix resolves to live", () => {
@@ -30,8 +30,8 @@ describe("resolveEnvironment", () => {
   });
 
   it("a matching baseUrl override is accepted (agreement passes)", () => {
-    const result = resolveEnvironment("su_test_key_abc123", "https://test.be.suqo.ai");
-    expect(result.baseUrl).toBe("https://test.be.suqo.ai");
+    const result = resolveEnvironment("su_test_key_abc123", "https://test-be.suqo.ai");
+    expect(result.baseUrl).toBe("https://test-be.suqo.ai");
   });
 
   it("a conflicting baseUrl override throws SuqoConfigError — silence-and-trust-one is forbidden", () => {
@@ -39,7 +39,7 @@ describe("resolveEnvironment", () => {
       SuqoConfigError,
     );
     expect(() => resolveEnvironment("su_test_key_abc123", "https://be.suqo.ai")).toThrow(
-      "Environment mismatch: key implies https://test.be.suqo.ai but baseUrl was set to https://be.suqo.ai. Remove baseUrl or use a matching key.",
+      "Environment mismatch: key implies https://test-be.suqo.ai but baseUrl was set to https://be.suqo.ai. Remove baseUrl or use a matching key.",
     );
   });
 

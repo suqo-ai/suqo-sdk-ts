@@ -4,7 +4,7 @@
 
 Every request needs your SUQO API key, from your seller dashboard. There are two kinds:
 
-- `su_test_key_...` — **sandbox**. Talks to `https://test.be.suqo.ai`, safe to use while integrating.
+- `su_test_key_...` — **sandbox**. Talks to `https://test-be.suqo.ai`, safe to use while integrating.
 - `su_key_...` — **live**. Talks to `https://be.suqo.ai`, moves real money.
 
 Pass it once, when you construct the client:
@@ -37,7 +37,7 @@ Every request carries it as `Authorization: Bearer <apiKey>`, attached automatic
 ```ts
 new SuqoClient({
   apiKey: 'su_key_...',
-  baseUrl: 'https://test.be.suqo.ai', // disagrees with the live key → throws
+  baseUrl: 'https://test-be.suqo.ai', // disagrees with the live key → throws
 });
 ```
 

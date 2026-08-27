@@ -8,7 +8,7 @@ import { SuqoConfigError } from "../errors/SuqoError.js";
 /** The two environments a key prefix resolves to. Never selected explicitly — always inferred. */
 export type SuqoEnvironment = "sandbox" | "live";
 
-const SANDBOX_BASE_URL = "https://test.be.suqo.ai";
+const SANDBOX_BASE_URL = "https://test-be.suqo.ai";
 const LIVE_BASE_URL = "https://be.suqo.ai";
 
 /**

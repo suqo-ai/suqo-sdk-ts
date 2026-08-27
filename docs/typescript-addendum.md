@@ -67,7 +67,7 @@ import { SuqoClient } from "@suqo/sdk";
 // Environment inferred purely from the key prefix — nothing else needed.
 const suqo = new SuqoClient({ apiKey: process.env.SUQO_API_KEY! });
 
-// su_test_key_… -> https://test.be.suqo.ai   (sandbox)
+// su_test_key_… -> https://test-be.suqo.ai   (sandbox)
 // su_key_…      -> https://be.suqo.ai         (live)
 ```
 
@@ -93,7 +93,7 @@ Inference logic (authoritative order — test prefix first):
 ```ts
 function resolveBaseUrl(apiKey: string, override?: string): string {
   const LIVE = "https://be.suqo.ai";
-  const SANDBOX = "https://test.be.suqo.ai";
+  const SANDBOX = "https://test-be.suqo.ai";
 
   let inferred: string;
   if (apiKey.startsWith("su_test_key_")) inferred = SANDBOX;

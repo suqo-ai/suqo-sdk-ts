@@ -167,7 +167,7 @@ describe("ProductsResource", () => {
     await products().list({ page: 2, pageSize: 50 });
 
     expect(fetch).toHaveBeenCalledWith(
-      "https://test.be.suqo.ai/api/v1/products/?page=2&page_size=50",
+      "https://test-be.suqo.ai/api/v1/products/?page=2&page_size=50",
       expect.anything(),
     );
   });
@@ -190,7 +190,7 @@ describe("ProductsResource", () => {
       .mockResolvedValueOnce(
         jsonResponse({
           count: 2,
-          next: "https://test.be.suqo.ai/api/v1/products/?page=2",
+          next: "https://test-be.suqo.ai/api/v1/products/?page=2",
           previous: null,
           results: [wireProduct],
         }),

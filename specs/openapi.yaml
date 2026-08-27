@@ -34,7 +34,7 @@ info:
 servers:
   - url: https://be.suqo.ai
     description: Live
-  - url: https://test.be.suqo.ai
+  - url: https://test-be.suqo.ai
     description: Sandbox
 
 security:
