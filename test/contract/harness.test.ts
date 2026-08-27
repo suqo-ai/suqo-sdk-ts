@@ -27,11 +27,11 @@ describe("contract-test harness", () => {
     expect(captured?.url).toBe("https://test.be.suqo.ai/api/v1/products/");
   });
 
-  it("a parameterized path (:id) handler matches a real id, proving path-param routes work too", async () => {
+  it("a parameterized path (:id) handler matches a real id, and the mock echoes it back like a real API would", async () => {
     const suqo = new SuqoClient({ apiKey: "su_test_key_abc123" });
     const customer = await suqo.customers.retrieve(999999);
 
-    expect(customer.id).toBe(42); // the handler's fixed mock response, id in the URL doesn't affect it
+    expect(customer.id).toBe(999999); // the mock reads :id from the URL, not a fixed unrelated value
     expect(getLastRequest()?.url).toBe("https://test.be.suqo.ai/api/v1/customers/999999/");
   });
 

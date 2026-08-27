@@ -209,9 +209,13 @@ export const handlers: HttpHandler[] = [
     return HttpResponse.json({ count: 1, next: null, previous: null, results: [mockCustomer] });
   }),
 
-  http.get(`${SANDBOX_BASE_URL}/api/v1/customers/:id/`, async ({ request }) => {
+  http.get(`${SANDBOX_BASE_URL}/api/v1/customers/:id/`, async ({ request, params }) => {
     await capture(request);
-    return HttpResponse.json(mockCustomer);
+    // Echoes back whatever id was actually requested
+    // a real API returns the customer matching the id you asked for, not an unrelated fixed one.
+    // A caller requesting id 999999 getting back id 42 looks like a bug even when the intent was
+    // only to prove :id path-matching works, not to simulate a real per-id lookup.
+    return HttpResponse.json({ ...mockCustomer, id: Number(params.id) });
   }),
 ];
 
