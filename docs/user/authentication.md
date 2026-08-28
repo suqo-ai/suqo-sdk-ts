@@ -41,6 +41,23 @@ new SuqoClient({
 });
 ```
 
+## Other constructor options
+
+| Option | Default | What it does |
+|---|---|---|
+| `timeout` | `30_000` (30s) | Per-request timeout, in milliseconds. Aborts a call that takes longer than this. |
+| `maxRetries` | `2` (3 attempts total) | Max retry attempts for **reads only** — `list`/`retrieve` calls retry on `NetworkError`, `429`, and `5xx` with backoff. Writes never retry regardless of this value; see [`docs/user/errors.md`](errors.md#writes-arent-automatically-retried). |
+
+```ts
+const suqo = new SuqoClient({
+  apiKey: process.env.SUQO_API_KEY!,
+  timeout: 10_000,  // fail faster than the 30s default
+  maxRetries: 0,    // disable automatic retries on reads entirely
+});
+```
+
+Both apply to every call made through this client — there's no way to override either on a per-call basis today; construct a second `SuqoClient` with different values if you need that.
+
 ## Errors thrown before any request is made
 
 Both of these are thrown synchronously, from the constructor, as `SuqoConfigError` — you'll never see them wrapped in a rejected promise:
