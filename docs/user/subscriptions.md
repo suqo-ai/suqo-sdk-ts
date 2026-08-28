@@ -4,7 +4,7 @@
 
 ```ts
 const response = await suqo.subscriptions.create({
-  pbpId: billingPeriod.pbpId, // from products.list() — see docs/products.md
+  pbpId: billingPeriod.pbpId, // from products.list() — see docs/user/products.md
   returnUrl: 'https://your-app.example/return',
   customer: {
     phone: '9800000000',
@@ -17,11 +17,11 @@ const response = await suqo.subscriptions.create({
 response.checkoutUrl; // redirect the buyer here to pay
 ```
 
-**`checkoutUrl` is not proof of payment.** A newly created subscription comes back in `pending_checkout` status — redirecting the buyer there starts checkout, it doesn't confirm it succeeded. Learn the real outcome from the `checkout.succeeded`/`checkout.failed` webhooks (see [`docs/webhooks.md`](webhooks.md)), not from this response.
+**`checkoutUrl` is not proof of payment.** A newly created subscription comes back in `pending_checkout` status — redirecting the buyer there starts checkout, it doesn't confirm it succeeded. Learn the real outcome from the `checkout.succeeded`/`checkout.failed` webhooks (see [`docs/user/webhooks.md`](webhooks.md)), not from this response.
 
 ### Reuse behavior
 
-If the same buyer already has an inactive/expired subscription for the same product + billing period, `create()` reactivates it instead of creating a duplicate. Only a currently **active** subscription for that same combination triggers a `ValidationError` for a duplicate-active-subscription attempt — see [`docs/errors.md`](errors.md).
+If the same buyer already has an inactive/expired subscription for the same product + billing period, `create()` reactivates it instead of creating a duplicate. Only a currently **active** subscription for that same combination triggers a `ValidationError` for a duplicate-active-subscription attempt — see [`docs/user/errors.md`](errors.md).
 
 ### The `customer` field
 
@@ -46,7 +46,7 @@ page.results;              // Subscription[]
 page.activeSubscriptions;  // plus 4 extra counts alongside the usual envelope
 ```
 
-Paginated like every list endpoint — see [`docs/pagination.md`](pagination.md). `SubscriptionPage` adds `totalSubscriptions`/`activeSubscriptions`/`dueSubscriptions`/`inactiveSubscriptions` on top of the common `count`/`next`/`previous`/`results` shape.
+Paginated like every list endpoint — see [`docs/user/pagination.md`](pagination.md). `SubscriptionPage` adds `totalSubscriptions`/`activeSubscriptions`/`dueSubscriptions`/`inactiveSubscriptions` on top of the common `count`/`next`/`previous`/`results` shape.
 
 ## Cancelling
 
@@ -79,8 +79,8 @@ There's no `retrieve(id)` on this resource — fetching a single subscription by
 
 ## Decimal fields
 
-`Subscription.product.price` stays a string end to end — never coerced to `number`, same as `products.md`'s pricing fields. See [`docs/products.md`](products.md) for the same convention on the product side.
+`Subscription.product.price` stays a string end to end — never coerced to `number`, same as `products.md`'s pricing fields. See [`docs/user/products.md`](products.md) for the same convention on the product side.
 
 ## Retries
 
-None of the write methods above (`create`, `cancel`, `updateBillingCycle`, `resume`) are automatically retried on failure — see [`docs/errors.md`](errors.md#writes-arent-automatically-retried) and [`docs/idempotency.md`](idempotency.md) for why, and what changes once the backend supports idempotency keys.
+None of the write methods above (`create`, `cancel`, `updateBillingCycle`, `resume`) are automatically retried on failure — see [`docs/user/errors.md`](errors.md#writes-arent-automatically-retried) and [`docs/user/idempotency.md`](idempotency.md) for why, and what changes once the backend supports idempotency keys.

@@ -3,7 +3,7 @@
 > **Status: Planned.** The API does not enforce rate limits yet and returns no
 > rate-limit headers today. This page describes the intended model so it's
 > published ahead of the feature, not bolted on after the fact — see
-> [`SDK-SPEC.md` §10](../specs/SDK-SPEC.md).
+> [`SDK-SPEC.md` §10](../../specs/SDK-SPEC.md).
 
 ## Current behaviour
 

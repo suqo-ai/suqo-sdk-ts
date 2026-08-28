@@ -9,7 +9,7 @@ const page = await suqo.products.list();
 page.results; // Product[]
 ```
 
-`list()` is paginated — see [`docs/pagination.md`](pagination.md) for `page`/`pageSize` and `.autoPaging()`. It takes the same `{ page?, pageSize? }` params every paginated resource does:
+`list()` is paginated — see [`docs/user/pagination.md`](pagination.md) for `page`/`pageSize` and `.autoPaging()`. It takes the same `{ page?, pageSize? }` params every paginated resource does:
 
 ```ts
 await suqo.products.list({ page: 2, pageSize: 50 });

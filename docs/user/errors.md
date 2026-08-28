@@ -18,12 +18,12 @@ try {
 
 | Class | When | Notes |
 |---|---|---|
-| `SuqoConfigError` | Constructing `SuqoClient` with a malformed key, or a `baseUrl` that disagrees with it | Thrown synchronously, before any request — see [`docs/authentication.md`](authentication.md) |
+| `SuqoConfigError` | Constructing `SuqoClient` with a malformed key, or a `baseUrl` that disagrees with it | Thrown synchronously, before any request — see [`docs/user/authentication.md`](authentication.md) |
 | `AuthenticationError` | `401` | Key is missing, malformed, or inactive |
 | `KycRequiredError` | `403` | Seller hasn't completed KYC. Carries `kycStatus`, if the response included one |
 | `ValidationError` | `400` | See below — two different body shapes, normalized into one class |
 | `NotFoundError` | `404` | Resource doesn't exist, or doesn't belong to your account |
-| `RateLimitError` | `429` | **Reserved** — see [`docs/rate-limiting.md`](rate-limiting.md); never thrown until the API enforces limits |
+| `RateLimitError` | `429` | **Reserved** — see [`docs/user/rate-limiting.md`](rate-limiting.md); never thrown until the API enforces limits |
 | `ServerError` | `5xx` (and any unmapped status) | Unexpected failure on SUQO's side |
 | `NetworkError` | No response at all | Covers both a genuine network failure and a timeout — there's no separate timeout class |
 
@@ -63,4 +63,4 @@ try {
 
 ## Writes aren't automatically retried
 
-Reads (`list`, `retrieve`) retry on `NetworkError`, `429`, and `5xx` with backoff. Writes (`create`, `cancel`, `updateBillingCycle`, `resume`) never retry automatically — a blindly-retried write could double-act (e.g. a duplicate subscription) since the API has no idempotency-key support yet. See [`docs/idempotency.md`](idempotency.md) for what changes once it does, and [`docs/rate-limiting.md`](rate-limiting.md) for `RateLimitError`'s `retryAfter` field once `429` responses start arriving.
+Reads (`list`, `retrieve`) retry on `NetworkError`, `429`, and `5xx` with backoff. Writes (`create`, `cancel`, `updateBillingCycle`, `resume`) never retry automatically — a blindly-retried write could double-act (e.g. a duplicate subscription) since the API has no idempotency-key support yet. See [`docs/user/idempotency.md`](idempotency.md) for what changes once it does, and [`docs/user/rate-limiting.md`](rate-limiting.md) for `RateLimitError`'s `retryAfter` field once `429` responses start arriving.

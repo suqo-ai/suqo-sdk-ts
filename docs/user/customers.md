@@ -9,7 +9,7 @@ const page = await suqo.customers.list();
 page.results; // Customer[]
 ```
 
-Paginated like every other list endpoint — see [`docs/pagination.md`](pagination.md).
+Paginated like every other list endpoint — see [`docs/user/pagination.md`](pagination.md).
 
 ## Retrieving one
 
@@ -33,4 +33,4 @@ interface Customer {
 
 Every field except `id`/`createdAt` can be `null` — a customer record doesn't guarantee it has a phone or email on file.
 
-This is a genuinely different shape from the `customer` object embedded on a `Subscription` (see [`docs/subscriptions.md`](subscriptions.md)) — that one uses `phone`/`fullName`/`email` with no `buyer` prefix, plus nested `billing`/`shipping`. They're related concepts (both describe a buyer) but not the same type, and the SDK never conflates them.
+This is a genuinely different shape from the `customer` object embedded on a `Subscription` (see [`docs/user/subscriptions.md`](subscriptions.md)) — that one uses `phone`/`fullName`/`email` with no `buyer` prefix, plus nested `billing`/`shipping`. They're related concepts (both describe a buyer) but not the same type, and the SDK never conflates them.

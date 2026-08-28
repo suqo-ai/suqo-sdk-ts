@@ -66,4 +66,4 @@ try {
 
 `console.log(suqo)`, `JSON.stringify(suqo)`, and Node's `util.inspect` all print `apiKey: "[redacted]"` instead of the real value — including when you log the client itself rather than something derived from it. Nothing about how you use the SDK will accidentally leak the key into a log line.
 
-See [`docs/errors.md`](errors.md) for the rest of the error hierarchy, and [`docs/rate-limiting.md`](rate-limiting.md) for the (planned) `429` behavior once the API enforces limits.
+See [`docs/user/errors.md`](errors.md) for the rest of the error hierarchy, and [`docs/user/rate-limiting.md`](rate-limiting.md) for the (planned) `429` behavior once the API enforces limits.

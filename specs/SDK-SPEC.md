@@ -242,7 +242,7 @@ today. The SDK is built forward-ready:
   emits `429`.
 - The read-retry path already honours `Retry-After` so no behavioural change is
   needed when limits arrive.
-- A `docs/rate-limiting.md` stub ships from v1 describing the intended model
+- A `docs/user/rate-limiting.md` stub ships from v1 describing the intended model
   ("token bucket per API key; `429` + `Retry-After`; recommended client
   backoff"), marked *Planned*. Docs exist before the feature so the section is
   never bolted on.
@@ -274,7 +274,7 @@ Idempotency is **cancelled for v1** but recorded here so it drops in cleanly:
   retryable in the §8 retry switch.
 - **Blocking dependency:** the backend must honour the header (dedup on key)
   before the SDK may retry writes. Until then, writes stay non-retryable.
-- **Docs:** a `docs/idempotency.md` stub ships from v1, marked *Planned*, so the
+- **Docs:** a `docs/user/idempotency.md` stub ships from v1, marked *Planned*, so the
   concept and header name are published ahead of implementation.
 
 ---
