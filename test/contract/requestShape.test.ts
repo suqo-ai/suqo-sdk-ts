@@ -22,20 +22,20 @@ describe("contract: outgoing request shape", () => {
   describe("trailing slash — every built URL, including with query params", () => {
     it("products.list() with no params", async () => {
       await client().products.list();
-      expect(getLastRequest()?.url).toBe("https://test.be.suqo.ai/api/v1/products/");
+      expect(getLastRequest()?.url).toBe("https://test-be.suqo.ai/api/v1/products/");
     });
 
     it("products.list() with query params — slash lands before the ?, not after", async () => {
       await client().products.list({ page: 2, pageSize: 50 });
       expect(getLastRequest()?.url).toBe(
-        "https://test.be.suqo.ai/api/v1/products/?page=2&page_size=50",
+        "https://test-be.suqo.ai/api/v1/products/?page=2&page_size=50",
       );
     });
 
     it("subscriptions.list() with query params", async () => {
       await client().subscriptions.list({ page: 1, pageSize: 20 });
       expect(getLastRequest()?.url).toBe(
-        "https://test.be.suqo.ai/api/v1/subscriptions/?page=1&page_size=20",
+        "https://test-be.suqo.ai/api/v1/subscriptions/?page=1&page_size=20",
       );
     });
 
@@ -45,13 +45,13 @@ describe("contract: outgoing request shape", () => {
         returnUrl: "https://example.com/return",
         customer: { phone: "9800000000", fullName: "Jane Doe", email: "jane@example.com", address: "Kathmandu" },
       });
-      expect(getLastRequest()?.url).toBe("https://test.be.suqo.ai/api/v1/subscriptions/");
+      expect(getLastRequest()?.url).toBe("https://test-be.suqo.ai/api/v1/subscriptions/");
     });
 
     it("subscriptions.cancel(id) — path-templated route", async () => {
       await client().subscriptions.cancel("30b0af58-c8bc-4f79-9917-51208b73a0ed");
       expect(getLastRequest()?.url).toBe(
-        "https://test.be.suqo.ai/api/v1/subscriptions/30b0af58-c8bc-4f79-9917-51208b73a0ed/cancel/",
+        "https://test-be.suqo.ai/api/v1/subscriptions/30b0af58-c8bc-4f79-9917-51208b73a0ed/cancel/",
       );
     });
 
@@ -61,25 +61,25 @@ describe("contract: outgoing request shape", () => {
         nextBillingCycle: "2026-03-01",
       });
       expect(getLastRequest()?.url).toBe(
-        "https://test.be.suqo.ai/api/v1/subscriptions/update-billing-cycle/",
+        "https://test-be.suqo.ai/api/v1/subscriptions/update-billing-cycle/",
       );
     });
 
     it("subscriptions.resume(id)", async () => {
       await client().subscriptions.resume("30b0af58-c8bc-4f79-9917-51208b73a0ed");
       expect(getLastRequest()?.url).toBe(
-        "https://test.be.suqo.ai/api/v1/subscriptions/30b0af58-c8bc-4f79-9917-51208b73a0ed/resume/",
+        "https://test-be.suqo.ai/api/v1/subscriptions/30b0af58-c8bc-4f79-9917-51208b73a0ed/resume/",
       );
     });
 
     it("customers.list()", async () => {
       await client().customers.list();
-      expect(getLastRequest()?.url).toBe("https://test.be.suqo.ai/api/v1/customers/");
+      expect(getLastRequest()?.url).toBe("https://test-be.suqo.ai/api/v1/customers/");
     });
 
     it("customers.retrieve(id)", async () => {
       await client().customers.retrieve(42);
-      expect(getLastRequest()?.url).toBe("https://test.be.suqo.ai/api/v1/customers/42/");
+      expect(getLastRequest()?.url).toBe("https://test-be.suqo.ai/api/v1/customers/42/");
     });
   });
 

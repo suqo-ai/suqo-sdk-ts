@@ -6,7 +6,7 @@ describe("SdkConfig", () => {
   it("resolves sandbox for a su_test_key_ key and never throws for a well-formed key", () => {
     const config = new SdkConfig({ apiKey: "su_test_key_abc123" });
     expect(config.environment).toBe("sandbox");
-    expect(config.baseUrl).toBe("https://test.be.suqo.ai");
+    expect(config.baseUrl).toBe("https://test-be.suqo.ai");
   });
 
   it("resolves live for a su_key_ key", () => {
@@ -28,9 +28,9 @@ describe("SdkConfig", () => {
   it("accepts a matching baseUrl override", () => {
     const config = new SdkConfig({
       apiKey: "su_test_key_abc123",
-      baseUrl: "https://test.be.suqo.ai",
+      baseUrl: "https://test-be.suqo.ai",
     });
-    expect(config.baseUrl).toBe("https://test.be.suqo.ai");
+    expect(config.baseUrl).toBe("https://test-be.suqo.ai");
   });
 
   it("defaults timeout to 30_000 and maxRetries to 2", () => {

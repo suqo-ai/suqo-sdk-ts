@@ -147,7 +147,7 @@ describe("SubscriptionsResource", () => {
     const page = await subscriptions().list({ page: 1, pageSize: 20 });
 
     expect(fetch).toHaveBeenCalledWith(
-      "https://test.be.suqo.ai/api/v1/subscriptions/?page=1&page_size=20",
+      "https://test-be.suqo.ai/api/v1/subscriptions/?page=1&page_size=20",
       expect.anything(),
     );
     expect(page.activeSubscriptions).toBe(1);
@@ -159,7 +159,7 @@ describe("SubscriptionsResource", () => {
       .mockResolvedValueOnce(
         jsonResponse({
           count: 2,
-          next: "https://test.be.suqo.ai/api/v1/subscriptions/?page=2",
+          next: "https://test-be.suqo.ai/api/v1/subscriptions/?page=2",
           previous: null,
           total_subscriptions: 2,
           active_subscriptions: 2,
@@ -245,7 +245,7 @@ describe("SubscriptionsResource", () => {
     const result = await subscriptions().cancel("sub_1");
 
     expect(fetch).toHaveBeenCalledWith(
-      "https://test.be.suqo.ai/api/v1/subscriptions/sub_1/cancel/",
+      "https://test-be.suqo.ai/api/v1/subscriptions/sub_1/cancel/",
       expect.anything(),
     );
     const [, init] = vi.mocked(fetch).mock.calls[0]!;
@@ -259,7 +259,7 @@ describe("SubscriptionsResource", () => {
     await subscriptions().updateBillingCycle({ subscriptionId: "sub_1", nextBillingCycle: "2026-03-01" });
 
     expect(fetch).toHaveBeenCalledWith(
-      "https://test.be.suqo.ai/api/v1/subscriptions/update-billing-cycle/",
+      "https://test-be.suqo.ai/api/v1/subscriptions/update-billing-cycle/",
       expect.anything(),
     );
     const [, init] = vi.mocked(fetch).mock.calls[0]!;
@@ -275,7 +275,7 @@ describe("SubscriptionsResource", () => {
     const result = await subscriptions().resume("sub_1");
 
     expect(fetch).toHaveBeenCalledWith(
-      "https://test.be.suqo.ai/api/v1/subscriptions/sub_1/resume/",
+      "https://test-be.suqo.ai/api/v1/subscriptions/sub_1/resume/",
       expect.anything(),
     );
     expect(result.message).toBe("Subscription resumed.");

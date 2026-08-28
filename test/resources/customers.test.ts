@@ -64,7 +64,7 @@ describe("CustomersResource", () => {
     await customers().list({ page: 2, pageSize: 50 });
 
     expect(fetch).toHaveBeenCalledWith(
-      "https://test.be.suqo.ai/api/v1/customers/?page=2&page_size=50",
+      "https://test-be.suqo.ai/api/v1/customers/?page=2&page_size=50",
       expect.anything(),
     );
   });
@@ -85,7 +85,7 @@ describe("CustomersResource", () => {
       .mockResolvedValueOnce(
         jsonResponse({
           count: 2,
-          next: "https://test.be.suqo.ai/api/v1/customers/?page=2",
+          next: "https://test-be.suqo.ai/api/v1/customers/?page=2",
           previous: null,
           results: [wireCustomer],
         }),
@@ -108,7 +108,7 @@ describe("CustomersResource", () => {
 
     const result = await customers().retrieve(42);
 
-    expect(fetch).toHaveBeenCalledWith("https://test.be.suqo.ai/api/v1/customers/42/", expect.anything());
+    expect(fetch).toHaveBeenCalledWith("https://test-be.suqo.ai/api/v1/customers/42/", expect.anything());
     expect(result).toEqual({
       id: 42,
       buyerPhone: "9800000000",

@@ -40,7 +40,7 @@ const NODE_INSPECT_CUSTOM = Symbol.for("nodejs.util.inspect.custom");
  * @example
  * ```ts
  * const config = new SdkConfig({ apiKey: "su_test_key_..." });
- * config.baseUrl;     // => "https://test.be.suqo.ai"
+ * config.baseUrl;     // => "https://test-be.suqo.ai"
  * config.environment; // => "sandbox"
  * ```
  */

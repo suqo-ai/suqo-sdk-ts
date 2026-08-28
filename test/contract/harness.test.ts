@@ -24,7 +24,7 @@ describe("contract-test harness", () => {
 
     const captured = getLastRequest();
     expect(captured?.method).toBe("GET");
-    expect(captured?.url).toBe("https://test.be.suqo.ai/api/v1/products/");
+    expect(captured?.url).toBe("https://test-be.suqo.ai/api/v1/products/");
   });
 
   it("a parameterized path (:id) handler matches a real id, and the mock echoes it back like a real API would", async () => {
@@ -32,7 +32,7 @@ describe("contract-test harness", () => {
     const customer = await suqo.customers.retrieve(999999);
 
     expect(customer.id).toBe(999999); // the mock reads :id from the URL, not a fixed unrelated value
-    expect(getLastRequest()?.url).toBe("https://test.be.suqo.ai/api/v1/customers/999999/");
+    expect(getLastRequest()?.url).toBe("https://test-be.suqo.ai/api/v1/customers/999999/");
   });
 
   it("onUnhandledRequest: 'error' means an endpoint with no matching handler throws, not silently passes through", async () => {
@@ -41,6 +41,6 @@ describe("contract-test harness", () => {
     // mock that quietly no-ops on anything it wasn't told about. Asserted directly against
     // fetch (there's no unhandled route reachable through the public SDK surface itself), proving
     // the harness's own safety net actually fires rather than assuming it does.
-    await expect(fetch("https://test.be.suqo.ai/api/v1/unhandled-route/")).rejects.toThrow();
+    await expect(fetch("https://test-be.suqo.ai/api/v1/unhandled-route/")).rejects.toThrow();
   });
 });

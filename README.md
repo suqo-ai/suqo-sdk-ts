@@ -4,11 +4,47 @@ Server-side TypeScript SDK for the SUQO subscription management platform. Lets p
 
 > **Server-side only.** This SDK uses your full-access API key and must never be bundled into browser code.
 
+## Install
+
+```bash
+npm install @suqo/sdk
+```
+
+## Quickstart
+
+```ts
+import { SuqoClient } from '@suqo/sdk';
+
+// The key's prefix tells the SDK which environment to talk to — nothing else to configure.
+const suqo = new SuqoClient({ apiKey: process.env.SUQO_API_KEY! });
+
+const page = await suqo.products.list();
+console.log(page.results);
+```
+
+See [`docs/user/authentication.md`](docs/user/authentication.md) for how the API key determines sandbox vs. live, and every topic below for the rest of the surface.
+
+## Docs
+
+| Topic | Doc |
+|---|---|
+| Authentication | [`docs/user/authentication.md`](docs/user/authentication.md) |
+| Products | [`docs/user/products.md`](docs/user/products.md) |
+| Subscriptions | [`docs/user/subscriptions.md`](docs/user/subscriptions.md) |
+| Customers | [`docs/user/customers.md`](docs/user/customers.md) |
+| Webhooks | [`docs/user/webhooks.md`](docs/user/webhooks.md) |
+| Pagination | [`docs/user/pagination.md`](docs/user/pagination.md) |
+| Errors | [`docs/user/errors.md`](docs/user/errors.md) |
+| Rate limiting *(planned)* | [`docs/user/rate-limiting.md`](docs/user/rate-limiting.md) |
+| Idempotency *(planned)* | [`docs/user/idempotency.md`](docs/user/idempotency.md) |
+
+Every exported class and method also carries inline TSDoc — your editor will show it on hover without needing to open these files.
+
 ## What's included
 
 - **Dual build** — ESM + CommonJS + `.d.ts` via [`tsup`](https://tsup.egoist.dev) (`dist/index.js`, `index.cjs`, `index.d.ts`).
 - **Strict TypeScript** — `strict`, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, `verbatimModuleSyntax`.
-- **Tests** — [`vitest`](https://vitest.dev).
+- **Tests** — [`vitest`](https://vitest.dev), including contract tests run against a mock server built from the same OpenAPI contract the SDK implements.
 - **Lint/format** — ESLint (`no-explicit-any: error`) + Prettier.
 - **Publish-ready** — `exports` map (import/require/types), `sideEffects: false`, `files: ["dist"]`, `engines.node >=18`, `prepublishOnly` gate.
 
@@ -22,42 +58,6 @@ npm test           # vitest
 npm run lint
 npm run format
 ```
-
-## Layout
-
-```
-src/index.ts        # entry — Client + ApiError stub (replace)
-test/index.test.ts   # vitest specs — mock-fetch coverage for the Client stub
-tsup.config.ts       # build config
-tsconfig.json        # strict compiler options
-```
-
-## Test cases included
-
-`test/index.test.ts` mocks the global `fetch` (no real network calls) and covers:
-
-- **Auth header** — `X-Api-Key` is sent on every request.
-- **On-Behalf-Of header** — added only when `onBehalfOf` is passed to the client.
-- **Custom `baseUrl`** — requests hit the configured host, not just the default.
-- **Success path** — parsed JSON body is returned as-is.
-- **Error path (404)** — a non-2xx response throws `ApiError` with the right `status` and `body`.
-- **Rate limiting (429)** — same error path, confirming status code propagates correctly.
-- **Malformed JSON body** — a response that fails to parse doesn't crash the client; it resolves to `undefined`.
-
-Run them with `npm test`.
-
-## Build your SDK — checklist
-
-1. Set `name`, `description`, `author`, `keywords` in `package.json`.
-2. Replace the `Client` stub in `src/index.ts`:
-   - Add resource classes (e.g. `src/resources/*.ts`) wired onto the client.
-   - Add typed request/response interfaces (e.g. `src/types/*.ts`).
-   - Build an HTTP helper (auth headers, query/URL building, timeout via `AbortController`, retries with backoff, JSON decode).
-   - Define a typed error hierarchy off `ApiError` and map HTTP status → error class.
-   - Add pagination helpers if your API paginates.
-3. Export everything from `src/index.ts`.
-4. Extend `test/index.test.ts` as you add resources — keep using an injected mock `fetch` (no network).
-5. `npm run typecheck && npm test && npm run build`.
 
 ## License
 
