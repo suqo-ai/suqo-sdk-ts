@@ -14,7 +14,8 @@ subscription). This is a deliberate, single switch in the SDK's retry layer —
 see [SDK-SPEC.md §8](../../specs/SDK-SPEC.md).
 
 Read operations (`list`, `retrieve`) are unaffected: they're naturally
-idempotent and already retried on `NetworkError` and `5xx`.
+idempotent and already retried on `NetworkError`, `429`, and `5xx` — see
+[`docs/user/errors.md`](errors.md#writes-arent-automatically-retried).
 
 ## Intended header
 

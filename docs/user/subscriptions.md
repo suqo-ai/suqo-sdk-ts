@@ -73,6 +73,21 @@ This is a collection-level call — the subscription id travels in the request b
 await suqo.subscriptions.resume(subscriptionId);
 ```
 
+## Status values
+
+`Subscription.status` is one of:
+
+| Status | Meaning |
+|---|---|
+| `pending_checkout` | Newly created; the buyer hasn't paid yet |
+| `active` | Currently active |
+| `due` | `nextBillingCycle` passed with no payment yet |
+| `cancelled` | Cancelled immediately (user-prompted) |
+| `pending_cancellation` | Scheduled to cancel at the end of the current billing cycle — see [Cancelling](#cancelling) above |
+| `inactive` | Auto-ended after a grace period without payment |
+
+`isActive` on a `Subscription` is `true` iff `status === "active"`.
+
 ## What's not here yet
 
 There's no `retrieve(id)` on this resource — fetching a single subscription by id isn't implemented, pending a real sample response from the backend. Use `.list()` (or `.autoPaging()`) and filter client-side if you need to find a specific one today.
