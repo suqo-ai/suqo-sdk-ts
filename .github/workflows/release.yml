@@ -1,0 +1,72 @@
+name: Release
+
+# Ticket 10 (Packaging & release). Publishes @suqo/sdk to npm with provenance whenever a version
+# tag is pushed. This workflow can be fully written and validated before it's ever able to run
+# for real — actually succeeding requires two org-level things this repo can't self-resolve:
+#   1. The @suqo npm scope must exist and this org must own it.
+#   2. The account behind the NPM_TOKEN secret must have 2FA enabled for "Authorization and
+#      Publishing" (not just login) — required for --provenance.
+# See specs/versioning.md and docs/implementation-plan.md's Ticket 10 blockers.
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: read
+  # Required for npm provenance (OIDC token exchange with the registry) — without this, id-token
+  # is unavailable and --provenance fails even with a valid NPM_TOKEN.
+  id-token: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          # Needed so `npm publish` picks up NODE_AUTH_TOKEN below instead of failing unauthenticated.
+          registry-url: "https://registry.npmjs.org"
+
+      - run: npm ci
+
+      # Same gate CI runs on every PR — re-run here too rather than trusting that the tagged
+      # commit already passed it. A tag can be pushed to any commit, not only one CI already
+      # blessed.
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
+
+      - name: Codegen drift check
+        run: npm run codegen:check
+
+      - name: Verify tag matches package.json version
+        # A tag of v1.2.3 must publish exactly package.json's "1.2.3" — catches the human error of
+        # tagging without bumping the version (or bumping without tagging) before it ships the
+        # wrong artifact under the wrong version number.
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          PKG_VERSION="$(node -p "require('./package.json').version")"
+          if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME (version $TAG_VERSION) does not match package.json version $PKG_VERSION"
+            exit 1
+          fi
+
+      - name: Publish to npm
+        # --access public: @suqo/sdk is a scoped package: npm defaults a new scope's first publish
+        # to restricted (private) unless told otherwise. This is a public SDK, so this flag is
+        # required on the very first publish specifically — not optional, not just a style choice.
+        run: npm publish --access public --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
