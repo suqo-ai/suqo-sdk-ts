@@ -48,6 +48,9 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Typecheck examples
+        run: npm run typecheck:examples
+
       - name: Codegen drift check
         run: npm run codegen:check
 
