@@ -12,10 +12,10 @@ import { SuqoClient } from "@suqo/sdk";
 const suqo = new SuqoClient({ apiKey: requireEnv("SUQO_API_KEY") });
 
 // Team guidance for testing against a live key: SMS goes to a real phone number for whatever you
-// put here. Use the shared live test account (9845976839), or increment from 9800000000 per run
-// (9800000001, 9800000002, ...) so the same real number doesn't get repeatedly texted. Override
+// put here. Use the shared live test account (9845976839), or increment from 9000000000 per run
+// (9000000001, 9000000002, ...) so the same real number doesn't get repeatedly texted. Override
 // with SUQO_TEST_PHONE — sandbox calls never send a real SMS, so the default below is fine there.
-const testPhone = process.env.SUQO_TEST_PHONE ?? "9800000000";
+const testPhone = process.env.SUQO_TEST_PHONE ?? "9000000000";
 // Unlike SMS, email sends for real in sandbox too, not just live — override with your own address
 // if you want to actually receive it, or leave the placeholder if you don't.
 const testEmail = process.env.SUQO_TEST_EMAIL ?? "jane@example.com";

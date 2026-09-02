@@ -39,10 +39,10 @@ then run `npx tsx ...` separately — or just use a `.env` file, which works the
 **SMS** only with a live key (`su_key_...`); **email** in both sandbox and live, always.
 
 - **Phone** — use the shared live test account **`9845976839`**, or increment from
-  **`9800000000`** per run, so the same real number isn't repeatedly texted.
+  **`9000000000`** per run, so the same real number isn't repeatedly texted.
 - **Email** — your own address to actually see it, or leave the placeholder if not.
 
-Override via env vars (default `9800000000` / `jane@example.com`):
+Override via env vars (default `9000000000` / `jane@example.com`):
 
 ```bash
 SUQO_TEST_PHONE=9845976839 SUQO_TEST_EMAIL=you@example.com npx tsx examples/quickstart.ts
