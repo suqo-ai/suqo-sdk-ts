@@ -45,7 +45,7 @@ then run `npx tsx ...` separately — or just use a `.env` file, which works the
 Override via env vars (default `9000000000` / `jane@example.com`):
 
 ```bash
-SUQO_TEST_PHONE=9845976839 SUQO_TEST_EMAIL=you@example.com npx tsx examples/quickstart.ts
+SUQO_TEST_PHONE=9000000000 SUQO_TEST_EMAIL=you@example.com npx tsx examples/quickstart.ts
 ```
 
 ## What's here
