@@ -89,7 +89,11 @@ directly, e.g.:
 
 await main();
 
-/** YYYY-MM-DD, `days` from today — always valid for `updateBillingCycle`'s "today or later" rule. */
+/**
+ * YYYY-MM-DD, `days` from today (UTC). With `days` this large (30), UTC-vs-local skew is a
+ * fraction of a day and never crosses `updateBillingCycle`'s "today or later" boundary — don't
+ * assume the same holds for `daysFromNow(0)`/`daysFromNow(1)` near a UTC-day rollover.
+ */
 function daysFromNow(days: number): string {
   const date = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
   return date.toISOString().slice(0, 10);
