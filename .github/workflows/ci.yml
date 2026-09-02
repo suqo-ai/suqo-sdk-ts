@@ -14,12 +14,19 @@ on:
 jobs:
   ci:
     runs-on: ubuntu-latest
+    strategy:
+      # Node 18/20/22 (Ticket 10; typescript-addendum.md §1: "Node 18+ ... drop-in for 20/22") —
+      # the floor and both LTS lines actually get exercised, not just whichever one CI happened to
+      # pin before this ticket.
+      fail-fast: false
+      matrix:
+        node-version: [18, 20, 22]
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: ${{ matrix.node-version }}
           cache: npm
 
       - run: npm ci
