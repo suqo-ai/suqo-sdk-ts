@@ -10,9 +10,10 @@
  * same way SUQO's backend does — HMAC-SHA256 over `${timestamp}.${rawBody}` — to demonstrate a
  * genuine delivery, a tampered one, and a stale one, all in one self-contained run.
  *
- * Run with a sandbox key:
+ * Run with a sandbox key — either inline, or via a .env file (see examples/README.md):
  *   SUQO_API_KEY=su_test_key_... npx tsx examples/verify-webhook.ts
  */
+import "dotenv/config";
 import { createHmac } from "node:crypto";
 import { SuqoClient } from "@suqo/sdk";
 

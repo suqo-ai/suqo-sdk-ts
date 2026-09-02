@@ -4,9 +4,10 @@
  * Read-only — there's no create/update/delete on this resource. Unlike every other resource in
  * the SDK, `Customer.id` is an integer, not a UUID.
  *
- * Run with a sandbox key:
+ * Run with a sandbox key — either inline, or via a .env file (see examples/README.md):
  *   SUQO_API_KEY=su_test_key_... npx tsx examples/list-customers.ts
  */
+import "dotenv/config";
 import { SuqoClient } from "@suqo/sdk";
 
 const suqo = new SuqoClient({ apiKey: requireEnv("SUQO_API_KEY") });

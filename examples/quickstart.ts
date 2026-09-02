@@ -2,9 +2,10 @@
  * End-to-end: list products, create a subscription for a real one, then verify a sample
  * checkout.succeeded webhook for it — the shape of a real integration, not three isolated calls.
  *
- * Run with a sandbox key:
+ * Run with a sandbox key — either inline, or via a .env file (see examples/README.md):
  *   SUQO_API_KEY=su_test_key_... npx tsx examples/quickstart.ts
  */
+import "dotenv/config";
 import { createHmac } from "node:crypto";
 import { SuqoClient } from "@suqo/sdk";
 

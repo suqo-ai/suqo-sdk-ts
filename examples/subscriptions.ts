@@ -10,9 +10,10 @@
  * None of `create`/`cancel`/`updateBillingCycle`/`resume` are automatically retried on failure —
  * writes never retry until idempotency ships (SDK-SPEC.md §8, §12).
  *
- * Run with a sandbox key:
+ * Run with a sandbox key — either inline, or via a .env file (see examples/README.md):
  *   SUQO_API_KEY=su_test_key_... npx tsx examples/subscriptions.ts
  */
+import "dotenv/config";
 import { SuqoClient, type CreateSubscriptionResponse } from "@suqo/sdk";
 
 const suqo = new SuqoClient({ apiKey: requireEnv("SUQO_API_KEY") });

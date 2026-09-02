@@ -14,13 +14,24 @@ whichever one you need into your own project.
 2. Use a sandbox key here (`su_test_key_...`, from your seller dashboard) — that's what these are
    built for. A live key (`su_key_...`) would work too (the SDK doesn't restrict either way), but
    there's no reason to point example code at real money.
-3. Run any script with [`tsx`](https://tsx.is) (already a dev dependency of this repo):
+3. Set `SUQO_API_KEY`, either inline per command, or once via a `.env` file in the repo root —
+   every script loads it automatically (`dotenv`, already a dev dependency of this repo):
+   ```
+   SUQO_API_KEY=su_test_key_...
+   ```
+4. Run any script with [`tsx`](https://tsx.is) (already a dev dependency of this repo):
+   ```bash
+   npx tsx examples/quickstart.ts
+   ```
+   or, without a `.env` file, inline for one command:
    ```bash
    SUQO_API_KEY=su_test_key_... npx tsx examples/quickstart.ts
    ```
 
-On Windows PowerShell, set the env var separately: `$env:SUQO_API_KEY = "su_test_key_..."`, then
-run the `npx tsx ...` command on its own.
+On Windows PowerShell, the inline form is `$env:SUQO_API_KEY = "su_test_key_..."` on its own line,
+then run `npx tsx ...` separately — or just use a `.env` file, which works the same on every shell.
+
+`.env` is already git-ignored at the repo root — nothing you put there gets committed.
 
 ## What's here
 

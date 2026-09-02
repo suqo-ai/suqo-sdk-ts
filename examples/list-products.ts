@@ -4,9 +4,10 @@
  * Products is the only resource that works before KYC verification, so this is usually the very
  * first real call an integration makes.
  *
- * Run with a sandbox key:
+ * Run with a sandbox key — either inline, or via a .env file (see examples/README.md):
  *   SUQO_API_KEY=su_test_key_... npx tsx examples/list-products.ts
  */
+import "dotenv/config";
 import { SuqoClient } from "@suqo/sdk";
 
 const suqo = new SuqoClient({ apiKey: requireEnv("SUQO_API_KEY") });
