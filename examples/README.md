@@ -33,6 +33,21 @@ then run `npx tsx ...` separately — or just use a `.env` file, which works the
 
 `.env` is already git-ignored at the repo root — nothing you put there gets committed.
 
+## Be careful with the phone number and email you use
+
+`quickstart.ts`/`subscriptions.ts` create a real subscription, which sends real notifications:
+**SMS** only with a live key (`su_key_...`); **email** in both sandbox and live, always.
+
+- **Phone** — use the shared live test account **`9845976839`**, or increment from
+  **`9800000000`** per run, so the same real number isn't repeatedly texted.
+- **Email** — your own address to actually see it, or leave the placeholder if not.
+
+Override via env vars (default `9800000000` / `jane@example.com`):
+
+```bash
+SUQO_TEST_PHONE=9845976839 SUQO_TEST_EMAIL=you@example.com npx tsx examples/quickstart.ts
+```
+
 ## What's here
 
 | Script                                   | Shows                                                                                     |

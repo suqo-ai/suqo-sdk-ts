@@ -11,6 +11,15 @@ import { SuqoClient } from "@suqo/sdk";
 
 const suqo = new SuqoClient({ apiKey: requireEnv("SUQO_API_KEY") });
 
+// Team guidance for testing against a live key: SMS goes to a real phone number for whatever you
+// put here. Use the shared live test account (9845976839), or increment from 9800000000 per run
+// (9800000001, 9800000002, ...) so the same real number doesn't get repeatedly texted. Override
+// with SUQO_TEST_PHONE — sandbox calls never send a real SMS, so the default below is fine there.
+const testPhone = process.env.SUQO_TEST_PHONE ?? "9800000000";
+// Unlike SMS, email sends for real in sandbox too, not just live — override with your own address
+// if you want to actually receive it, or leave the placeholder if you don't.
+const testEmail = process.env.SUQO_TEST_EMAIL ?? "jane@example.com";
+
 // 1. List products, pick the first available billing period to subscribe to.
 const products = await suqo.products.list();
 const billingPeriod = products.results[0]?.plan[0]?.billingPeriods[0];
@@ -29,9 +38,9 @@ const subscription = await suqo.subscriptions.create({
   pbpId: billingPeriod.pbpId,
   returnUrl: "https://your-app.example/return",
   customer: {
-    phone: "9800000000",
+    phone: testPhone,
     fullName: "Jane Doe",
-    email: "jane@example.com",
+    email: testEmail,
     address: "Kathmandu",
   },
 });
