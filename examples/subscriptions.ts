@@ -73,6 +73,7 @@ async function main(): Promise<void> {
   }
 
   const created = await createSubscription(billingPeriod.pbpId);
+  const nextBillingCycle = daysFromNow(30);
 
   console.log(`
 A freshly created subscription is in "${created.status}" — the buyer hasn't paid yet, so cancel()/
@@ -81,12 +82,18 @@ state). Once you have a subscription id in the right state, call any of the func
 directly, e.g.:
 
   await cancelSubscription("${created.subscriptionId}");
-  await updateBillingCycle("${created.subscriptionId}", "2026-03-01");
+  await updateBillingCycle("${created.subscriptionId}", "${nextBillingCycle}");
   await resumeSubscription("${created.subscriptionId}");
 `);
 }
 
 await main();
+
+/** YYYY-MM-DD, `days` from today — always valid for `updateBillingCycle`'s "today or later" rule. */
+function daysFromNow(days: number): string {
+  const date = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
+  return date.toISOString().slice(0, 10);
+}
 
 function requireEnv(name: string): string {
   const value = process.env[name];

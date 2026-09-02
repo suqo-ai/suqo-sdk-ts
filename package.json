@@ -46,7 +46,7 @@
     "codegen": "openapi-typescript specs/openapi.yaml -o src/generated/schema.ts",
     "codegen:check": "npm run codegen && git diff --exit-code src/generated/schema.ts",
     "prepare": "node scripts/install-git-hooks.mjs",
-    "prepublishOnly": "npm run typecheck && npm run test && npm run build"
+    "prepublishOnly": "npm run typecheck && npm run test && npm run build && npm run typecheck:examples"
   },
   "keywords": [
     "sdk",
