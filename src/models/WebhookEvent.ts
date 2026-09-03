@@ -1,8 +1,9 @@
 import type { SubscriptionStatus } from "./Subscription.js";
 
 /**
- * The three confirmed webhook event payload shapes (docs/implementation-plan.md Ticket 0 item 2,
- * resolved 2026-08-17; re-verified live against `suqo.ai/docs/api/webhooks` on 2026-08-25).
+ * The confirmed webhook event payload shapes: the original three (Ticket 0 item 2) plus four
+ * `api_key.*` events added 2026-09-03, each confirmed against a real delivery or a backend-
+ * confirmed sample — not the event catalog's names alone.
  *
  * Deliberately **snake_case**, unlike every other model in this SDK — `webhooks.verify()`
  * (Ticket 5) only checks the signature and returns a `boolean`; it never parses the body itself
@@ -60,9 +61,60 @@ export interface SubscriptionStatusChangedEvent extends SubscriptionWebhookEvent
   changed_at: string;
 }
 
+/** Fields shared by every API-key-related webhook event — separate base, no `subscription_id`. */
+interface ApiKeyWebhookEventBase {
+  /** Sent as a string on the wire (e.g. `"305"`), not a number — never coerce it. */
+  api_key_id: string;
+  name: string;
+  /** Never the real key — always pre-masked by the backend (e.g. `"su_key_ca9...bf9e"`). */
+  masked_key: string;
+  /** `YYYY-MM-DD`, date-only — no time component, unlike `created_at`/`deleted_at`. */
+  expires_at: string;
+  /** ISO 8601 timestamp. */
+  created_at: string;
+}
+
+/** A new API key was created. */
+export interface ApiKeyCreatedEvent extends ApiKeyWebhookEventBase {
+  event: "api_key.created";
+}
+
+/** An API key was deleted. */
+export interface ApiKeyDeletedEvent extends ApiKeyWebhookEventBase {
+  event: "api_key.deleted";
+  /** ISO 8601 timestamp. */
+  deleted_at: string;
+}
+
+/** An API key's `expires_at` date has passed. */
+export interface ApiKeyExpiredEvent extends ApiKeyWebhookEventBase {
+  event: "api_key.expired";
+}
+
+/** An API key is nearing its `expires_at` date — fires ahead of `api_key.expired`. */
+export interface ApiKeyExpiringSoonEvent extends ApiKeyWebhookEventBase {
+  event: "api_key.expiring_soon";
+}
+
 /**
  * Any confirmed webhook event. Not exhaustive of everything SUQO might ever send — narrow on
  * `event` before trusting the rest of the shape, the same way you'd handle any tagged union from
  * an external source.
  */
-export type WebhookEvent = CheckoutSucceededEvent | CheckoutFailedEvent | SubscriptionStatusChangedEvent;
+export type WebhookEvent =
+  | CheckoutSucceededEvent
+  | CheckoutFailedEvent
+  | SubscriptionStatusChangedEvent
+  | ApiKeyCreatedEvent
+  | ApiKeyDeletedEvent
+  | ApiKeyExpiredEvent
+  | ApiKeyExpiringSoonEvent;
+
+/**
+ * Every event name the SDK currently knows the shape of — derived from {@link WebhookEvent}, not
+ * hand-duplicated, so it can never drift out of sync with the union above. Same standalone
+ * flat-union-of-event-names pattern as other SDKs' `WebhookEventType`.
+ */
+export type WebhookEventType = WebhookEvent["event"];
+// → "checkout.succeeded" | "checkout.failed" | "subscription.status_changed"
+//   | "api_key.created" | "api_key.deleted" | "api_key.expired" | "api_key.expiring_soon"

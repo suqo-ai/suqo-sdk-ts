@@ -13,7 +13,7 @@ npm install @suqo/sdk
 ## Quickstart
 
 ```ts
-import { SuqoClient } from '@suqo/sdk';
+import { SuqoClient } from "@suqo/sdk";
 
 // The key's prefix tells the SDK which environment to talk to — nothing else to configure.
 const suqo = new SuqoClient({ apiKey: process.env.SUQO_API_KEY! });
@@ -26,17 +26,18 @@ See [`docs/user/authentication.md`](docs/user/authentication.md) for how the API
 
 ## Docs
 
-| Topic | Doc |
-|---|---|
-| Authentication | [`docs/user/authentication.md`](docs/user/authentication.md) |
-| Products | [`docs/user/products.md`](docs/user/products.md) |
-| Subscriptions | [`docs/user/subscriptions.md`](docs/user/subscriptions.md) |
-| Customers | [`docs/user/customers.md`](docs/user/customers.md) |
-| Webhooks | [`docs/user/webhooks.md`](docs/user/webhooks.md) |
-| Pagination | [`docs/user/pagination.md`](docs/user/pagination.md) |
-| Errors | [`docs/user/errors.md`](docs/user/errors.md) |
-| Rate limiting *(planned)* | [`docs/user/rate-limiting.md`](docs/user/rate-limiting.md) |
-| Idempotency *(planned)* | [`docs/user/idempotency.md`](docs/user/idempotency.md) |
+| Topic                     | Doc                                                                  |
+| ------------------------- | -------------------------------------------------------------------- |
+| Examples                  | [`examples/`](examples/) — runnable scripts against your own sandbox |
+| Authentication            | [`docs/user/authentication.md`](docs/user/authentication.md)         |
+| Products                  | [`docs/user/products.md`](docs/user/products.md)                     |
+| Subscriptions             | [`docs/user/subscriptions.md`](docs/user/subscriptions.md)           |
+| Customers                 | [`docs/user/customers.md`](docs/user/customers.md)                   |
+| Webhooks                  | [`docs/user/webhooks.md`](docs/user/webhooks.md)                     |
+| Pagination                | [`docs/user/pagination.md`](docs/user/pagination.md)                 |
+| Errors                    | [`docs/user/errors.md`](docs/user/errors.md)                         |
+| Rate limiting _(planned)_ | [`docs/user/rate-limiting.md`](docs/user/rate-limiting.md)           |
+| Idempotency _(planned)_   | [`docs/user/idempotency.md`](docs/user/idempotency.md)               |
 
 Every exported class and method also carries inline TSDoc — your editor will show it on hover without needing to open these files.
 

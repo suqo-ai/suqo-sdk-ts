@@ -1,0 +1,25 @@
+{
+  // Extends the root config instead of hand-duplicating its compiler options — this keeps
+  // examples/ typechecked under the exact same strictness bar as src/test, and means a future
+  // change to the root config (target/lib/module/strictness flags) never silently drifts out of
+  // sync here. `@suqo/sdk` resolves the same way a real consumer's node_modules would — via
+  // package.json's own `name` + `exports` fields, self-referencing `dist/index.d.ts` (already
+  // inherited: root sets `moduleResolution: "Bundler"`) — which only exists after `npm run build`.
+  // That's what proves these examples typecheck against the SDK's actual public surface, not
+  // internal `src/` modules.
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    // Belt-and-suspenders: `npm run typecheck:examples` already passes `--noEmit` on the CLI,
+    // which wins regardless, but this keeps the config correct standalone too (e.g. an editor's
+    // TS server reading this file directly, with no CLI flag involved).
+    "noEmit": true,
+    // Override, not inherit: the root config adds "DOM" (needed for src/'s use of fetch-related
+    // browser-shaped types). Examples run under plain Node via tsx, never a browser — leaving DOM
+    // out means a DOM-only API used here fails typecheck immediately instead of silently working
+    // at typecheck time and breaking at runtime under tsx.
+    "lib": ["ES2022"]
+  },
+  // Overrides (not merges with) the root's `include` — resolved relative to this file, so this
+  // covers only examples/, not src/test.
+  "include": ["."]
+}

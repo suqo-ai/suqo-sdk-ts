@@ -43,6 +43,13 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Typecheck examples
+        # examples/tsconfig.json resolves `@suqo/sdk` via package.json's own exports field, self-
+        # referencing dist/index.d.ts — the same path a real consumer's node_modules would take.
+        # Needs dist/ built first (the step above), so a renamed export/method/param breaks this
+        # the same way it would break someone who copy-pasted an example into their own project.
+        run: npm run typecheck:examples
+
       - name: Codegen drift check (Ticket 6)
         # Regenerates src/generated/schema.ts from specs/openapi.yaml, then fails if the freshly
         # generated file differs from what's checked in — the actual enforcement mechanism behind

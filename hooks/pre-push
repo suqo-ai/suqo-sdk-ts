@@ -14,4 +14,10 @@ npm run --silent test
 echo "pre-push: lint"
 npm run --silent lint
 
+echo "pre-push: build"
+npm run --silent build
+
+echo "pre-push: typecheck examples"
+npm run --silent typecheck:examples
+
 echo "pre-push: all checks passed"
