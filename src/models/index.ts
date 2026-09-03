@@ -32,6 +32,10 @@ export type {
   CheckoutSucceededEvent,
   CheckoutFailedEvent,
   SubscriptionStatusChangedEvent,
+  ApiKeyCreatedEvent,
+  ApiKeyDeletedEvent,
+  ApiKeyExpiredEvent,
+  ApiKeyExpiringSoonEvent,
   WebhookEvent,
   WebhookEventType,
 } from "./WebhookEvent.js";

@@ -63,6 +63,10 @@ export {
   type CheckoutSucceededEvent,
   type CheckoutFailedEvent,
   type SubscriptionStatusChangedEvent,
+  type ApiKeyCreatedEvent,
+  type ApiKeyDeletedEvent,
+  type ApiKeyExpiredEvent,
+  type ApiKeyExpiringSoonEvent,
   type WebhookEvent,
   type WebhookEventType,
 } from "./models/index.js";
