@@ -66,3 +66,12 @@ export interface SubscriptionStatusChangedEvent extends SubscriptionWebhookEvent
  * an external source.
  */
 export type WebhookEvent = CheckoutSucceededEvent | CheckoutFailedEvent | SubscriptionStatusChangedEvent;
+
+/**
+ * Every event name the SDK currently knows the shape of — derived from {@link WebhookEvent}, not
+ * hand-duplicated, so it can never drift out of sync with the union above. Same standalone
+ * flat-union-of-event-names pattern as other SDKs' `WebhookEventType`; just three values today
+ * since that's everything SUQO's API documents (`specs/openapi.yaml`), not dozens.
+ */
+export type WebhookEventType = WebhookEvent["event"];
+// → "checkout.succeeded" | "checkout.failed" | "subscription.status_changed"

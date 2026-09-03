@@ -33,4 +33,5 @@ export type {
   CheckoutFailedEvent,
   SubscriptionStatusChangedEvent,
   WebhookEvent,
+  WebhookEventType,
 } from "./WebhookEvent.js";

@@ -64,6 +64,7 @@ export {
   type CheckoutFailedEvent,
   type SubscriptionStatusChangedEvent,
   type WebhookEvent,
+  type WebhookEventType,
 } from "./models/index.js";
 
 export type { VerifyWebhookOptions } from "./resources/webhooks.js";
