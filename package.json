@@ -4,6 +4,13 @@
   "description": "A TypeScript SDK for SUQO would be a small code library that lets other businesses (SUQO's platform sellers) easily connect their own apps or websites to SUQO — without writing raw API calls themselves.",
   "license": "Apache-2.0",
   "author": "",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Code-Pros-AI/suqo-sdk.git"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "type": "module",
   "engines": {
     "node": ">=18"
@@ -31,11 +38,15 @@
   "scripts": {
     "build": "tsup",
     "typecheck": "tsc --noEmit",
+    "typecheck:examples": "tsc --noEmit -p examples/tsconfig.json",
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint . --ext .ts",
     "format": "prettier --write .",
-    "prepublishOnly": "npm run typecheck && npm run test && npm run build"
+    "codegen": "openapi-typescript specs/openapi.yaml -o src/generated/schema.ts",
+    "codegen:check": "npm run codegen && git diff --exit-code src/generated/schema.ts",
+    "prepare": "node scripts/install-git-hooks.mjs",
+    "prepublishOnly": "npm run typecheck && npm run test && npm run lint && npm run build && npm run typecheck:examples"
   },
   "keywords": [
     "sdk",
@@ -50,9 +61,13 @@
     "@types/node": "^20.11.0",
     "@typescript-eslint/eslint-plugin": "^7.0.0",
     "@typescript-eslint/parser": "^7.0.0",
+    "dotenv": "^17.4.2",
     "eslint": "^8.57.0",
+    "msw": "^2.15.0",
+    "openapi-typescript": "^7.13.0",
     "prettier": "^3.2.0",
     "tsup": "^8.0.0",
+    "tsx": "^4.23.13",
     "typescript": "^5.4.0",
     "vitest": "^1.4.0"
   },

@@ -1,0 +1,23 @@
+#!/bin/sh
+# Pre-push quality gate (docs/implementation-plan.md Ticket 1, added during PR #11 review).
+# Runs the same checks CI does, one step earlier, so broken code never leaves your machine.
+# Installed into .git/hooks/ automatically by scripts/install-git-hooks.mjs (npm's "prepare"
+# lifecycle script) — this file itself is the tracked source of truth, not .git/hooks/pre-push.
+set -e
+
+echo "pre-push: typecheck"
+npm run --silent typecheck
+
+echo "pre-push: test"
+npm run --silent test
+
+echo "pre-push: lint"
+npm run --silent lint
+
+echo "pre-push: build"
+npm run --silent build
+
+echo "pre-push: typecheck examples"
+npm run --silent typecheck:examples
+
+echo "pre-push: all checks passed"

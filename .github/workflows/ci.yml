@@ -1,0 +1,57 @@
+name: CI
+
+# The same checks hooks/pre-push already runs locally (typecheck/test/lint), plus build and the
+# Ticket 6 codegen drift check — pre-push catches most breaks before they leave a machine, this is
+# the actual, enforced gate. hooks/pre-push's own comment has said "runs the same checks CI does"
+# since Ticket 1; this workflow is what finally makes that comment true, not aspirational.
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - "epic/**"
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    strategy:
+      # Node 18/20/22 (Ticket 10; typescript-addendum.md §1: "Node 18+ ... drop-in for 20/22") —
+      # the floor and both LTS lines actually get exercised, not just whichever one CI happened to
+      # pin before this ticket.
+      fail-fast: false
+      matrix:
+        node-version: [18, 20, 22]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+
+      - run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
+
+      - name: Typecheck examples
+        # examples/tsconfig.json resolves `@suqo/sdk` via package.json's own exports field, self-
+        # referencing dist/index.d.ts — the same path a real consumer's node_modules would take.
+        # Needs dist/ built first (the step above), so a renamed export/method/param breaks this
+        # the same way it would break someone who copy-pasted an example into their own project.
+        run: npm run typecheck:examples
+
+      - name: Codegen drift check (Ticket 6)
+        # Regenerates src/generated/schema.ts from specs/openapi.yaml, then fails if the freshly
+        # generated file differs from what's checked in — the actual enforcement mechanism behind
+        # "a change to the API immediately shows up as a build failure."
+        run: npm run codegen:check
