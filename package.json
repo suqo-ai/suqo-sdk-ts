@@ -1,12 +1,12 @@
 {
   "name": "@suqo/sdk",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "description": "A TypeScript SDK for SUQO would be a small code library that lets other businesses (SUQO's platform sellers) easily connect their own apps or websites to SUQO — without writing raw API calls themselves.",
   "license": "Apache-2.0",
   "author": "",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Code-Pros-AI/suqo-sdk.git"
+    "url": "git+https://github.com/suqo-ai/suqo-sdk-ts.git"
   },
   "publishConfig": {
     "access": "public"
