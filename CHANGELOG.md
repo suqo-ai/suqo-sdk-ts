@@ -43,4 +43,4 @@ adheres to [Semantic Versioning](https://semver.org/) per [`specs/versioning.md`
   retried on computed backoff instead of the server's requested wait.
 
 [Unreleased]: https://github.com/suqo-ai/suqo-sdk-ts/compare/v1.0.0...HEAD
-[1.0.0]: https://github.com/suqo-ai/suqo-sdk-ts/releases/tag/v1.0.0
+[1.0.0]: https://github.com/suqo-ai/suqo-sdk-ts/tree/v1.0.0
