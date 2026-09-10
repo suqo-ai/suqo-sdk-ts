@@ -253,6 +253,17 @@ describe("SubscriptionsResource", () => {
     expect(result.message).toBe("Subscription will be cancelled at the end of the current billing period.");
   });
 
+  it("cancel() URL-encodes an id containing reserved characters (found in review)", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ message: "Subscription cancelled." }));
+
+    await subscriptions().cancel("sub?1#a/b");
+
+    expect(fetch).toHaveBeenCalledWith(
+      "https://test-be.suqo.ai/api/v1/subscriptions/sub%3F1%23a%2Fb/cancel/",
+      expect.anything(),
+    );
+  });
+
   it("updateBillingCycle() posts subscription_id/next_billing_cycle to the collection-level route", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ message: "Billing cycle updated." }));
 
@@ -279,6 +290,17 @@ describe("SubscriptionsResource", () => {
       expect.anything(),
     );
     expect(result.message).toBe("Subscription resumed.");
+  });
+
+  it("resume() URL-encodes an id containing reserved characters (found in review)", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ message: "Subscription resumed." }));
+
+    await subscriptions().resume("sub?1#a/b");
+
+    expect(fetch).toHaveBeenCalledWith(
+      "https://test-be.suqo.ai/api/v1/subscriptions/sub%3F1%23a%2Fb/resume/",
+      expect.anything(),
+    );
   });
 
   it("no retrieve() method exists yet — still blocked on backend (Ticket 4)", () => {

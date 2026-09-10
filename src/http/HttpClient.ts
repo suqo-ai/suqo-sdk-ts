@@ -182,8 +182,10 @@ export class HttpClient {
         // treatment as `#doFetch` itself failing, not an unmapped rejection escaping `request()`.
         // Wrapping both in the same try/catch below (found in review) is what makes that happen.
         const body = await parseJsonBody(response);
-        const retryAfter =
-          response.status === 429 ? parseRetryAfterMs(response.headers.get("Retry-After")) : undefined;
+        // Honored on any status, not just 429 (found in review) — a retried 5xx (isRetryableFailure
+        // covers 500-599 too) can carry the same header, e.g. a 503 during a maintenance window, and
+        // ignoring it there means retrying on our own backoff instead of the wait the server asked for.
+        const retryAfter = parseRetryAfterMs(response.headers.get("Retry-After"));
 
         if (
           !isLastAttempt &&

@@ -195,9 +195,13 @@ export class SubscriptionsResource {
    * Not auto-retryable — writes never retry until idempotency ships (SDK-SPEC.md §8, §12).
    */
   async cancel(id: string): Promise<MessageResponse> {
+    // encodeURIComponent, found in review: an unescaped id containing `?`/`#`/`/` would otherwise
+    // be parsed as URL structure by buildUrl's `new URL(path, base)`, silently corrupting the
+    // path instead of erroring — e.g. `?` truncates everything after it, swallowing `/cancel`
+    // into the query string.
     return this.#http.request<MessageResponse>({
       method: "POST",
-      path: `${SUBSCRIPTIONS_PATH}/${id}/cancel`,
+      path: `${SUBSCRIPTIONS_PATH}/${encodeURIComponent(id)}/cancel`,
     });
   }
 
@@ -226,9 +230,10 @@ export class SubscriptionsResource {
    * Not auto-retryable — writes never retry until idempotency ships (SDK-SPEC.md §8, §12).
    */
   async resume(id: string): Promise<MessageResponse> {
+    // encodeURIComponent, found in review: same path-corruption risk as cancel() above.
     return this.#http.request<MessageResponse>({
       method: "POST",
-      path: `${SUBSCRIPTIONS_PATH}/${id}/resume`,
+      path: `${SUBSCRIPTIONS_PATH}/${encodeURIComponent(id)}/resume`,
     });
   }
 }

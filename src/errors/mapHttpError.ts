@@ -28,7 +28,11 @@ export interface HttpErrorInput {
   body?: unknown;
   /** The backend's request id for this call, if one was returned (nice-to-have — Ticket 0 item 3). */
   requestId?: string;
-  /** Suggested backoff derived from a `Retry-After` header, in milliseconds. Only meaningful for 429s. */
+  /**
+   * Suggested backoff derived from a `Retry-After` header, in milliseconds. Parsed for any status
+   * (found in review: HttpClient's retry loop needs it on retryable 5xxs too, not just 429), but
+   * only ever surfaced on the thrown error itself for `RateLimitError` (429) below.
+   */
   retryAfter?: number;
 }
 

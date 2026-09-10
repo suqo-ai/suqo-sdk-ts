@@ -206,6 +206,24 @@ describe("HttpClient", () => {
     expect(sleep).toHaveBeenCalledWith(5000);
   });
 
+  it("honors Retry-After on a 503 too, not just 429 (found in review)", async () => {
+    const sleep = vi.fn(async () => {});
+    const sdkConfig = new SdkConfig({ apiKey: "su_test_key_abc123", maxRetries: 1 });
+    const httpClient = new HttpClient(sdkConfig, { sleep });
+
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ detail: "maintenance" }), {
+          status: 503,
+          headers: { "Retry-After": "30" },
+        }),
+      )
+      .mockResolvedValueOnce(jsonResponse({ ok: true }));
+
+    await httpClient.request({ method: "GET", path: "/api/v1/products" });
+    expect(sleep).toHaveBeenCalledWith(30000);
+  });
+
   it("still maps to RateLimitError with retryAfter when 429 persists past maxRetries", async () => {
     vi.mocked(fetch).mockResolvedValue(
       new Response(JSON.stringify({ detail: "slow down" }), {
