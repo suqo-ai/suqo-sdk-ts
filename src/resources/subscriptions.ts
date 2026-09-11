@@ -34,7 +34,11 @@ interface WireSubscription {
   status: string;
   is_active: boolean;
   client: unknown;
-  product: WireSubscriptionProduct;
+  // `WireSubscriptionProduct | null`, optional too (found in review): `openapi.yaml`'s
+  // Subscription schema has no `required` list at all, the same gap already handled defensively
+  // for Product's `vat` (`WireProductVat | null`, also optional) — so an omitted *or* explicitly
+  // null `product` key is spec-legal here too, not just a hypothetical.
+  product?: WireSubscriptionProduct | null;
   current_period_start: string | null;
   current_period_end: string | null;
   next_billing_cycle: string | null;
@@ -84,7 +88,12 @@ export function deserializeSubscription(wire: WireSubscription): Subscription {
     isActive: wire.is_active,
     // Renamed from the wire's `client` — SDK Naming Map v1.1 §11 "Customer boundary".
     customer: deserializeSubscriptionCustomer(wire.client),
-    product: deserializeSubscriptionProduct(wire.product),
+    // `== null` (not `=== null`) is deliberate — same reasoning as Product's `vat` field: catches
+    // both an explicit `null` and an entirely omitted `product` key, either of which is spec-legal
+    // since `openapi.yaml`'s Subscription schema has no `required` list. The old unconditional call
+    // crashed on `deserializeSubscriptionProduct(undefined)` when the key was omitted (found in
+    // review, reproduced).
+    product: wire.product == null ? null : deserializeSubscriptionProduct(wire.product),
     currentPeriodStart: wire.current_period_start,
     currentPeriodEnd: wire.current_period_end,
     nextBillingCycle: wire.next_billing_cycle,

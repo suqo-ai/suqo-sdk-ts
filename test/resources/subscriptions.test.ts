@@ -78,6 +78,17 @@ describe("deserializeSubscription", () => {
     });
     expect(subscription).not.toHaveProperty("client");
   });
+
+  it("a null product stays null rather than being passed to the product deserializer", () => {
+    const subscription = deserializeSubscription({ ...wireSubscription, product: null });
+    expect(subscription.product).toBeNull();
+  });
+
+  it("an entirely omitted product key degrades to null instead of crashing (found in review)", () => {
+    const { product: _product, ...withoutProduct } = wireSubscription;
+    const subscription = deserializeSubscription(withoutProduct);
+    expect(subscription.product).toBeNull();
+  });
 });
 
 describe("deserializeSubscriptionPage", () => {

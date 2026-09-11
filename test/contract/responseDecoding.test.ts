@@ -47,7 +47,7 @@ describe("contract: response decoding", () => {
     const subscription = page.results[0];
     expect(subscription?.subscriptionId).toBe("30b0af58-c8bc-4f79-9917-51208b73a0ed");
     expect(subscription?.customer.fullName).toBe("Jane Doe");
-    expect(subscription?.product.pbpId).toBe("pbp_a1104f81b");
+    expect(subscription?.product?.pbpId).toBe("pbp_a1104f81b");
 
     // billing/shipping deliberately non-null in the fixture (found in review) — this is the one
     // genuinely asymmetric part of the customer/client boundary: unprefixed here on the read

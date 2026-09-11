@@ -65,7 +65,8 @@ export interface Subscription {
   isActive: boolean;
   /** The buyer, in the read shape — renamed from the wire's `client` (SDK Naming Map v1.1 §11). */
   customer: SubscriptionCustomer;
-  product: SubscriptionProduct;
+  /** `null` if the backend omits or nulls this field — `openapi.yaml` declares no required fields on `Subscription` (found in review). */
+  product: SubscriptionProduct | null;
   currentPeriodStart: string | null;
   /** Equals `nextBillingCycle`. */
   currentPeriodEnd: string | null;

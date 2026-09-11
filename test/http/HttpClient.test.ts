@@ -484,14 +484,28 @@ describe("HttpClient", () => {
   it("refuses to send a request off-host, even when path is an already-complete absolute URL (found in review — key-leak guard)", async () => {
     const fetchMock = vi.mocked(fetch);
 
-    await expect(
-      client().request({
-        method: "GET",
-        path: "https://evil.example.com/steal?x=1",
-      }),
-    ).rejects.toThrow(/does not match the configured origin/);
+    const error = await client()
+      .request({ method: "GET", path: "https://evil.example.com/steal?x=1" })
+      .catch((e: unknown) => e);
+
+    // Must be a typed SuqoError, not a raw Error (found in review — this pre-flight guard used to
+    // throw before request()'s try/catch, breaking the SDK's "callers only ever see a SuqoError"
+    // contract).
+    expect(error).toBeInstanceOf(NetworkError);
+    expect((error as Error).message).toMatch(/does not match the configured origin/);
 
     // The critical part of the guard: fetch is never even attempted, so the key is never sent.
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("wraps a malformed request URL as NetworkError instead of a raw error (found in review)", async () => {
+    const fetchMock = vi.mocked(fetch);
+
+    const error = await client()
+      .request({ method: "GET", path: "http://[::1" }) // unbalanced bracket — new URL() throws
+      .catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(NetworkError);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
