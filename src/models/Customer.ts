@@ -88,10 +88,17 @@ export interface CustomerInput {
  * different resource with its own confirmed convention, carried through as-is.
  */
 export interface Customer {
-  /** Integer, not a UUID — breaks from the UUID convention every other resource uses. */
-  id: number;
+  /**
+   * Opaque prefixed id, e.g. `"cus_1ce18d624"` — a string, like `pbp_...` on billing periods, not
+   * an integer. (Bug #42, found in review against the live sandbox: the field was previously typed
+   * `number`, which the wire never actually sent — that claim was a spec assumption the API never
+   * matched, not a real prior behavior.)
+   */
+  id: string;
   buyerPhone: string | null;
   buyerEmail: string | null;
   fullName: string | null;
+  /** Was silently dropped before Bug #42's fix — the wire has always sent this field. */
+  address: string | null;
   createdAt: string;
 }

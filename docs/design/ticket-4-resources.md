@@ -160,12 +160,13 @@ the account is somehow otherwise unauthorized.
 ```
 customers.list(params?: PageParams) -> Page<Customer>
 customers.autoPaging(params?: PageParams) -> AsyncIterableIterator<Customer>
-customers.retrieve(id: integer) -> Customer
+customers.retrieve(id: string) -> Customer
 ```
 
-Read-only — no create/update/delete exists on this resource. `id` is an **integer**, not a UUID —
-this resource's own confirmed convention (re-verified live against BE Swagger and
-`suqo.ai/docs/api/customers`, both agree), not forced into the shape every other resource uses.
+Read-only — no create/update/delete exists on this resource. `id` is an **opaque prefixed string**
+(e.g. `cus_1ce18d624`, like `pbp_...` on billing periods) — not an integer and not a UUID. (Bug
+#42: this doc previously said `integer`, "re-verified live against BE Swagger" — that verification
+never actually matched what the API returns; corrected once a real captured response surfaced it.)
 
 ---
 

@@ -78,8 +78,8 @@ describe("contract: outgoing request shape", () => {
     });
 
     it("customers.retrieve(id)", async () => {
-      await client().customers.retrieve(42);
-      expect(getLastRequest()?.url).toBe("https://test-be.suqo.ai/api/v1/customers/42/");
+      await client().customers.retrieve("cus_1ce18d624");
+      expect(getLastRequest()?.url).toBe("https://test-be.suqo.ai/api/v1/customers/cus_1ce18d624/");
     });
   });
 

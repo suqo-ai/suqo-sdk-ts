@@ -14,23 +14,24 @@ Paginated like every other list endpoint — see [`docs/user/pagination.md`](pag
 ## Retrieving one
 
 ```ts
-const customer = await suqo.customers.retrieve(42);
+const customer = await suqo.customers.retrieve("cus_1ce18d624");
 ```
 
-`id` is a **plain integer** here — the one resource in this SDK that breaks from the UUID convention everything else uses. Don't quote it, and don't expect it to look like `de337e17-59a1-...`.
+`id` is an **opaque prefixed string** here (e.g. `cus_1ce18d624`) — like `pbp_...` on billing periods, not an integer and not a UUID. (Prior to a fix for [#42](https://github.com/suqo-ai/suqo-sdk-ts/issues/42), this was incorrectly documented and typed as a plain integer — that never actually matched what the API returns.)
 
 ## Shape
 
 ```ts
 interface Customer {
-  id: number;
+  id: string;
   buyerPhone: string | null;
   buyerEmail: string | null;
   fullName: string | null;
+  address: string | null;
   createdAt: string;
 }
 ```
 
-Every field except `id`/`createdAt` can be `null` — a customer record doesn't guarantee it has a phone or email on file.
+Every field except `id`/`createdAt` can be `null` — a customer record doesn't guarantee it has a phone, email, or address on file.
 
 This is a genuinely different shape from the `customer` object embedded on a `Subscription` (see [`docs/user/subscriptions.md`](subscriptions.md)) — that one uses `phone`/`fullName`/`email` with no `buyer` prefix, plus nested `billing`/`shipping`. They're related concepts (both describe a buyer) but not the same type, and the SDK never conflates them.

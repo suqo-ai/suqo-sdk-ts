@@ -7,6 +7,16 @@ adheres to [Semantic Versioning](https://semver.org/) per [`specs/versioning.md`
 
 ## [Unreleased]
 
+### Fixed
+
+- **Breaking:** `Customer.id` corrected from `number` to `string` — the API has always returned
+  an opaque prefixed id (e.g. `"cus_1ce18d624"`), like `pbp_...` on billing periods, never an
+  integer; the `number` type made `customers.retrieve()` uncallable as declared. Also added
+  `Customer.address`, previously present on the wire but silently dropped. ([#42])
+- `docs/design/ticket-4-resources.md` and `docs/user/customers.md` corrected to match.
+
+[#42]: https://github.com/suqo-ai/suqo-sdk-ts/issues/42
+
 ## [1.0.0] - 2026-09-10
 
 ### Added
