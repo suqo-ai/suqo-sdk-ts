@@ -7,6 +7,8 @@ adheres to [Semantic Versioning](https://semver.org/) per [`specs/versioning.md`
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-09-10
+
 ### Added
 
 - `SuqoClient` — environment (sandbox/live) inferred automatically from the API key prefix, with
@@ -29,9 +31,21 @@ adheres to [Semantic Versioning](https://semver.org/) per [`specs/versioning.md`
 - Full user-facing documentation under [`docs/user/`](docs/user/) — authentication, every
   resource, pagination, errors, and the planned rate-limiting/idempotency behavior.
 
+### Changed
+
+- Licensed under MIT, matching every comparable payments SDK (Stripe, Twilio, Square, Adyen,
+  Plaid, Braintree). Supersedes an earlier, never-published Apache-2.0 declaration.
+
 ### Fixed
 
 - Corrected the sandbox base URL (`test.be.suqo.ai`, which did not resolve) to the real sandbox
   host, `test-be.suqo.ai`.
+- `subscriptions.cancel()`/`.resume()` now URL-encode the subscription id — an id containing `?`,
+  `#`, or `/` was previously parsed as URL structure instead of a literal path segment, silently
+  corrupting the request.
+- Automatic retries now honor a `Retry-After` header on any retried status, not just `429` — a
+  retried `5xx` carrying the header (e.g. a `503` during a maintenance window) was previously
+  retried on computed backoff instead of the server's requested wait.
 
-[Unreleased]: https://github.com/Code-Pros-AI/suqo-sdk/commits/main
+[Unreleased]: https://github.com/suqo-ai/suqo-sdk-ts/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/suqo-ai/suqo-sdk-ts/tree/v1.0.0

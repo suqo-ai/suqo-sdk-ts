@@ -146,21 +146,32 @@ export class HttpClient {
       throw new TypeError("HttpClient.request: a GET request cannot carry a body.");
     }
 
-    const url = buildUrl(this.#config.baseUrl, options.path, options.query);
+    // Both steps below wrapped in one try/catch, found in review: a malformed `path` (an
+    // unparseable "next" link, say) or the off-host guard tripping are pre-flight, one-shot,
+    // deterministic failures — they never touched `fetch`, so they must still surface as a typed
+    // `NetworkError`, never a raw `TypeError`/`Error`, to hold the class's own documented contract
+    // that a caller only ever sees a `SuqoError` subclass, and thrown directly (not fed through
+    // the retry loop below) since retrying a malformed URL can never succeed.
+    let url: string;
+    try {
+      url = buildUrl(this.#config.baseUrl, options.path, options.query);
 
-    // Security guard, found in review: buildUrl accepts an already-complete absolute URL as
-    // `path` (needed so a pagination `next` link, Ticket 3, can be followed as-is) — but this
-    // client attaches the real API key to every request unconditionally. Without this check, a
-    // `next` link that ever pointed off-host (a compromised proxy, a backend bug, tampering)
-    // would silently leak the key to that host. `path` being relative always resolves to
-    // `baseUrl`'s own origin by construction, so this only ever fires for an absolute `path`
-    // that's actually wrong.
-    if (new URL(url).origin !== new URL(this.#config.baseUrl).origin) {
-      throw new Error(
-        `Refusing to send a request to ${new URL(url).origin} — it does not match the configured ` +
-          `origin ${new URL(this.#config.baseUrl).origin}. This SDK never sends its API key to a ` +
-          "different host.",
-      );
+      // Security guard: buildUrl accepts an already-complete absolute URL as `path` (needed so a
+      // pagination `next` link, Ticket 3, can be followed as-is) — but this client attaches the
+      // real API key to every request unconditionally. Without this check, a `next` link that
+      // ever pointed off-host (a compromised proxy, a backend bug, tampering) would silently leak
+      // the key to that host. `path` being relative always resolves to `baseUrl`'s own origin by
+      // construction, so this only ever fires for an absolute `path` that's actually wrong.
+      if (new URL(url).origin !== new URL(this.#config.baseUrl).origin) {
+        throw new Error(
+          `Refusing to send a request to ${new URL(url).origin} — it does not match the ` +
+            `configured origin ${new URL(this.#config.baseUrl).origin}. This SDK never sends its ` +
+            "API key to a different host.",
+        );
+      }
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : String(cause);
+      throw new NetworkError(`Invalid request URL: ${message}`, { cause });
     }
 
     const retryable = isRetryableMethod(options.method);

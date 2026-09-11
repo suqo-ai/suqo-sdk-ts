@@ -45,7 +45,7 @@ is what tells the two apart; don't mistake an `Example` row for release history.
 
 | SDK Version (SemVer) | Supported API Version | Change Type | Status |
 |---|---|---|---|
-| `1.0.0` | `v1` | Initial release | Pending — this ticket's release |
+| `1.0.0` | `v1` | Initial release | Shipped |
 | `1.1.0` | `v1` | Added backward-compatible feature | Example — illustrative only |
 | `2.0.0` | `v2` | Rewrote SDK to support new **v2 API breaking changes** | Example — illustrative only |
 | `3.0.0` | `v2` | No API change; refactored SDK methods to use Promises (**SDK-only breaking change**) | Example — illustrative only |

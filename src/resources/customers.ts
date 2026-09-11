@@ -70,9 +70,13 @@ export class CustomersResource {
    * **integer**, not a UUID (SDK-SPEC.md §5 naming note; `openapi.yaml` `Customer.id`).
    */
   async retrieve(id: number): Promise<Customer> {
+    // encodeURIComponent, found in review: matches the fix already applied to
+    // subscriptions.cancel()/resume() for the same path-corruption risk. `id`'s `number` type
+    // makes this defense-in-depth rather than a live gap (it can't carry `?`/`#`/`/` under normal
+    // TypeScript usage), but it costs nothing and keeps the three resources consistent.
     const wire = await this.#http.request<WireCustomer>({
       method: "GET",
-      path: `${CUSTOMERS_PATH}/${id}`,
+      path: `${CUSTOMERS_PATH}/${encodeURIComponent(id)}`,
     });
     return deserializeCustomer(wire);
   }

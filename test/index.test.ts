@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 import * as sdk from "../src/index.js";
+import packageJson from "../package.json";
 
 describe("public export surface", () => {
-  it("exports the version", () => {
-    expect(sdk.VERSION).toBe("0.0.1");
+  it("exports the version, kept in sync with package.json (found in review: this used to assert a hardcoded literal that silently drifted from the real version)", () => {
+    expect(sdk.VERSION).toBe(packageJson.version);
   });
 
   it("exports the full SuqoError hierarchy and mapHttpError", () => {
