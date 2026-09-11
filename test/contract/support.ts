@@ -143,11 +143,13 @@ const mockSubscription = {
   created_at: "2026-01-01T00:00:00Z",
 };
 
+// id is an opaque prefixed string (e.g. "cus_1ce18d624"), not an integer — bug #42.
 const mockCustomer = {
-  id: 42,
+  id: "cus_1ce18d624",
   buyer_phone: "9800000000",
   buyer_email: "jane@example.com",
   full_name: "Jane Doe",
+  address: "Shankhamul, Kathmandu 44600, Nepal",
   created_at: "2026-01-01T00:00:00Z",
 };
 
@@ -211,11 +213,12 @@ export const handlers: HttpHandler[] = [
 
   http.get(`${SANDBOX_BASE_URL}/api/v1/customers/:id/`, async ({ request, params }) => {
     await capture(request);
-    // Echoes back whatever id was actually requested
-    // a real API returns the customer matching the id you asked for, not an unrelated fixed one.
-    // A caller requesting id 999999 getting back id 42 looks like a bug even when the intent was
-    // only to prove :id path-matching works, not to simulate a real per-id lookup.
-    return HttpResponse.json({ ...mockCustomer, id: Number(params.id) });
+    // Echoes back whatever id was actually requested (a string, per msw path params, matching the
+    // real wire shape post-#42) — a real API returns the customer matching the id you asked for,
+    // not an unrelated fixed one. A caller requesting "cus_x" getting back "cus_1ce18d624" looks
+    // like a bug even when the intent was only to prove :id path-matching works, not to simulate a
+    // real per-id lookup.
+    return HttpResponse.json({ ...mockCustomer, id: params.id });
   }),
 ];
 

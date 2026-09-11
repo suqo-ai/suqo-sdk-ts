@@ -351,13 +351,14 @@ export interface components {
         Message: {
             message?: string;
         };
-        /** @description A seller's customer, confirmed live 2026-08-18 by two independent sources (BE Swagger + suqo.ai/docs/api/customers agree). Uses buyer_* field prefixes, not the client.* nesting Subscriptions uses — this is a genuinely different resource with its own convention, carried through as-is rather than forced into the same shape. */
+        /** @description A seller's customer. Uses buyer_* field prefixes, not the client.* nesting Subscriptions uses — this is a genuinely different resource with its own convention, carried through as-is rather than forced into the same shape. */
         Customer: {
-            /** @description Customer id. Integer, not a UUID — breaks from the UUID convention every other resource in this API uses. */
-            id: number;
+            /** @description Opaque prefixed customer id, e.g. "cus_1ce18d624" — like pbp_... on billing periods, not an integer and not a UUID. (Bug #42: this schema previously declared `integer`, confirmed live 2026-08-18 — that confirmation never actually matched what the API returns.) */
+            id: string;
             buyer_phone?: string | null;
             buyer_email?: string | null;
             full_name?: string | null;
+            address?: string | null;
             /** Format: date-time */
             created_at: string;
         };
@@ -659,8 +660,8 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description Customer id. Integer, not a UUID — this resource breaks from the UUID convention every other resource in this API uses. */
-                id: number;
+                /** @description Opaque prefixed customer id, e.g. "cus_1ce18d624" — not an integer and not a UUID (Bug #42). */
+                id: string;
             };
             cookie?: never;
         };

@@ -16,36 +16,42 @@ function customers(): CustomersResource {
   return new CustomersResource(http);
 }
 
+// id is an opaque prefixed string (e.g. "cus_1ce18d624"), not an integer — bug #42, found in
+// review against the live sandbox. address is also real, previously silently dropped.
 const wireCustomer = {
-  id: 42,
+  id: "cus_1ce18d624",
   buyer_phone: "9800000000",
   buyer_email: "jane@example.com",
   full_name: "Jane Doe",
+  address: "Shankhamul, Kathmandu 44600, Nepal",
   created_at: "2026-01-01T00:00:00Z",
 };
 
 describe("deserializeCustomer", () => {
-  it("maps every field from snake_case to camelCase, id kept as a number", () => {
+  it("maps every field from snake_case to camelCase, id kept as a string (bug #42)", () => {
     expect(deserializeCustomer(wireCustomer)).toEqual({
-      id: 42,
+      id: "cus_1ce18d624",
       buyerPhone: "9800000000",
       buyerEmail: "jane@example.com",
       fullName: "Jane Doe",
+      address: "Shankhamul, Kathmandu 44600, Nepal",
       createdAt: "2026-01-01T00:00:00Z",
     });
   });
 
-  it("preserves null for buyerPhone/buyerEmail/fullName rather than coercing to undefined or empty string", () => {
+  it("preserves null for buyerPhone/buyerEmail/fullName/address rather than coercing to undefined or empty string", () => {
     const customer = deserializeCustomer({
-      id: 1,
+      id: "cus_1ce18d624",
       buyer_phone: null,
       buyer_email: null,
       full_name: null,
+      address: null,
       created_at: "2026-01-01T00:00:00Z",
     });
     expect(customer.buyerPhone).toBeNull();
     expect(customer.buyerEmail).toBeNull();
     expect(customer.fullName).toBeNull();
+    expect(customer.address).toBeNull();
   });
 });
 
@@ -76,6 +82,7 @@ describe("CustomersResource", () => {
 
     const result = await customers().list();
     expect(result.results[0]?.buyerPhone).toBe("9800000000");
+    expect(result.results[0]?.id).toBe("cus_1ce18d624");
     // Proves this is a real conversion, not a type-level assertion over the untouched wire body.
     expect(result.results[0]).not.toHaveProperty("buyer_phone");
   });
@@ -91,30 +98,45 @@ describe("CustomersResource", () => {
         }),
       )
       .mockResolvedValueOnce(
-        jsonResponse({ count: 2, next: null, previous: null, results: [{ ...wireCustomer, id: 43 }] }),
+        jsonResponse({ count: 2, next: null, previous: null, results: [{ ...wireCustomer, id: "cus_2af90b103" }] }),
       );
 
-    const ids: number[] = [];
+    const ids: string[] = [];
     for await (const customer of customers().autoPaging()) {
       ids.push(customer.id);
     }
 
-    expect(ids).toEqual([42, 43]);
+    expect(ids).toEqual(["cus_1ce18d624", "cus_2af90b103"]);
     expect(fetch).toHaveBeenCalledTimes(2);
   });
 
   it("retrieve(id) hits GET /api/v1/customers/{id}/ and deserializes the response", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(jsonResponse(wireCustomer));
 
-    const result = await customers().retrieve(42);
+    const result = await customers().retrieve("cus_1ce18d624");
 
-    expect(fetch).toHaveBeenCalledWith("https://test-be.suqo.ai/api/v1/customers/42/", expect.anything());
+    expect(fetch).toHaveBeenCalledWith(
+      "https://test-be.suqo.ai/api/v1/customers/cus_1ce18d624/",
+      expect.anything(),
+    );
     expect(result).toEqual({
-      id: 42,
+      id: "cus_1ce18d624",
       buyerPhone: "9800000000",
       buyerEmail: "jane@example.com",
       fullName: "Jane Doe",
+      address: "Shankhamul, Kathmandu 44600, Nepal",
       createdAt: "2026-01-01T00:00:00Z",
     });
+  });
+
+  it("retrieve() URL-encodes an id containing reserved characters (same risk as subscriptions.cancel/resume, now that id is a real string)", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ ...wireCustomer, id: "cus?1#a/b" }));
+
+    await customers().retrieve("cus?1#a/b");
+
+    expect(fetch).toHaveBeenCalledWith(
+      "https://test-be.suqo.ai/api/v1/customers/cus%3F1%23a%2Fb/",
+      expect.anything(),
+    );
   });
 });

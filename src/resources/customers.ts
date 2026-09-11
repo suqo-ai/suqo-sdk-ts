@@ -6,18 +6,22 @@ import type { Customer } from "../models/index.js";
 const CUSTOMERS_PATH = "/api/v1/customers";
 
 /**
- * The wire shape `openapi.yaml`'s `Customer` schema actually sends — snake_case, confirmed live
- * 2026-08-18 (re-verified live against BE Swagger + `suqo.ai/docs/api/customers`, both agree).
- * Uses `buyer_*` prefixes, not the `client.*` nesting Subscriptions uses — carried through as its
- * own convention, not forced into the customer/client boundary's shape (that boundary is only
- * about the Subscriptions payload's embedded buyer, a genuinely different concept from this
- * resource's own record).
+ * The wire shape `openapi.yaml`'s `Customer` schema actually sends — snake_case. Uses `buyer_*`
+ * prefixes, not the `client.*` nesting Subscriptions uses — carried through as its own convention,
+ * not forced into the customer/client boundary's shape (that boundary is only about the
+ * Subscriptions payload's embedded buyer, a genuinely different concept from this resource's own
+ * record).
+ *
+ * `id` corrected to `string` and `address` added (Bug #42, found in review against the live
+ * sandbox) — both were wrong in the version originally "confirmed live 2026-08-18": that
+ * confirmation never actually matched what the API returns, it just went unnoticed until now.
  */
 interface WireCustomer {
-  id: number;
+  id: string;
   buyer_phone: string | null;
   buyer_email: string | null;
   full_name: string | null;
+  address: string | null;
   created_at: string;
 }
 
@@ -28,6 +32,7 @@ export function deserializeCustomer(wire: WireCustomer): Customer {
     buyerPhone: wire.buyer_phone,
     buyerEmail: wire.buyer_email,
     fullName: wire.full_name,
+    address: wire.address,
     createdAt: wire.created_at,
   };
 }
@@ -66,14 +71,13 @@ export class CustomersResource {
   }
 
   /**
-   * Retrieves a single customer by id. Unlike every other resource in this API, `id` is an
-   * **integer**, not a UUID (SDK-SPEC.md §5 naming note; `openapi.yaml` `Customer.id`).
+   * Retrieves a single customer by id — an opaque prefixed string (e.g. `"cus_1ce18d624"`), like
+   * `pbp_...` on billing periods, not an integer and not a UUID (Bug #42 corrected the previously
+   * wrong `number` type/doc claim here).
    */
-  async retrieve(id: number): Promise<Customer> {
-    // encodeURIComponent, found in review: matches the fix already applied to
-    // subscriptions.cancel()/resume() for the same path-corruption risk. `id`'s `number` type
-    // makes this defense-in-depth rather than a live gap (it can't carry `?`/`#`/`/` under normal
-    // TypeScript usage), but it costs nothing and keeps the three resources consistent.
+  async retrieve(id: string): Promise<Customer> {
+    // encodeURIComponent — same path-corruption risk as subscriptions.cancel()/resume(), now that
+    // id is a real caller-supplied string rather than a number.
     const wire = await this.#http.request<WireCustomer>({
       method: "GET",
       path: `${CUSTOMERS_PATH}/${encodeURIComponent(id)}`,

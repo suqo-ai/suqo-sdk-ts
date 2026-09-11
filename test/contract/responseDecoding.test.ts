@@ -101,20 +101,22 @@ describe("contract: response decoding", () => {
     expect(result.message).toBe("Subscription resumed.");
   });
 
-  it("customers.list() decodes into camelCase Customer objects", async () => {
+  it("customers.list() decodes into camelCase Customer objects, id kept as a string (bug #42)", async () => {
     const page = await client().customers.list();
     const customer = page.results[0];
 
-    expect(customer?.id).toBe(42);
+    expect(customer?.id).toBe("cus_1ce18d624");
     expect(customer?.buyerPhone).toBe("9800000000");
     expect(customer?.fullName).toBe("Jane Doe");
+    expect(customer?.address).toBe("Shankhamul, Kathmandu 44600, Nepal");
     expect(customer).not.toHaveProperty("buyer_phone");
   });
 
-  it("customers.retrieve() decodes a single camelCase Customer object", async () => {
-    const customer = await client().customers.retrieve(42);
-    expect(customer.id).toBe(42);
+  it("customers.retrieve() decodes a single camelCase Customer object, id kept as a string (bug #42)", async () => {
+    const customer = await client().customers.retrieve("cus_1ce18d624");
+    expect(customer.id).toBe("cus_1ce18d624");
     expect(customer.buyerEmail).toBe("jane@example.com");
+    expect(customer.address).toBe("Shankhamul, Kathmandu 44600, Nepal");
     expect(customer).not.toHaveProperty("buyer_email");
   });
 

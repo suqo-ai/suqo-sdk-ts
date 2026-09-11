@@ -29,10 +29,10 @@ describe("contract-test harness", () => {
 
   it("a parameterized path (:id) handler matches a real id, and the mock echoes it back like a real API would", async () => {
     const suqo = new SuqoClient({ apiKey: "su_test_key_abc123" });
-    const customer = await suqo.customers.retrieve(999999);
+    const customer = await suqo.customers.retrieve("cus_999999");
 
-    expect(customer.id).toBe(999999); // the mock reads :id from the URL, not a fixed unrelated value
-    expect(getLastRequest()?.url).toBe("https://test-be.suqo.ai/api/v1/customers/999999/");
+    expect(customer.id).toBe("cus_999999"); // the mock reads :id from the URL, not a fixed unrelated value
+    expect(getLastRequest()?.url).toBe("https://test-be.suqo.ai/api/v1/customers/cus_999999/");
   });
 
   it("onUnhandledRequest: 'error' means an endpoint with no matching handler throws, not silently passes through", async () => {

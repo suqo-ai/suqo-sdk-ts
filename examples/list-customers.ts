@@ -2,7 +2,7 @@
  * List the seller's customers, then retrieve one by id.
  *
  * Read-only — there's no create/update/delete on this resource. Unlike every other resource in
- * the SDK, `Customer.id` is an integer, not a UUID.
+ * the SDK, `Customer.id` is an opaque prefixed string (e.g. `cus_1ce18d624`), not a UUID.
  *
  * Run with a sandbox key — either inline, or via a .env file (see examples/README.md):
  *   SUQO_API_KEY=su_test_key_... npx tsx examples/list-customers.ts
@@ -24,7 +24,7 @@ for (const customer of page.results) {
 
 const first = page.results[0];
 if (first) {
-  // retrieve() takes the same integer id — fetch this one again to show the single-record shape.
+  // retrieve() takes the same string id — fetch this one again to show the single-record shape.
   const fetched = await suqo.customers.retrieve(first.id);
   console.log(`\nRetrieved #${fetched.id} directly:`, fetched);
 } else {
