@@ -62,4 +62,4 @@ npm run format
 
 ## License
 
-Apache 2.0
+MIT — see [`LICENSE`](LICENSE).

@@ -31,6 +31,11 @@ adheres to [Semantic Versioning](https://semver.org/) per [`specs/versioning.md`
 - Full user-facing documentation under [`docs/user/`](docs/user/) — authentication, every
   resource, pagination, errors, and the planned rate-limiting/idempotency behavior.
 
+### Changed
+
+- Licensed under MIT, matching every comparable payments SDK (Stripe, Twilio, Square, Adyen,
+  Plaid, Braintree). Supersedes an earlier, never-published Apache-2.0 declaration.
+
 ### Fixed
 
 - Corrected the sandbox base URL (`test.be.suqo.ai`, which did not resolve) to the real sandbox
