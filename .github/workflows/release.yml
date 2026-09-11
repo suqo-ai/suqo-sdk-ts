@@ -1,12 +1,28 @@
 name: Release
 
 # Ticket 10 (Packaging & release). Publishes @suqo/sdk to npm with provenance whenever a version
-# tag is pushed. This workflow can be fully written and validated before it's ever able to run
-# for real — actually succeeding requires two org-level things this repo can't self-resolve:
-#   1. The @suqo npm scope must exist and this org must own it.
-#   2. The account behind the NPM_TOKEN secret must have 2FA enabled for "Authorization and
-#      Publishing" (not just login) — required for --provenance.
-# See specs/versioning.md and docs/implementation-plan.md's Ticket 10 blockers.
+# tag is pushed.
+#
+# 1.0.0 shipped 2026-09-11 via a static NPM_TOKEN. This workflow now uses npm Trusted Publishing
+# (OIDC) instead — no token, no secret to rotate or leak. That requires a one-time, per-package
+# setup step on npmjs.com that this repo can't do for itself: on
+# https://www.npmjs.com/package/@suqo/sdk/access, under "Trusted Publisher", register GitHub
+# Actions with organization "suqo-ai", repository "suqo-sdk-ts", workflow filename "release.yml",
+# with direct publish left UNCHECKED (staged-only — the more secure of the two options, chosen
+# deliberately over matching the old fully-automated flow). Until that's registered AND confirmed
+# working on a real tagged release, this workflow has no working fallback -- the NPM_TOKEN GitHub
+# secret is left in place, unused by this file, purely as a rollback safety net (revert this commit
+# to go back to token-based publishing if OIDC doesn't work). Only delete NPM_TOKEN once a real
+# release has staged successfully through this path.
+#
+# IMPORTANT — this workflow no longer fully automates a release. A tag push runs every check and
+# then STAGES the package; it does NOT go live. A human must separately approve the staged version
+# with 2FA before anyone can install it — either `npm stage approve <stage-id>` (the stage-id is
+# printed in this job's "Publish to npm (staged)" step output, and 2FA is required at approval
+# time only, never at staging time) or the "Approve" button on npmjs.com's "Staged Packages" tab.
+# This is intentional: staging needs no 2FA and can't be blocked by CI, but nothing reaches real
+# users without a human in the loop, so a compromised workflow/token can at most stage a version,
+# never publish one.
 on:
   push:
     tags:
@@ -14,8 +30,8 @@ on:
 
 permissions:
   contents: read
-  # Required for npm provenance (OIDC token exchange with the registry) — without this, id-token
-  # is unavailable and --provenance fails even with a valid NPM_TOKEN.
+  # The whole point of this workflow: without id-token, GitHub can't mint the OIDC token npm's
+  # registry exchanges for a short-lived publish credential -- there is no other auth path here.
   id-token: write
 
 jobs:
@@ -24,12 +40,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+      # v6 specifically -- earlier setup-node versions predate npm trusted-publishing support and
+      # silently fall back to needing a token, which this workflow no longer has.
+      - uses: actions/setup-node@v6
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
-          # Needed so `npm publish` picks up NODE_AUTH_TOKEN below instead of failing unauthenticated.
           registry-url: "https://registry.npmjs.org"
+
+      # Trusted publishing needs npm CLI >= 11.5.1; Node 22's bundled npm can lag behind that on an
+      # older runner image. Cheap enough to always take latest rather than pin-and-forget a version
+      # that quietly becomes too old again later.
+      - run: npm install -g npm@latest
 
       - run: npm ci
 
@@ -66,10 +88,19 @@ jobs:
             exit 1
           fi
 
-      - name: Publish to npm
-        # --access public: @suqo/sdk is a scoped package: npm defaults a new scope's first publish
-        # to restricted (private) unless told otherwise. This is a public SDK, so this flag is
-        # required on the very first publish specifically — not optional, not just a style choice.
-        run: npm publish --access public --provenance
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Publish to npm (staged)
+        # `npm stage publish`, not `npm publish` — the trusted publisher on npmjs.com is
+        # registered stage-only (direct publish left unchecked, deliberately, for the 2FA-gated
+        # human-approval step this buys — see the top-of-file comment). Takes the same flags as
+        # npm publish and needs no 2FA/OTP itself; 2FA is deferred to the separate approval step a
+        # human still has to perform afterward.
+        #
+        # --access public: kept explicit even though the package is already public -- harmless
+        # no-op now, but guards against ever silently reverting to restricted.
+        # --provenance: kept explicit too, even though OIDC trusted publishing is documented to
+        # attach provenance automatically -- a real-world report of this exact setup found that
+        # claim didn't hold and the flag was still required, so trust the flag over the doc.
+        # No NODE_AUTH_TOKEN here — that's the entire point of trusted publishing: npm exchanges
+        # this job's OIDC token (from the `id-token: write` permission above) against the trusted
+        # publisher registered on npmjs.com, no secret involved at all.
+        run: npm stage publish --access public --provenance
