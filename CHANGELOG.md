@@ -16,6 +16,9 @@ adheres to [Semantic Versioning](https://semver.org/) per [`specs/versioning.md`
 - `customers.retrieve("")` now throws `SuqoConfigError` instead of silently colliding with
   `list()`'s own URL and returning a `Customer` of all-undefined fields with no error — a risk the
   `number` → `string` change above newly made reachable (found in review of that same change).
+- `Customer.address` degrades to `null` when the wire omits the key entirely (spec-legal —
+  `openapi.yaml` never lists `address` as required) instead of silently becoming `undefined` while
+  the type still promised `string | null` — the same class of bug as this ticket itself.
 - `docs/design/ticket-4-resources.md` and `docs/user/customers.md` corrected to match.
 
 [#42]: https://github.com/suqo-ai/suqo-sdk-ts/issues/42
