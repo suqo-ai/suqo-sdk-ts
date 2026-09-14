@@ -13,6 +13,9 @@ adheres to [Semantic Versioning](https://semver.org/) per [`specs/versioning.md`
   an opaque prefixed id (e.g. `"cus_1ce18d624"`), like `pbp_...` on billing periods, never an
   integer; the `number` type made `customers.retrieve()` uncallable as declared. Also added
   `Customer.address`, previously present on the wire but silently dropped. ([#42])
+- `customers.retrieve("")` now throws `SuqoConfigError` instead of silently colliding with
+  `list()`'s own URL and returning a `Customer` of all-undefined fields with no error — a risk the
+  `number` → `string` change above newly made reachable (found in review of that same change).
 - `docs/design/ticket-4-resources.md` and `docs/user/customers.md` corrected to match.
 
 [#42]: https://github.com/suqo-ai/suqo-sdk-ts/issues/42

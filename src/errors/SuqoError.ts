@@ -63,9 +63,12 @@ export class SuqoError extends Error {
 
 /**
  * Construction-time configuration problems: a malformed API key, or an explicit `baseUrl`
- * override that disagrees with the key's prefix (SDK-SPEC.md §2, §7). Thrown before any request
- * is made — analogous to a syntax error in the integration, not an HTTP failure. Never carries
- * `status`/`rawBody`; there was no request to map one from.
+ * override that disagrees with the key's prefix (SDK-SPEC.md §2, §7). Also reused for a call-time
+ * argument that would otherwise silently corrupt a request rather than reach the API at all — e.g.
+ * an empty `customers.retrieve(id)` (#42) — the same "never even attempted" character as a bad
+ * construction option. Thrown before any request is made — analogous to a syntax error in the
+ * integration, not an HTTP failure. Never carries `status`/`rawBody`; there was no request to map
+ * one from.
  */
 export class SuqoConfigError extends SuqoError {
   constructor(message: string, options: { cause?: unknown } = {}) {
