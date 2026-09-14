@@ -54,6 +54,12 @@ describe("deserializeCustomer", () => {
     expect(customer.fullName).toBeNull();
     expect(customer.address).toBeNull();
   });
+
+  it("an entirely omitted address key degrades to null instead of undefined (found in review)", () => {
+    const { address: _address, ...withoutAddress } = wireCustomer;
+    const customer = deserializeCustomer(withoutAddress);
+    expect(customer.address).toBeNull();
+  });
 });
 
 describe("CustomersResource", () => {

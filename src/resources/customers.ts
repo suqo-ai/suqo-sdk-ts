@@ -22,7 +22,13 @@ interface WireCustomer {
   buyer_phone: string | null;
   buyer_email: string | null;
   full_name: string | null;
-  address: string | null;
+  // Optional, not just nullable (found in review): openapi.yaml's Customer schema doesn't list
+  // `address` in `required`, and src/generated/schema.ts already reflects that (`address?:`) —
+  // this hand-written interface didn't, so an entirely omitted `address` key (spec-legal) produced
+  // `undefined` here, which then flowed straight into a `Customer.address: string | null` that
+  // promises it's never `undefined`. Same class of bug as #42 itself: a declared type the wire
+  // never actually promised.
+  address?: string | null;
   created_at: string;
 }
 
@@ -33,7 +39,9 @@ export function deserializeCustomer(wire: WireCustomer): Customer {
     buyerPhone: wire.buyer_phone,
     buyerEmail: wire.buyer_email,
     fullName: wire.full_name,
-    address: wire.address,
+    // `?? null` (not a direct pass-through, found in review): catches both an explicit `null` and
+    // an entirely omitted `address` key — see the WireCustomer.address comment above.
+    address: wire.address ?? null,
     createdAt: wire.created_at,
   };
 }
