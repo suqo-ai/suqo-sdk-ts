@@ -1,6 +1,7 @@
 import type { HttpClient } from "../http/HttpClient.js";
 import { bridgeAutoPaging, deserializePage, toPageQuery, type Page, type PageParams } from "../pagination.js";
 import type { Customer } from "../models/index.js";
+import { SuqoConfigError } from "../errors/SuqoError.js";
 
 /** `GET /api/v1/customers/` — no trailing slash here; `HttpClient`/`buildUrl` guarantees it (Ticket 2). */
 const CUSTOMERS_PATH = "/api/v1/customers";
@@ -76,6 +77,20 @@ export class CustomersResource {
    * wrong `number` type/doc claim here).
    */
   async retrieve(id: string): Promise<Customer> {
+    // Found in review of the string-id change (#42): an empty id isn't a path-corruption case
+    // like cancel()/resume()'s "" (which builds a genuinely invalid, loudly-404ing double-slash
+    // path) — `${CUSTOMERS_PATH}/${encodeURIComponent("")}` collapses to exactly `list()`'s own
+    // URL, so the request silently succeeds against the wrong endpoint. Its 200 pagination
+    // envelope then feeds straight into deserializeCustomer, which reads wire.id/wire.buyer_email/
+    // etc. off an object with none of them and returns a Customer of all-undefined fields with no
+    // error at all — surfacing as a confusing null-pointer far from this call, not here. `id:
+    // string` makes an empty id ordinary reachable input (`retrieve(req.params.id)`,
+    // `retrieve(user.customerId ?? "")`) in a way `id: number` never could (no number stringifies
+    // to "").
+    if (!id) {
+      throw new SuqoConfigError("customers.retrieve() requires a non-empty id");
+    }
+
     // encodeURIComponent — same path-corruption risk as subscriptions.cancel()/resume(), now that
     // id is a real caller-supplied string rather than a number.
     const wire = await this.#http.request<WireCustomer>({

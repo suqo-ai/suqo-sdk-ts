@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { HttpClient } from "../../src/http/HttpClient.js";
 import { SdkConfig } from "../../src/config/SdkConfig.js";
 import { CustomersResource, deserializeCustomer } from "../../src/resources/customers.js";
+import { SuqoConfigError } from "../../src/errors/SuqoError.js";
 
 function jsonResponse(body: unknown): Response {
   return new Response(JSON.stringify(body), {
@@ -138,5 +139,17 @@ describe("CustomersResource", () => {
       "https://test-be.suqo.ai/api/v1/customers/cus%3F1%23a%2Fb/",
       expect.anything(),
     );
+  });
+
+  it("retrieve('') throws SuqoConfigError instead of silently colliding with list()'s endpoint (found in review)", async () => {
+    // Regression test: encodeURIComponent("") is "", so an unguarded retrieve("") would build
+    // exactly list()'s own URL and get back a 200 pagination envelope that deserializeCustomer
+    // would silently turn into a Customer of all-undefined fields, with no error at all.
+    await expect(customers().retrieve("")).rejects.toBeInstanceOf(SuqoConfigError);
+    await expect(customers().retrieve("")).rejects.toThrow(/non-empty id/);
+
+    // The critical part: no request is ever attempted, so there's no chance of it silently
+    // succeeding against the wrong endpoint.
+    expect(fetch).not.toHaveBeenCalled();
   });
 });
