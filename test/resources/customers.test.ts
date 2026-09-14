@@ -60,6 +60,17 @@ describe("deserializeCustomer", () => {
     const customer = deserializeCustomer(withoutAddress);
     expect(customer.address).toBeNull();
   });
+
+  it("an entirely omitted buyer_phone/buyer_email/full_name key each degrades to null instead of undefined (found in review, closing the class address's fix opened)", () => {
+    const { buyer_phone: _phone, ...withoutPhone } = wireCustomer;
+    expect(deserializeCustomer(withoutPhone).buyerPhone).toBeNull();
+
+    const { buyer_email: _email, ...withoutEmail } = wireCustomer;
+    expect(deserializeCustomer(withoutEmail).buyerEmail).toBeNull();
+
+    const { full_name: _fullName, ...withoutFullName } = wireCustomer;
+    expect(deserializeCustomer(withoutFullName).fullName).toBeNull();
+  });
 });
 
 describe("CustomersResource", () => {

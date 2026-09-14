@@ -19,15 +19,17 @@ const CUSTOMERS_PATH = "/api/v1/customers";
  */
 interface WireCustomer {
   id: string;
-  buyer_phone: string | null;
-  buyer_email: string | null;
-  full_name: string | null;
-  // Optional, not just nullable (found in review): openapi.yaml's Customer schema doesn't list
-  // `address` in `required`, and src/generated/schema.ts already reflects that (`address?:`) —
-  // this hand-written interface didn't, so an entirely omitted `address` key (spec-legal) produced
-  // `undefined` here, which then flowed straight into a `Customer.address: string | null` that
-  // promises it's never `undefined`. Same class of bug as #42 itself: a declared type the wire
-  // never actually promised.
+  // Optional, not just nullable, on all four of these (found in review, closing the class #42's
+  // address fix opened): openapi.yaml's Customer schema only requires `id`/`created_at` — none of
+  // these four are in `required`, and src/generated/schema.ts already reflects that (`?:` on all
+  // four). This hand-written interface originally declared `address` the same required-but-wrong
+  // way it still declared these three, so an entirely omitted key (spec-legal for any of them)
+  // produced `undefined` here, flowing straight into a `Customer` type that promises `string |
+  // null`, never `undefined`. Same class of bug as #42 itself: a declared type the wire never
+  // actually promised.
+  buyer_phone?: string | null;
+  buyer_email?: string | null;
+  full_name?: string | null;
   address?: string | null;
   created_at: string;
 }
@@ -36,11 +38,11 @@ interface WireCustomer {
 export function deserializeCustomer(wire: WireCustomer): Customer {
   return {
     id: wire.id,
-    buyerPhone: wire.buyer_phone,
-    buyerEmail: wire.buyer_email,
-    fullName: wire.full_name,
-    // `?? null` (not a direct pass-through, found in review): catches both an explicit `null` and
-    // an entirely omitted `address` key — see the WireCustomer.address comment above.
+    // `?? null` on all four nullable fields (not a direct pass-through, found in review): catches
+    // both an explicit `null` and an entirely omitted key — see the WireCustomer comment above.
+    buyerPhone: wire.buyer_phone ?? null,
+    buyerEmail: wire.buyer_email ?? null,
+    fullName: wire.full_name ?? null,
     address: wire.address ?? null,
     createdAt: wire.created_at,
   };
