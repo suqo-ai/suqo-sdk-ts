@@ -81,11 +81,15 @@ export interface CustomerInput {
 
 /**
  * A seller's own customer record, as returned by `customers.list()`/`customers.retrieve()`
- * (`openapi.yaml` `Customer`, confirmed live 2026-08-18). Distinct from {@link SubscriptionCustomer}
- * and {@link CustomerInput} — see this file's module doc.
+ * (`openapi.yaml` `Customer`). Distinct from {@link SubscriptionCustomer} and {@link CustomerInput}
+ * — see this file's module doc.
  *
  * Uses `buyer*`-prefixed field names, not the `client.*` nesting Subscriptions uses — a genuinely
- * different resource with its own confirmed convention, carried through as-is.
+ * different resource with its own convention, carried through as-is.
+ *
+ * (Found in review, #42: the "confirmed live 2026-08-18"/"own confirmed convention" language this
+ * comment used to carry is the exact claim the `id` field's own doc comment, right below, explains
+ * never actually matched the API — removed here to stop contradicting it.)
  */
 export interface Customer {
   /**
