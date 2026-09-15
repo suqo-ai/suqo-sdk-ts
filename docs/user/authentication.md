@@ -60,7 +60,7 @@ Both apply to every call made through this client — there's no way to override
 
 ## Errors thrown before any request is made
 
-Both of these are thrown synchronously, from the constructor, as `SuqoConfigError` — you'll never see them wrapped in a rejected promise:
+Both of these two causes are thrown synchronously, from the constructor, as `SuqoConfigError` — you'll never see them wrapped in a rejected promise. (`SuqoConfigError` isn't exclusively a construction-time error, though — see [`docs/user/errors.md`](errors.md) for a call-time case where it's thrown from a rejected promise instead.)
 
 | Cause | Message shape |
 |---|---|

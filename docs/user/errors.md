@@ -18,7 +18,7 @@ try {
 
 | Class | When | Notes |
 |---|---|---|
-| `SuqoConfigError` | Constructing `SuqoClient` with a malformed key, or a `baseUrl` that disagrees with it | Thrown synchronously, before any request — see [`docs/user/authentication.md`](authentication.md) |
+| `SuqoConfigError` | Constructing `SuqoClient` with a malformed key or a disagreeing `baseUrl` (see [`docs/user/authentication.md`](authentication.md)) — or a call-time argument that would otherwise silently misdirect a request, e.g. an empty `customers.retrieve(id)` | Always before any request is attempted, but not always synchronous — the constructor case throws synchronously, a call-time case rejects the returned promise like any other SDK error |
 | `AuthenticationError` | `401` | Key is missing, malformed, or inactive |
 | `KycRequiredError` | `403` | Seller hasn't completed KYC. Carries `kycStatus`, if the response included one |
 | `ValidationError` | `400` | See below — two different body shapes, normalized into one class |
