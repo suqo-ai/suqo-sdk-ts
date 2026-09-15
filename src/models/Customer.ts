@@ -86,23 +86,13 @@ export interface CustomerInput {
  *
  * Uses `buyer*`-prefixed field names, not the `client.*` nesting Subscriptions uses — a genuinely
  * different resource with its own convention, carried through as-is.
- *
- * (Found in review, #42: the "confirmed live 2026-08-18"/"own confirmed convention" language this
- * comment used to carry is the exact claim the `id` field's own doc comment, right below, explains
- * never actually matched the API — removed here to stop contradicting it.)
  */
 export interface Customer {
-  /**
-   * Opaque prefixed id, e.g. `"cus_1ce18d624"` — a string, like `pbp_...` on billing periods, not
-   * an integer. (Bug #42, found in review against the live sandbox: the field was previously typed
-   * `number`, which the wire never actually sent — that claim was a spec assumption the API never
-   * matched, not a real prior behavior.)
-   */
+  /** Opaque prefixed id, e.g. `"cus_1ce18d624"` — a string, like `pbp_...` on billing periods, not an integer. */
   id: string;
   buyerPhone: string | null;
   buyerEmail: string | null;
   fullName: string | null;
-  /** Was silently dropped before Bug #42's fix — the wire has always sent this field. */
   address: string | null;
   createdAt: string;
 }
