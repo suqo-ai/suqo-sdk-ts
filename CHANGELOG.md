@@ -7,12 +7,21 @@ adheres to [Semantic Versioning](https://semver.org/) per [`specs/versioning.md`
 
 ## [Unreleased]
 
-### Fixed
+**⚠️ Next release must be `2.0.0`, not `1.0.1`.** Two SDK-only breaking changes below, no API
+version change — `specs/versioning.md`'s MAJOR trigger 2. Do not tag/publish this as a patch or
+minor release.
+
+### Changed
 
 - **Breaking:** `Customer.id` corrected from `number` to `string` — the API has always returned
   an opaque prefixed id (e.g. `"cus_1ce18d624"`), like `pbp_...` on billing periods, never an
-  integer; the `number` type made `customers.retrieve()` uncallable as declared. Also added
-  `Customer.address`, previously present on the wire but silently dropped. ([#42])
+  integer; the `number` type made `customers.retrieve()` uncallable as declared. ([#42])
+- **Breaking:** `Customer.address` added as a required property (`string | null`) — previously
+  present on the wire but entirely missing from the type, silently dropped. Breaks any consumer
+  constructing a `Customer` literal themselves (e.g. in their own test fixtures) without it.
+
+### Fixed
+
 - `customers.retrieve("")` now throws `SuqoConfigError` instead of silently colliding with
   `list()`'s own URL and returning a `Customer` of all-undefined fields with no error — a risk the
   `number` → `string` change above newly made reachable (found in review of that same change).
