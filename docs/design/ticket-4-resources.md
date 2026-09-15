@@ -160,13 +160,18 @@ the account is somehow otherwise unauthorized.
 ```
 customers.list(params?: PageParams) -> Page<Customer>
 customers.autoPaging(params?: PageParams) -> AsyncIterableIterator<Customer>
-customers.retrieve(id: string) -> Customer
+customers.retrieve(id: string) -> Customer   // throws SuqoConfigError if id is empty
 ```
 
 Read-only — no create/update/delete exists on this resource. `id` is an **opaque prefixed string**
 (e.g. `cus_1ce18d624`, like `pbp_...` on billing periods) — not an integer and not a UUID. (Bug
 #42: this doc previously said `integer`, "re-verified live against BE Swagger" — that verification
 never actually matched what the API returns; corrected once a real captured response surfaced it.)
+
+`retrieve("")` doesn't reach the API at all: an empty id would otherwise collapse onto the exact
+URL `list()` builds (`encodeURIComponent("")` is `""`), returning that endpoint's 200 pagination
+envelope instead of a 404 — so it's rejected before any request is attempted, as `SuqoConfigError`,
+the same class `SuqoClient`'s constructor uses for a config mistake caught before any request.
 
 ---
 

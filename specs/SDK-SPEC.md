@@ -164,7 +164,7 @@ Normalized hierarchy (same names, idiomatic casing per language):
 | Class                 | Raised on                                         | Notes                                              |
 | --------------------- | ------------------------------------------------- | -------------------------------------------------- |
 | `SuqoError`           | base — never thrown directly                      | carries `status`, `rawBody`, best-effort `message` |
-| `SuqoConfigError`     | construction-time config problems                 | **malformed key**, env/prefix conflict (§2)        |
+| `SuqoConfigError`     | a mistake caught before any request is attempted  | **malformed key**, env/prefix conflict (§2); also a bad call-time argument that would otherwise silently misdirect a request, e.g. an empty `customers.retrieve(id)` |
 | `AuthenticationError` | `401` (`detail: "Invalid or inactive API key."`)  |                                                    |
 | `KycRequiredError`    | `403` KYC not verified                            | exposes `kycStatus` (the KYC status)               |
 | `ValidationError`     | `400`                                             | exposes `fieldErrors: Record<string,string[]>`     |
@@ -179,8 +179,9 @@ case) populates `message` with `fieldErrors` empty. Consumers can rely on the
 class, not the wire shape.
 
 `SuqoConfigError` is deliberately distinct from the HTTP errors: it signals a
-programmer/config mistake caught before any request, analogous to a syntax error
-in the integration.
+programmer/config mistake caught before any request is attempted — whether that's
+at `SuqoClient` construction, or a call-time argument that would otherwise silently
+misdirect a request — analogous to a syntax error in the integration.
 
 ---
 
