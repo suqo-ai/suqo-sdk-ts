@@ -55,7 +55,7 @@ SUQO_TEST_PHONE=9000000000 SUQO_TEST_EMAIL=you@example.com npx tsx examples/quic
 | [`quickstart.ts`](quickstart.ts)         | The full flow: list products → create a subscription → verify its webhook. Start here.    |
 | [`list-products.ts`](list-products.ts)   | Browsing the catalog — works pre-KYC.                                                     |
 | [`subscriptions.ts`](subscriptions.ts)   | `create`/`cancel`/`updateBillingCycle`/`resume`.                                          |
-| [`list-customers.ts`](list-customers.ts) | `list`/`retrieve` — read-only.                                                            |
+| [`list-customers.ts`](list-customers.ts) | `list`/`retrieve` — read-only (doesn't exercise `create`/`update`).                       |
 | [`verify-webhook.ts`](verify-webhook.ts) | Signature verification, including a tampered and a stale delivery. Makes no network call. |
 
 ## What this doesn't cover

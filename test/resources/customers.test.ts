@@ -4,9 +4,9 @@ import { SdkConfig } from "../../src/config/SdkConfig.js";
 import { CustomersResource, deserializeCustomer } from "../../src/resources/customers.js";
 import { SuqoConfigError } from "../../src/errors/SuqoError.js";
 
-function jsonResponse(body: unknown): Response {
+function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
-    status: 200,
+    status,
     headers: { "content-type": "application/json" },
   });
 }
@@ -172,5 +172,93 @@ describe("CustomersResource", () => {
     // The critical part: no request is ever attempted, so there's no chance of it silently
     // succeeding against the wrong endpoint.
     expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("create() POSTs the write-side body to /api/v1/customers/ and deserializes the 201 response", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse(wireCustomer, 201));
+
+    const result = await customers().create({
+      phone: "9800000000",
+      fullName: "Jane Doe",
+      email: "jane@example.com",
+      address: "Shankhamul, Kathmandu 44600, Nepal",
+    });
+
+    const [url, init] = vi.mocked(fetch).mock.calls[0]!;
+    expect(url).toBe("https://test-be.suqo.ai/api/v1/customers/");
+    expect(init?.method).toBe("POST");
+    expect(JSON.parse(init?.body as string)).toEqual({
+      phone: "9800000000",
+      full_name: "Jane Doe",
+      email: "jane@example.com",
+      address: "Shankhamul, Kathmandu 44600, Nepal",
+    });
+    expect(result.id).toBe("cus_1ce18d624");
+    expect(result.buyerPhone).toBe("9800000000");
+  });
+
+  it("create() resolves to the Customer on a 200 too (a phone the seller already holds updates that customer)", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse(wireCustomer, 200));
+
+    const result = await customers().create({ phone: "9800000000" });
+
+    expect(result.id).toBe("cus_1ce18d624");
+  });
+
+  it("create() leaves omitted optional fields out of the body entirely", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse(wireCustomer, 201));
+
+    await customers().create({ phone: "9800000000" });
+
+    const init = vi.mocked(fetch).mock.calls[0]![1];
+    expect(JSON.parse(init?.body as string)).toEqual({ phone: "9800000000" });
+  });
+
+  it("create() is never retried on a 5xx — it's a write (SDK-SPEC.md §8)", async () => {
+    vi.mocked(fetch).mockResolvedValue(jsonResponse({ detail: "boom" }, 503));
+
+    await expect(customers().create({ phone: "9800000000" })).rejects.toThrow();
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("update(id) PATCHes only the given fields to /api/v1/customers/{id}/ and deserializes the response", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ ...wireCustomer, full_name: "Ram Bahadur" }));
+
+    const result = await customers().update("cus_1ce18d624", { fullName: "Ram Bahadur" });
+
+    const [url, init] = vi.mocked(fetch).mock.calls[0]!;
+    expect(url).toBe("https://test-be.suqo.ai/api/v1/customers/cus_1ce18d624/");
+    expect(init?.method).toBe("PATCH");
+    expect(JSON.parse(init?.body as string)).toEqual({ full_name: "Ram Bahadur" });
+    expect(result.fullName).toBe("Ram Bahadur");
+  });
+
+  it("update() passes an empty string through as a deliberate clear, not dropped like undefined", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ ...wireCustomer, buyer_email: null, address: null }));
+
+    await customers().update("cus_1ce18d624", { email: "", address: "" });
+
+    const init = vi.mocked(fetch).mock.calls[0]![1];
+    expect(JSON.parse(init?.body as string)).toEqual({ email: "", address: "" });
+  });
+
+  it("update() URL-encodes an id containing reserved characters", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse(wireCustomer));
+
+    await customers().update("cus?1#a/b", { fullName: "x" });
+
+    expect(vi.mocked(fetch).mock.calls[0]![0]).toBe("https://test-be.suqo.ai/api/v1/customers/cus%3F1%23a%2Fb/");
+  });
+
+  it("update('') throws SuqoConfigError before any request, same as retrieve('')", async () => {
+    await expect(customers().update("", { fullName: "x" })).rejects.toBeInstanceOf(SuqoConfigError);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("update() is never retried on a 5xx — it's a write (SDK-SPEC.md §8)", async () => {
+    vi.mocked(fetch).mockResolvedValue(jsonResponse({ detail: "boom" }, 503));
+
+    await expect(customers().update("cus_1ce18d624", { fullName: "x" })).rejects.toThrow();
+    expect(fetch).toHaveBeenCalledTimes(1);
   });
 });

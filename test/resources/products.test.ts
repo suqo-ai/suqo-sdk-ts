@@ -50,7 +50,7 @@ const wireProduct = {
   terms_and_conditions: "...",
   features_and_benefits: "...",
   vat: { is_vat_active: true, vat_type: "standard", vat_percentage: "13.00" },
-  product_image: ["https://cdn.example/1.png"],
+  product_image: [{ image: "https://cdn.example/1.png", image_order: 0 }],
   plan: [wirePlan],
   total_subscribers: "42",
   created_at: "2026-01-01T00:00:00Z",
@@ -137,6 +137,26 @@ describe("deserializeProduct", () => {
     const { vat: _vat, ...withoutVat } = wireProduct;
     const product = deserializeProduct(withoutVat);
     expect(product.vat).toBeNull();
+  });
+
+  it("maps product_image objects to camelCase ProductImage objects, not bare URL strings", () => {
+    const product = deserializeProduct({
+      ...wireProduct,
+      product_image: [
+        { image: "https://cdn.example/1.png", image_order: 0 },
+        { image: "https://cdn.example/2.png", image_order: 1 },
+      ],
+    });
+    expect(product.productImage).toEqual([
+      { image: "https://cdn.example/1.png", imageOrder: 0 },
+      { image: "https://cdn.example/2.png", imageOrder: 1 },
+    ]);
+    expect(product.productImage[0]).not.toHaveProperty("image_order");
+  });
+
+  it("an entirely omitted product_image key degrades to an empty array instead of crashing", () => {
+    const { product_image: _productImage, ...withoutImages } = wireProduct;
+    expect(deserializeProduct(withoutImages).productImage).toEqual([]);
   });
 
   it("an entirely omitted plan key degrades to an empty array instead of crashing (found in review)", () => {

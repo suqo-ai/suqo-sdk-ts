@@ -120,6 +120,25 @@ describe("contract: response decoding", () => {
     expect(customer).not.toHaveProperty("buyer_email");
   });
 
+  it("customers.create() decodes the write-side phone/email back as buyerPhone/buyerEmail", async () => {
+    const customer = await client().customers.create({ phone: "9812345678", email: "ram@example.com" });
+    expect(customer.buyerPhone).toBe("9812345678");
+    expect(customer.buyerEmail).toBe("ram@example.com");
+    expect(customer.fullName).toBeNull();
+    expect(customer).not.toHaveProperty("buyer_phone");
+  });
+
+  it("customers.update() decodes the updated Customer", async () => {
+    const customer = await client().customers.update("cus_1ce18d624", { fullName: "Ram Bahadur" });
+    expect(customer.id).toBe("cus_1ce18d624");
+    expect(customer.fullName).toBe("Ram Bahadur");
+  });
+
+  it("products.list() decodes productImage as camelCase image objects", async () => {
+    const page = await client().products.list();
+    expect(page.results[0]?.productImage).toEqual([{ image: "https://cdn.example/product.png", imageOrder: 0 }]);
+  });
+
   it("decimal-shaped fields (price, total_subscribers) stay strings end to end, never coerced to number", async () => {
     const page = await client().products.list();
     const price = page.results[0]?.plan[0]?.billingPeriods[0]?.price;

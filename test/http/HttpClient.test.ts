@@ -103,6 +103,20 @@ describe("HttpClient", () => {
     expect(init?.body).toBe(JSON.stringify({ pbp_id: "pbp_123" }));
   });
 
+  it("sends a PATCH body too — not only POST bodies", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ id: "cus_1" }));
+    await client().request({
+      method: "PATCH",
+      path: "/api/v1/customers/cus_1",
+      body: { full_name: "Ram Bahadur" },
+    });
+
+    const [, init] = vi.mocked(fetch).mock.calls[0]!;
+    expect(init?.method).toBe("PATCH");
+    expect(init?.body).toBe(JSON.stringify({ full_name: "Ram Bahadur" }));
+    expect((init?.headers as Record<string, string>)["Content-Type"]).toBe("application/json");
+  });
+
   it("returns the parsed body on a 2xx response", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ count: 1, results: [] }));
     const result = await client().request<{ count: number }>({ method: "GET", path: "/api/v1/products" });
@@ -158,6 +172,17 @@ describe("HttpClient", () => {
 
     await expect(
       client({ maxRetries: 2 }).request({ method: "POST", path: "/api/v1/subscriptions" }),
+    ).rejects.toBeInstanceOf(ServerError);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("never retries a PATCH, even on a 5xx", async () => {
+    const fetchMock = vi
+      .mocked(fetch)
+      .mockResolvedValue(new Response(JSON.stringify({ detail: "boom" }), { status: 500 }));
+
+    await expect(
+      client({ maxRetries: 2 }).request({ method: "PATCH", path: "/api/v1/customers/cus_1", body: {} }),
     ).rejects.toBeInstanceOf(ServerError);
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });

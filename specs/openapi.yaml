@@ -46,7 +46,7 @@ tags:
   - name: Subscriptions
     description: List, create, cancel, and set the billing cycle of subscriptions.
   - name: Customers
-    description: List and retrieve customers. Read-only — no create/update/delete.
+    description: List, retrieve, create and update customers. No delete.
 
 paths:
   /api/v1/products/:
@@ -254,7 +254,7 @@ paths:
       tags: [Customers]
       summary: List customers
       description: >
-        Lists the authenticated seller's customers. Paginated. Read-only.
+        Lists the authenticated seller's customers, newest first. Paginated.
       parameters:
         - $ref: '#/components/parameters/Page'
         - $ref: '#/components/parameters/PageSize'
@@ -274,12 +274,49 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/KycRequired' }
 
+    post:
+      operationId: createCustomer
+      tags: [Customers]
+      summary: Create a customer
+      description: >
+        Records a customer on the seller's account without opening a
+        subscription. `phone` identifies the buyer. The name, email and address
+        are the seller's own copy and are not shared with other sellers. A phone
+        the seller already holds updates that customer and returns 200 instead
+        of 201, which makes this safe to retry. The `phone` and `email` sent
+        here read back as `buyer_phone` and `buyer_email`.
+
+        NOTE (write op): not auto-retried by the SDK.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateCustomerRequest' }
+      responses:
+        '200':
+          description: A customer with this phone already existed and was updated.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Customer' }
+        '201':
+          description: Customer created.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Customer' }
+        '400':
+          description: Validation error (e.g. a phone that isn't a Nepali mobile number).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FieldError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/KycRequired' }
+
   /api/v1/customers/{id}/:
     get:
       operationId: retrieveCustomer
       tags: [Customers]
       summary: Retrieve a customer
-      description: Retrieves a single customer by id. Read-only.
+      description: Retrieves a single customer by id.
       parameters:
         - name: id
           in: path
@@ -294,6 +331,41 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Customer' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/KycRequired' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      operationId: updateCustomer
+      tags: [Customers]
+      summary: Update a customer
+      description: >
+        Updates the seller's copy of a customer's name, email or address. Send
+        only the fields being changed; `""` clears a field. The phone identifies
+        the buyer and cannot be changed. `email` reads back as `buyer_email`.
+
+        NOTE (write op): not auto-retried by the SDK.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+          description: Opaque prefixed customer id, e.g. "cus_1ce18d624".
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateCustomerRequest' }
+      responses:
+        '200':
+          description: The updated customer.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Customer' }
+        '400':
+          description: Validation error (e.g. a malformed email, or a different phone).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FieldError' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/KycRequired' }
         '404': { $ref: '#/components/responses/NotFound' }
@@ -540,8 +612,11 @@ components:
             vat_percentage: { type: string }
         product_image:
           type: array
-          description: Ordered images (blank images excluded).
-          items: { type: string }
+          description: >
+            Ordered images (blank images excluded). Each is an object, not a
+            bare URL string (previously declared `items: { type: string }`,
+            which never matched the wire).
+          items: { $ref: '#/components/schemas/ProductImage' }
         plan:
           type: array
           items: { $ref: '#/components/schemas/Plan' }
@@ -550,6 +625,12 @@ components:
           description: Count of active subscribers (sent as string).
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
+
+    ProductImage:
+      type: object
+      properties:
+        image: { type: string, format: uri }
+        image_order: { type: integer, description: Display position, lowest first. }
 
     Plan:
       type: object
@@ -606,6 +687,41 @@ components:
         full_name: { type: [string, 'null'] }
         address: { type: [string, 'null'] }
         created_at: { type: string, format: date-time }
+
+    CreateCustomerRequest:
+      type: object
+      required: [phone]
+      properties:
+        phone:
+          type: string
+          maxLength: 15
+          description: >
+            Identifies the buyer and cannot be changed once set. Reads back as
+            `buyer_phone`. Nepali mobile number: 10 digits starting with 96, 97
+            or 98. A +977 country code, a leading 0, spaces and dashes are
+            accepted and stripped.
+        full_name: { type: [string, 'null'], maxLength: 255 }
+        email:
+          type: [string, 'null']
+          format: email
+          description: Reads back as `buyer_email`.
+        address: { type: [string, 'null'] }
+
+    UpdateCustomerRequest:
+      type: object
+      description: Send only the fields being changed; none is required. `""` clears a field.
+      properties:
+        full_name: { type: [string, 'null'] }
+        email:
+          type: [string, 'null']
+          format: email
+          description: Reads back as `buyer_email`.
+        address: { type: [string, 'null'] }
+        phone:
+          type: string
+          description: >
+            Optional, and only at its current value — the phone identifies the
+            buyer, so a different number is rejected. The SDK never sends it.
 
     DetailError:
       type: object

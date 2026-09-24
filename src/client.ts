@@ -47,7 +47,7 @@ export class SuqoClient {
   readonly products: ProductsResource;
   /** Create, list, and manage subscriptions (SDK-SPEC.md §5, §6, §7). */
   readonly subscriptions: SubscriptionsResource;
-  /** List and retrieve the seller's customers — read-only (SDK-SPEC.md §5, §6). */
+  /** List, retrieve, create and update the seller's customers (SDK-SPEC.md §5, §6). */
   readonly customers: CustomersResource;
   /** Verify inbound webhook deliveries (SDK-SPEC.md §9). Makes no network call, needs no key. */
   readonly webhooks: WebhooksResource;

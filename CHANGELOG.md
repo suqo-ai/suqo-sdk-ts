@@ -9,15 +9,29 @@ adheres to [Semantic Versioning](https://semver.org/) per [`specs/versioning.md`
 
 ## [1.1.0] - 2026-09-24
 
-**This release is a deliberate exception to the MAJOR rule.** The two type changes
+**This release is a deliberate exception to the MAJOR rule.** The three type changes
 below are technically SDK-only breaking changes (`specs/versioning.md`'s MAJOR trigger 2), but
 they correct types that never matched the wire — the declared `number` id made
 `customers.retrieve()` uncallable with a real id — so they're shipped as a minor release. See
 `specs/versioning.md`'s "Recorded exceptions". Upgrading from `1.0.0` may need the small code
 changes noted under each item.
 
+### Added
+
+- `customers.create({ phone, fullName?, email?, address? })` — records a customer without opening
+  a subscription (`POST /customers/`). A phone you already hold updates that customer instead, so
+  it's safe to retry yourself; the SDK never retries it automatically.
+- `customers.update(id, { fullName?, email?, address? })` — updates only the given fields
+  (`PATCH /customers/{id}/`); `""` clears a field. The phone can't be changed.
+- `CreateCustomerParams`, `UpdateCustomerParams` and `ProductImage` types exported.
+
 ### Changed
 
+- **Breaking:** `Product.productImage` corrected from `string[]` to `ProductImage[]`
+  (`{ image: string; imageOrder: number }`) — the API sends image objects, not bare URLs. At
+  runtime you were already getting objects (the SDK passed them through untouched, as
+  `{ image, image_order }`); now they're typed and camelCased.
+  _Upgrading:_ replace `product.productImage[i]` used as a URL with `product.productImage[i].image`.
 - **Breaking:** `Customer.id` corrected from `number` to `string` — the API has always returned
   an opaque prefixed id (e.g. `"cus_1ce18d624"`), like `pbp_...` on billing periods, never an
   integer; the `number` type made `customers.retrieve()` uncallable as declared. ([#42])
@@ -39,6 +53,8 @@ changes noted under each item.
 - `Customer.buyerPhone`/`buyerEmail`/`fullName` get the same `null`-on-omitted-key fix as
   `address` above — none of the four are required by the schema, so all four needed it.
 - `docs/design/ticket-4-resources.md` and `docs/user/customers.md` corrected to match.
+- `SDK-SPEC.md` §9 named the status-change webhook `subscription.status.change`; the real event is
+  `subscription.status_changed` (the SDK's types already used the right name).
 
 [#42]: https://github.com/suqo-ai/suqo-sdk-ts/issues/42
 

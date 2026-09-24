@@ -40,6 +40,11 @@ interface WireProductVat {
   vat_percentage: string;
 }
 
+interface WireProductImage {
+  image: string;
+  image_order: number;
+}
+
 interface WireProduct {
   product_id: string;
   name: string;
@@ -51,7 +56,10 @@ interface WireProduct {
   // Optional (not just nullable) and `plan` optional too — same reasoning as `WirePlan.billing_periods`
   // above: no `required` list on this schema, so both are legally omittable, not just nullable.
   vat?: WireProductVat | null;
-  product_image: string[];
+  // Objects, not URL strings — `openapi.yaml` previously declared `string[]`, which never matched
+  // the wire (Swagger's `ProductImage` and a captured response both show `{ image, image_order }`).
+  // Optional for the same no-`required`-list reason as `plan`.
+  product_image?: WireProductImage[];
   plan?: WirePlan[];
   total_subscribers: string;
   created_at: string;
@@ -110,7 +118,7 @@ export function deserializeProduct(wire: WireProduct): Product {
     // `vat` is spec-legal, and the old `=== null` check crashed on `deserializeProductVat(undefined)`
     // when that happened (found in review, reproduced).
     vat: wire.vat == null ? null : deserializeProductVat(wire.vat),
-    productImage: wire.product_image,
+    productImage: (wire.product_image ?? []).map((img) => ({ image: img.image, imageOrder: img.image_order })),
     // Same reasoning as `billingPeriods` above — `plan` being omitted entirely is spec-legal.
     plan: (wire.plan ?? []).map(deserializePlan),
     totalSubscribers: wire.total_subscribers,

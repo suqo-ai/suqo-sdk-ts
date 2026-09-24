@@ -101,7 +101,7 @@ const mockProduct = {
   terms_and_conditions: "Standard terms apply.",
   features_and_benefits: "Includes priority support.",
   vat: { is_vat_active: false, vat_type: "inclusive", vat_percentage: "0.00" },
-  product_image: [],
+  product_image: [{ image: "https://cdn.example/product.png", image_order: 0 }],
   plan: [mockPlan],
   total_subscribers: "1",
   created_at: "2026-01-01T00:00:00Z",
@@ -219,6 +219,34 @@ export const handlers: HttpHandler[] = [
     // like a bug even when the intent was only to prove :id path-matching works, not to simulate a
     // real per-id lookup.
     return HttpResponse.json({ ...mockCustomer, id: params.id });
+  }),
+
+  http.post(`${SANDBOX_BASE_URL}/api/v1/customers/`, async ({ request }) => {
+    await capture(request);
+    // The write side's `phone`/`email` read back as `buyer_phone`/`buyer_email`.
+    const body = (await request.clone().json()) as Record<string, string | undefined>;
+    return HttpResponse.json(
+      {
+        ...mockCustomer,
+        buyer_phone: body.phone ?? mockCustomer.buyer_phone,
+        buyer_email: body.email ?? null,
+        full_name: body.full_name ?? null,
+        address: body.address ?? null,
+      },
+      { status: 201 },
+    );
+  }),
+
+  http.patch(`${SANDBOX_BASE_URL}/api/v1/customers/:id/`, async ({ request, params }) => {
+    await capture(request);
+    const body = (await request.clone().json()) as Record<string, string | undefined>;
+    return HttpResponse.json({
+      ...mockCustomer,
+      id: params.id,
+      ...(body.full_name !== undefined ? { full_name: body.full_name } : {}),
+      ...(body.email !== undefined ? { buyer_email: body.email } : {}),
+      ...(body.address !== undefined ? { address: body.address } : {}),
+    });
   }),
 ];
 

@@ -10,7 +10,7 @@
  *
  * @packageDocumentation
  */
-export type { Product, ProductVat, Plan, BillingPeriod } from "./Product.js";
+export type { Product, ProductVat, ProductImage, Plan, BillingPeriod } from "./Product.js";
 export { SubscriptionStatus } from "./Subscription.js";
 export type { Subscription, SubscriptionProduct } from "./Subscription.js";
 export type {
@@ -27,6 +27,7 @@ export type {
   CreateSubscriptionResponse,
   UpdateBillingCycleParams,
 } from "./subscriptionParams.js";
+export type { CreateCustomerParams, UpdateCustomerParams } from "./customerParams.js";
 export type { MessageResponse } from "./MessageResponse.js";
 export type {
   CheckoutSucceededEvent,

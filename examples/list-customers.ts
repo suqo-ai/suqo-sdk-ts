@@ -1,7 +1,8 @@
 /**
  * List the seller's customers, then retrieve one by id.
  *
- * Read-only — there's no create/update/delete on this resource. `Customer.id` is an opaque
+ * Read-only example — `create()`/`update()` also exist (see docs/user/customers.md), but this
+ * script doesn't write anything to your account. `Customer.id` is an opaque
  * prefixed string (e.g. `cus_1ce18d624`), the same convention as `pbp_...` on billing periods —
  * not a UUID, but not the exception it might look like at a glance either.
  *
