@@ -21,12 +21,12 @@ changes noted under each item.
 - **Breaking:** `Customer.id` corrected from `number` to `string` — the API has always returned
   an opaque prefixed id (e.g. `"cus_1ce18d624"`), like `pbp_...` on billing periods, never an
   integer; the `number` type made `customers.retrieve()` uncallable as declared. ([#42])
-  *Upgrading:* anywhere you typed a customer id as `number` (variables, `Map<number, …>` keys,
+  _Upgrading:_ anywhere you typed a customer id as `number` (variables, `Map<number, …>` keys,
   `retrieve(123)`), switch it to `string`.
 - **Breaking:** `Customer.address` added as a required property (`string | null`) — previously
   present on the wire but entirely missing from the type, silently dropped. Breaks any consumer
   constructing a `Customer` literal themselves (e.g. in their own test fixtures) without it.
-  *Upgrading:* add `address: null` (or a real value) to any hand-built `Customer` objects.
+  _Upgrading:_ add `address: null` (or a real value) to any hand-built `Customer` objects.
 
 ### Fixed
 
