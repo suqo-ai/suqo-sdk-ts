@@ -43,14 +43,14 @@ Every real release adds a row here, marked `Shipped` once it's actually publishe
 keeps the lead's original worked example illustrating both MAJOR triggers — the **Status** column
 is what tells the two apart; don't mistake an `Example` row for release history.
 
-| SDK Version (SemVer) | Supported API Version | Change Type                                                                          | Status                      |
-| -------------------- | --------------------- | ------------------------------------------------------------------------------------ | --------------------------- |
-| `1.0.0`              | `v1`                  | Initial release                                                                      | Shipped                     |
-| `1.1.0`              | `v1`                  | Added backward-compatible feature                                                    | Example — illustrative only |
-| `2.0.0`              | `v2`                  | Rewrote SDK to support new **v2 API breaking changes**                               | Example — illustrative only |
-| `3.0.0`              | `v2`                  | No API change; refactored SDK methods to use Promises (**SDK-only breaking change**) | Example — illustrative only |
+| SDK Version (SemVer) | Supported API Version | Change Type                                                                                          | Status                      |
+| -------------------- | --------------------- | ---------------------------------------------------------------------------------------------------- | --------------------------- |
+| `1.0.0`              | `v1`                  | Initial release                                                                                      | Shipped                     |
+| `1.1.0`              | `v1`                  | Added customers create/update; **SDK-only breaking** type fixes as a minor (see Recorded exceptions) | Shipped                     |
+| `2.0.0`              | `v2`                  | Rewrote SDK to support new **v2 API breaking changes**                                               | Example — illustrative only |
+| `3.0.0`              | `v2`                  | No API change; refactored SDK methods to use Promises (**SDK-only breaking change**)                 | Example — illustrative only |
 
-Rows `1.0.0`–`1.1.0` and `2.0.0` are trigger (1) above (API-driven). The `3.0.0` row is the worked
+The `2.0.0` example row is trigger (1) above (API-driven). The `3.0.0` example row is the worked
 example of trigger (2) — same API, SDK-only breaking change — which is why this file states that
 trigger explicitly instead of just restating SDK-SPEC.md §13 verbatim.
 
@@ -72,7 +72,7 @@ is visible rather than silent.
   `number` made `customers.retrieve()` uncallable with a real id, and product images were always
   objects — and `1.0.0` had only been out since 2026-09-10. The `CHANGELOG.md` entry carries upgrade
   notes for the compile errors this can cause. This does not loosen the rule for future releases.
-  When `1.1.0` ships, its real row replaces the illustrative `1.1.0` row in the table above.
+  Shipped 2026-09-24; its row in the table above replaced the lead's illustrative `1.1.0` row.
 
 ## Release process
 
