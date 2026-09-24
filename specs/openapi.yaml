@@ -630,7 +630,7 @@ components:
       type: object
       properties:
         image: { type: string, format: uri }
-        image_order: { type: integer, description: Display position, lowest first. }
+        image_order: { type: integer, description: "Display position, lowest first." }
 
     Plan:
       type: object

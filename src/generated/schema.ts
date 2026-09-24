@@ -339,7 +339,7 @@ export interface components {
         ProductImage: {
             /** Format: uri */
             image?: string;
-            /** @description Display position */
+            /** @description Display position, lowest first. */
             image_order?: number;
         };
         Plan: {

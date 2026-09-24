@@ -180,7 +180,8 @@ customers.update(id: string, params: UpdateCustomerParams) -> Customer   // thro
 - [ ] `create()` sends `phone`/`full_name`/`email`/`address`, never `buyer_*` keys.
 - [ ] An omitted optional field is absent from the body, not sent as `null`.
 - [ ] `update(id, { email: "" })` sends `{ email: "" }` — the empty string survives.
-- [ ] `update("")` throws `SuqoConfigError` before any request.
+- [ ] `update("")`, `update(".")` and `update("..")` throw `SuqoConfigError` before any request.
+- [ ] `update()` never sends `phone`, even when the params object carries one.
 - [ ] Neither method retries on a `5xx`.
 
 `id` on every method is an **opaque prefixed string**
@@ -191,7 +192,9 @@ never actually matched what the API returns; corrected once a real captured resp
 `retrieve("")` doesn't reach the API at all: an empty id would otherwise collapse onto the exact
 URL `list()` builds (`encodeURIComponent("")` is `""`), returning that endpoint's 200 pagination
 envelope instead of a 404 — so it's rejected before any request is attempted, as `SuqoConfigError`,
-the same class `SuqoClient`'s constructor uses for a config mistake caught before any request.
+the same class `SuqoClient`'s constructor uses for a config mistake caught before any request. `"."` and `".."` are
+rejected the same way, on `retrieve()` and `update()` alike: `encodeURIComponent` leaves dots
+alone, and URL parsing resolves them as dot segments onto the collection URL or above it.
 
 ---
 

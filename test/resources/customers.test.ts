@@ -250,6 +250,30 @@ describe("CustomersResource", () => {
     expect(vi.mocked(fetch).mock.calls[0]![0]).toBe("https://test-be.suqo.ai/api/v1/customers/cus%3F1%23a%2Fb/");
   });
 
+  it.each([".", ".."])(
+    "retrieve(%j) throws SuqoConfigError — dot segments would otherwise resolve onto list()'s URL or above it (found in review)",
+    async (id) => {
+      await expect(customers().retrieve(id)).rejects.toBeInstanceOf(SuqoConfigError);
+      expect(fetch).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([".", ".."])("update(%j) throws SuqoConfigError before any request (found in review)", async (id) => {
+    await expect(customers().update(id, { fullName: "x" })).rejects.toBeInstanceOf(SuqoConfigError);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("update() never sends phone, even from a non-literal object that carries one (found in review)", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse(wireCustomer));
+    // A non-literal object skips TypeScript's excess-property check, so this compiles.
+    const formState = { phone: "9811111111", fullName: "Ram Bahadur" };
+
+    await customers().update("cus_1ce18d624", formState);
+
+    const init = vi.mocked(fetch).mock.calls[0]![1];
+    expect(JSON.parse(init?.body as string)).toEqual({ full_name: "Ram Bahadur" });
+  });
+
   it("update('') throws SuqoConfigError before any request, same as retrieve('')", async () => {
     await expect(customers().update("", { fullName: "x" })).rejects.toBeInstanceOf(SuqoConfigError);
     expect(fetch).not.toHaveBeenCalled();

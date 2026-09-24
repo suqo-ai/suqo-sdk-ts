@@ -44,7 +44,8 @@ changes noted under each item.
 
 ### Fixed
 
-- `customers.retrieve("")` now throws `SuqoConfigError` instead of silently colliding with
+- `customers.retrieve("")` (and `"."`/`".."`, which URL parsing resolves the same way) now throws
+  `SuqoConfigError` instead of silently colliding with
   `list()`'s own URL and returning a `Customer` of all-undefined fields with no error — a risk the
   `number` → `string` change above newly made reachable (found in review of that same change).
 - `Customer.address` degrades to `null` when the wire omits the key entirely (spec-legal —

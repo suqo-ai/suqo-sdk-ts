@@ -49,17 +49,33 @@ export function deserializeCustomer(wire: WireCustomer): Customer {
 }
 
 /**
- * `CreateCustomerParams`/`UpdateCustomerParams` (SDK) → the wire's write shape. Only keys the
- * caller actually set are sent: on `update()` an omitted field must stay untouched server-side,
- * while `""` is a deliberate clear — so `undefined` is dropped and `""` is passed through as-is.
+ * The fields `create()` and `update()` share (SDK) → the wire's write shape. Only keys the caller
+ * actually set are sent: on `update()` an omitted field must stay untouched server-side, while
+ * `""` is a deliberate clear — so `undefined` is dropped and `""` is passed through as-is.
+ *
+ * Deliberately never reads `phone` (found in review): TypeScript only checks excess properties on
+ * object literals, so `update(id, formState)` compiles even when `formState` carries a phone. The
+ * API rejects any phone but the current one, so passing it through would fail the whole update.
+ * `create()` adds `phone` itself.
  */
-function serializeCustomerWrite(params: CreateCustomerParams | UpdateCustomerParams): Record<string, unknown> {
+function serializeCustomerFields(params: UpdateCustomerParams): Record<string, unknown> {
   const wire: Record<string, unknown> = {};
-  if ("phone" in params && params.phone !== undefined) wire.phone = params.phone;
   if (params.fullName !== undefined) wire.full_name = params.fullName;
   if (params.email !== undefined) wire.email = params.email;
   if (params.address !== undefined) wire.address = params.address;
   return wire;
+}
+
+/**
+ * Rejects an id that would resolve to a different endpoint than the one intended. `""` collapses
+ * onto the collection URL (`encodeURIComponent("")` is `""`); `"."` and `".."` do too, or climb
+ * above it, because `encodeURIComponent` leaves dots alone and URL parsing then resolves them as
+ * dot segments (found in review: `retrieve(".")` hit `list()`'s URL, same as `retrieve("")` did).
+ */
+function assertCustomerId(id: string, method: string): void {
+  if (!id || id === "." || id === "..") {
+    throw new SuqoConfigError(`customers.${method}() requires a non-empty id other than "." or ".."`);
+  }
 }
 
 /**
@@ -111,9 +127,7 @@ export class CustomersResource {
     // string` makes an empty id ordinary reachable input (`retrieve(req.params.id)`,
     // `retrieve(user.customerId ?? "")`) in a way `id: number` never could (no number stringifies
     // to "").
-    if (!id) {
-      throw new SuqoConfigError("customers.retrieve() requires a non-empty id");
-    }
+    assertCustomerId(id, "retrieve");
 
     // encodeURIComponent — same path-corruption risk as subscriptions.cancel()/resume(), now that
     // id is a real caller-supplied string rather than a number.
@@ -138,7 +152,7 @@ export class CustomersResource {
     const wire = await this.#http.request<WireCustomer, unknown>({
       method: "POST",
       path: CUSTOMERS_PATH,
-      body: serializeCustomerWrite(params),
+      body: { phone: params.phone, ...serializeCustomerFields(params) },
     });
     return deserializeCustomer(wire);
   }
@@ -150,16 +164,14 @@ export class CustomersResource {
    * Not auto-retryable — writes never retry until idempotency ships (SDK-SPEC.md §8, §12).
    */
   async update(id: string, params: UpdateCustomerParams): Promise<Customer> {
-    // Same guard as retrieve(): an empty id would collapse onto the collection URL and send the
-    // PATCH to the wrong endpoint rather than failing on the intended one.
-    if (!id) {
-      throw new SuqoConfigError("customers.update() requires a non-empty id");
-    }
+    // Same guard as retrieve(): a bad id would send the PATCH to the wrong endpoint rather than
+    // failing on the intended one.
+    assertCustomerId(id, "update");
 
     const wire = await this.#http.request<WireCustomer, unknown>({
       method: "PATCH",
       path: `${CUSTOMERS_PATH}/${encodeURIComponent(id)}`,
-      body: serializeCustomerWrite(params),
+      body: serializeCustomerFields(params),
     });
     return deserializeCustomer(wire);
   }
