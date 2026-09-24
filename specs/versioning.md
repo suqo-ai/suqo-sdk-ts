@@ -60,6 +60,19 @@ name whether the break came from the API version or from the SDK's own contract,
 "breaking change." Future language SDKs maintain their own copy of this table (their release
 cadence differs from the TS SDK's), but the *policy* above is identical for all of them.
 
+## Recorded exceptions
+
+A release that breaks the MAJOR rule above must be listed here with its reason, so the exception
+is visible rather than silent.
+
+- **`1.1.0` — `Customer.id` `number` → `string`, `Customer.address` added as required
+  (decided 2026-09-24).** Both are SDK-only breaking type changes (trigger 2) shipped as a minor.
+  Reason: they correct types that never matched the wire — the API always returned an opaque
+  prefixed string id, so the declared `number` made `customers.retrieve()` uncallable with a real
+  id, and `1.0.0` had only been out since 2026-09-10. The `CHANGELOG.md` entry carries upgrade
+  notes for the compile errors this can cause. This does not loosen the rule for future releases.
+  When `1.1.0` ships, its real row replaces the illustrative `1.1.0` row in the table above.
+
 ## Release process
 
 - Every release ships a `CHANGELOG.md` entry (Keep a Changelog format) that names the triggering

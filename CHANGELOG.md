@@ -7,18 +7,26 @@ adheres to [Semantic Versioning](https://semver.org/) per [`specs/versioning.md`
 
 ## [Unreleased]
 
-**⚠️ Next release must be `2.0.0`, not `1.0.1`.** Two SDK-only breaking changes below, no API
-version change — `specs/versioning.md`'s MAJOR trigger 2. Do not tag/publish this as a patch or
-minor release.
+## [1.1.0] - 2026-09-24
+
+**This release is a deliberate exception to the MAJOR rule.** The two type changes
+below are technically SDK-only breaking changes (`specs/versioning.md`'s MAJOR trigger 2), but
+they correct types that never matched the wire — the declared `number` id made
+`customers.retrieve()` uncallable with a real id — so they're shipped as a minor release. See
+`specs/versioning.md`'s "Recorded exceptions". Upgrading from `1.0.0` may need the small code
+changes noted under each item.
 
 ### Changed
 
 - **Breaking:** `Customer.id` corrected from `number` to `string` — the API has always returned
   an opaque prefixed id (e.g. `"cus_1ce18d624"`), like `pbp_...` on billing periods, never an
   integer; the `number` type made `customers.retrieve()` uncallable as declared. ([#42])
+  *Upgrading:* anywhere you typed a customer id as `number` (variables, `Map<number, …>` keys,
+  `retrieve(123)`), switch it to `string`.
 - **Breaking:** `Customer.address` added as a required property (`string | null`) — previously
   present on the wire but entirely missing from the type, silently dropped. Breaks any consumer
   constructing a `Customer` literal themselves (e.g. in their own test fixtures) without it.
+  *Upgrading:* add `address: null` (or a real value) to any hand-built `Customer` objects.
 
 ### Fixed
 
@@ -74,5 +82,6 @@ minor release.
   retried `5xx` carrying the header (e.g. a `503` during a maintenance window) was previously
   retried on computed backoff instead of the server's requested wait.
 
-[Unreleased]: https://github.com/suqo-ai/suqo-sdk-ts/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/suqo-ai/suqo-sdk-ts/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/suqo-ai/suqo-sdk-ts/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/suqo-ai/suqo-sdk-ts/tree/v1.0.0
