@@ -23,7 +23,7 @@ The SDK wraps exactly the documented API surface:
 | ------------- | ------------------------------------------------------ | -------------- |
 | Products      | `list`                                                 | Specified      |
 | Subscriptions | `list`, `create`, `cancel`, `updateBillingCycle`       | Specified      |
-| Customers     | `list`, `retrieve`                                     | **Stub** (§11) |
+| Customers     | `list`, `retrieve`, `create`, `update`                 | Specified (§11) |
 | Webhooks      | signature verification helper (no HTTP calls)          | Specified      |
 
 The SDK is **server-side only**. The API key is full-access and scoped to a
@@ -111,6 +111,15 @@ client.subscriptions.cancel(id)
 client.subscriptions.updateBillingCycle({ subscriptionId, nextBillingCycle })
                  -> { message }
 
+client.customers.list({ page?, pageSize? })
+                 -> paginated Customer list
+client.customers.retrieve(id)
+                 -> Customer
+client.customers.create({ phone, fullName?, email?, address? })
+                 -> Customer   (an existing phone updates that customer instead)
+client.customers.update(id, { fullName?, email?, address? })
+                 -> Customer   (PATCH; only the given fields change, "" clears)
+
 client.webhooks.verify({ rawBody, signature, timestamp, secret })
                  -> boolean   (no network call; see §9)
 ```
@@ -194,7 +203,7 @@ misdirect a request — analogous to a syntax error in the integration.
     `customers.*`) are naturally idempotent → retry on `NetworkError`, `429`
     (when it lands), and `5xx`, with exponential backoff + jitter, bounded
     attempts.
-  - **Writes** (`create`, `cancel`, `updateBillingCycle`) are **NOT retried**
+  - **Writes** (`create`, `cancel`, `updateBillingCycle`, `customers.update`) are **NOT retried**
     automatically. The API does not yet support idempotency keys, so a retried
     write could double-act. See §12 (backlog). This restriction is a single,
     clearly-marked switch in the retry layer so it flips to "retry with
@@ -224,7 +233,9 @@ The helper MUST:
    timestamps to defeat replay.
 
 Event payloads (`checkout.succeeded`, `checkout.failed`,
-`subscription.status.change`) are documented as types. `amount` is a **decimal
+`subscription.status_changed`, and the `api_key.*` events — `api_key.created`,
+`api_key.deleted`, `api_key.expiring_soon`, `api_key.expired`) are documented
+as types. `amount` is a **decimal
 string** — never parse to float. Note the test-delivery body differs (fields
 under `data`); the helper verifies signatures for it but callers should not use
 it to exercise payload parsing.
@@ -250,17 +261,26 @@ today. The SDK is built forward-ready:
 
 ---
 
-## 11. Customers — stub
+## 11. Customers
 
-The Customers resource (`list`, `retrieve`) is referenced by the API index but
-not yet specified here. The SDK reserves `client.customers` with both method
-names, each throwing `SuqoError("customers API not yet available in this SDK
-version")` until the endpoints are documented.
+Specified in `openapi.yaml` (`listCustomers`, `retrieveCustomer`,
+`createCustomer`, `updateCustomer`). The resource was reserved as a stub until
+`list`/`retrieve` were confirmed, then un-stubbed; `create`/`update` followed
+once the API documented them. No delete exists.
 
-When the Customers page is provided, specifying it is **additive**: add the two
-paths + `Customer` schema to `openapi.yaml`, un-stub the two methods, ship a minor
-version. No existing path, schema, or method changes. This is the extension
-pattern for any future resource.
+- `id` is an opaque prefixed string (`cus_…`), never a number.
+- **Write names differ from read names.** `create`/`update` send `phone` and
+  `email`; the `Customer` reads them back as `buyer_phone`/`buyer_email`. The
+  SDK keeps each side's own names rather than forcing one onto the other.
+- `create` on a phone the seller already holds updates that customer (`200`
+  instead of `201`), so it's safe for the caller to retry. The SDK still never
+  retries it automatically (§8).
+- `update` is the API's one `PATCH` route: send only the changed fields; `""`
+  clears one. The phone can't be changed.
+
+Adding a resource like this is **additive**: add the paths + schemas to
+`openapi.yaml`, add the methods, ship a minor version. No existing path, schema,
+or method changes. This is the extension pattern for any future resource.
 
 ---
 

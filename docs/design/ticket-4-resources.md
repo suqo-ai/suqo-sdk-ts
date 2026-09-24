@@ -161,9 +161,30 @@ the account is somehow otherwise unauthorized.
 customers.list(params?: PageParams) -> Page<Customer>
 customers.autoPaging(params?: PageParams) -> AsyncIterableIterator<Customer>
 customers.retrieve(id: string) -> Customer   // throws SuqoConfigError if id is empty
+customers.create(params: CreateCustomerParams) -> Customer
+customers.update(id: string, params: UpdateCustomerParams) -> Customer   // throws SuqoConfigError if id is empty
 ```
 
-Read-only — no create/update/delete exists on this resource. `id` is an **opaque prefixed string**
+`create()`/`update()` were added in 1.1.0 once Swagger documented `POST /customers/` and
+`PATCH /customers/{id}/` (2026-09-24). No delete exists on this resource.
+
+| Rule | Detail |
+|---|---|
+| Write-side names differ from read-side | `phone`/`email` are sent as-is and read back as `buyer_phone`/`buyer_email`. The params keep the write names rather than borrowing the read side's `buyer*` prefix. |
+| Only set keys are sent | `undefined` fields are dropped from the body; `""` is passed through, since on `update()` it means "clear this field". |
+| `create()` on an existing phone | The API updates that customer and answers `200` instead of `201`; both resolve to the `Customer`. |
+| `update()` is the SDK's only `PATCH` | `HttpClient` gained a `PATCH` branch for it. Like every write, it's never retried (SDK-SPEC.md §8). |
+
+### Conformance checklist — Step E writes
+
+- [ ] `create()` sends `phone`/`full_name`/`email`/`address`, never `buyer_*` keys.
+- [ ] An omitted optional field is absent from the body, not sent as `null`.
+- [ ] `update(id, { email: "" })` sends `{ email: "" }` — the empty string survives.
+- [ ] `update("")`, `update(".")` and `update("..")` throw `SuqoConfigError` before any request.
+- [ ] `update()` never sends `phone`, even when the params object carries one.
+- [ ] Neither method retries on a `5xx`.
+
+`id` on every method is an **opaque prefixed string**
 (e.g. `cus_1ce18d624`, like `pbp_...` on billing periods) — not an integer and not a UUID. (Bug
 #42: this doc previously said `integer`, "re-verified live against BE Swagger" — that verification
 never actually matched what the API returns; corrected once a real captured response surfaced it.)
@@ -171,7 +192,9 @@ never actually matched what the API returns; corrected once a real captured resp
 `retrieve("")` doesn't reach the API at all: an empty id would otherwise collapse onto the exact
 URL `list()` builds (`encodeURIComponent("")` is `""`), returning that endpoint's 200 pagination
 envelope instead of a 404 — so it's rejected before any request is attempted, as `SuqoConfigError`,
-the same class `SuqoClient`'s constructor uses for a config mistake caught before any request.
+the same class `SuqoClient`'s constructor uses for a config mistake caught before any request. `"."` and `".."` are
+rejected the same way, on `retrieve()` and `update()` alike: `encodeURIComponent` leaves dots
+alone, and URL parsing resolves them as dot segments onto the collection URL or above it.
 
 ---
 

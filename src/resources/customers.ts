@@ -1,6 +1,6 @@
 import type { HttpClient } from "../http/HttpClient.js";
 import { bridgeAutoPaging, deserializePage, toPageQuery, type Page, type PageParams } from "../pagination.js";
-import type { Customer } from "../models/index.js";
+import type { CreateCustomerParams, Customer, UpdateCustomerParams } from "../models/index.js";
 import { SuqoConfigError } from "../errors/SuqoError.js";
 
 /** `GET /api/v1/customers/` — no trailing slash here; `HttpClient`/`buildUrl` guarantees it (Ticket 2). */
@@ -49,8 +49,38 @@ export function deserializeCustomer(wire: WireCustomer): Customer {
 }
 
 /**
- * `client.customers` (SDK-SPEC.md §5, §6; `openapi.yaml` `listCustomers`/`retrieveCustomer`).
- * Read-only — no create/update/delete exists on this resource.
+ * The fields `create()` and `update()` share (SDK) → the wire's write shape. Only keys the caller
+ * actually set are sent: on `update()` an omitted field must stay untouched server-side, while
+ * `""` is a deliberate clear — so `undefined` is dropped and `""` is passed through as-is.
+ *
+ * Deliberately never reads `phone` (found in review): TypeScript only checks excess properties on
+ * object literals, so `update(id, formState)` compiles even when `formState` carries a phone. The
+ * API rejects any phone but the current one, so passing it through would fail the whole update.
+ * `create()` adds `phone` itself.
+ */
+function serializeCustomerFields(params: UpdateCustomerParams): Record<string, unknown> {
+  const wire: Record<string, unknown> = {};
+  if (params.fullName !== undefined) wire.full_name = params.fullName;
+  if (params.email !== undefined) wire.email = params.email;
+  if (params.address !== undefined) wire.address = params.address;
+  return wire;
+}
+
+/**
+ * Rejects an id that would resolve to a different endpoint than the one intended. `""` collapses
+ * onto the collection URL (`encodeURIComponent("")` is `""`); `"."` and `".."` do too, or climb
+ * above it, because `encodeURIComponent` leaves dots alone and URL parsing then resolves them as
+ * dot segments (found in review: `retrieve(".")` hit `list()`'s URL, same as `retrieve("")` did).
+ */
+function assertCustomerId(id: string, method: string): void {
+  if (!id || id === "." || id === "..") {
+    throw new SuqoConfigError(`customers.${method}() requires a non-empty id other than "." or ".."`);
+  }
+}
+
+/**
+ * `client.customers` (SDK-SPEC.md §5, §6; `openapi.yaml` `listCustomers`/`retrieveCustomer`/
+ * `createCustomer`/`updateCustomer`). No delete exists on this resource.
  */
 export class CustomersResource {
   readonly #http: HttpClient;
@@ -97,15 +127,51 @@ export class CustomersResource {
     // string` makes an empty id ordinary reachable input (`retrieve(req.params.id)`,
     // `retrieve(user.customerId ?? "")`) in a way `id: number` never could (no number stringifies
     // to "").
-    if (!id) {
-      throw new SuqoConfigError("customers.retrieve() requires a non-empty id");
-    }
+    assertCustomerId(id, "retrieve");
 
     // encodeURIComponent — same path-corruption risk as subscriptions.cancel()/resume(), now that
     // id is a real caller-supplied string rather than a number.
     const wire = await this.#http.request<WireCustomer>({
       method: "GET",
       path: `${CUSTOMERS_PATH}/${encodeURIComponent(id)}`,
+    });
+    return deserializeCustomer(wire);
+  }
+
+  /**
+   * Records a customer on the seller's account without opening a subscription. `phone` identifies
+   * the buyer; the name, email and address are the seller's own copy and aren't shared with other
+   * sellers.
+   *
+   * A phone the seller already holds updates that existing customer instead of creating a second
+   * one (the API answers `200` rather than `201`; both resolve to the `Customer` here). That makes
+   * this call safe for the caller to retry — but, like every write, the SDK never retries it
+   * automatically (SDK-SPEC.md §8, §12).
+   */
+  async create(params: CreateCustomerParams): Promise<Customer> {
+    const wire = await this.#http.request<WireCustomer, unknown>({
+      method: "POST",
+      path: CUSTOMERS_PATH,
+      body: { phone: params.phone, ...serializeCustomerFields(params) },
+    });
+    return deserializeCustomer(wire);
+  }
+
+  /**
+   * Updates the seller's copy of a customer's name, email or address. Send only the fields you're
+   * changing; `""` clears a field. The phone can't be changed.
+   *
+   * Not auto-retryable — writes never retry until idempotency ships (SDK-SPEC.md §8, §12).
+   */
+  async update(id: string, params: UpdateCustomerParams): Promise<Customer> {
+    // Same guard as retrieve(): a bad id would send the PATCH to the wrong endpoint rather than
+    // failing on the intended one.
+    assertCustomerId(id, "update");
+
+    const wire = await this.#http.request<WireCustomer, unknown>({
+      method: "PATCH",
+      path: `${CUSTOMERS_PATH}/${encodeURIComponent(id)}`,
+      body: serializeCustomerFields(params),
     });
     return deserializeCustomer(wire);
   }

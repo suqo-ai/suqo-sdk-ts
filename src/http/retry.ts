@@ -9,9 +9,9 @@
  * HTTP methods eligible for retry at all.
  *
  * **SINGLE SWITCH** (SDK-SPEC.md §8, §12): every read in this API is `GET` and every write is
- * `POST` — reads are naturally idempotent, writes are not, and the backend doesn't support
- * idempotency keys yet, so a retried write could double-act. Flip this the moment idempotency
- * keys ship and writes carry one; until then, only `GET` retries.
+ * `POST` or `PATCH` — reads are naturally idempotent, writes are not, and the backend doesn't
+ * support idempotency keys yet, so a retried write could double-act. Flip this the moment
+ * idempotency keys ship and writes carry one; until then, only `GET` retries.
  */
 const RETRYABLE_METHODS: ReadonlySet<string> = new Set(["GET"]);
 

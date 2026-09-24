@@ -14,6 +14,14 @@ export interface ProductVat {
   vatPercentage: string;
 }
 
+/** One image on a {@link Product} (`openapi.yaml` `ProductImage`). */
+export interface ProductImage {
+  /** Absolute image URL. */
+  image: string;
+  /** Display position, lowest first. */
+  imageOrder: number;
+}
+
 /** A seller's product, as returned by `products.list()` (`openapi.yaml` `Product`). */
 export interface Product {
   productId: string;
@@ -24,8 +32,11 @@ export interface Product {
   termsAndConditions: string;
   featuresAndBenefits: string;
   vat: ProductVat | null;
-  /** Ordered images; blank images already excluded server-side. */
-  productImage: string[];
+  /**
+   * Ordered images; blank images already excluded server-side. Each is an object, not a bare URL
+   * string — the API has always sent `{ image, image_order }`.
+   */
+  productImage: ProductImage[];
   plan: Plan[];
   /** Count of active subscribers. Sent as a string on the wire — kept as one, never coerced (SDK-SPEC.md §5). */
   totalSubscribers: string;

@@ -47,7 +47,7 @@ interface Product {
   termsAndConditions: string;
   featuresAndBenefits: string;
   vat: ProductVat | null;
-  productImage: string[];
+  productImage: ProductImage[]; // { image: string; imageOrder: number }
   plan: Plan[];
   totalSubscribers: string; // decimal string
   createdAt: string;

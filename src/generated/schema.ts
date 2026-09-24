@@ -122,11 +122,16 @@ export interface paths {
         };
         /**
          * List customers
-         * @description Lists the authenticated seller's customers. Paginated. Read-only.
+         * @description Lists the authenticated seller's customers, newest first. Paginated.
          */
         get: operations["listCustomers"];
         put?: never;
-        post?: never;
+        /**
+         * Create a customer
+         * @description Records a customer on the seller's account without opening a subscription. `phone` identifies the buyer. The name, email and address are the seller's own copy and are not shared with other sellers. A phone the seller already holds updates that customer and returns 200 instead of 201, which makes this safe to retry. The `phone` and `email` sent here read back as `buyer_phone` and `buyer_email`.
+         *     NOTE (write op): not auto-retried by the SDK.
+         */
+        post: operations["createCustomer"];
         delete?: never;
         options?: never;
         head?: never;
@@ -142,7 +147,7 @@ export interface paths {
         };
         /**
          * Retrieve a customer
-         * @description Retrieves a single customer by id. Read-only.
+         * @description Retrieves a single customer by id.
          */
         get: operations["retrieveCustomer"];
         put?: never;
@@ -150,7 +155,12 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        patch?: never;
+        /**
+         * Update a customer
+         * @description Updates the seller's copy of a customer's name, email or address. Send only the fields being changed; `""` clears a field. The phone identifies the buyer and cannot be changed. `email` reads back as `buyer_email`.
+         *     NOTE (write op): not auto-retried by the SDK.
+         */
+        patch: operations["updateCustomer"];
         trace?: never;
     };
 }
@@ -316,8 +326,8 @@ export interface components {
                 vat_type?: string;
                 vat_percentage?: string;
             } | null;
-            /** @description Ordered images (blank images excluded). */
-            product_image?: string[];
+            /** @description Ordered images (blank images excluded). Each is an object, not a bare URL string (previously declared `items: { type: string }`, which never matched the wire). */
+            product_image?: components["schemas"]["ProductImage"][];
             plan?: components["schemas"]["Plan"][];
             /** @description Count of active subscribers (sent as string). */
             total_subscribers?: string;
@@ -325,6 +335,12 @@ export interface components {
             created_at?: string;
             /** Format: date-time */
             updated_at?: string;
+        };
+        ProductImage: {
+            /** Format: uri */
+            image?: string;
+            /** @description Display position, lowest first. */
+            image_order?: number;
         };
         Plan: {
             plan_id?: string;
@@ -361,6 +377,29 @@ export interface components {
             address?: string | null;
             /** Format: date-time */
             created_at: string;
+        };
+        CreateCustomerRequest: {
+            /** @description Identifies the buyer and cannot be changed once set. Reads back as `buyer_phone`. Nepali mobile number: 10 digits starting with 96, 97 or 98. A +977 country code, a leading 0, spaces and dashes are accepted and stripped. */
+            phone: string;
+            full_name?: string | null;
+            /**
+             * Format: email
+             * @description Reads back as `buyer_email`.
+             */
+            email?: string | null;
+            address?: string | null;
+        };
+        /** @description Send only the fields being changed; none is required. `""` clears a field. */
+        UpdateCustomerRequest: {
+            full_name?: string | null;
+            /**
+             * Format: email
+             * @description Reads back as `buyer_email`.
+             */
+            email?: string | null;
+            address?: string | null;
+            /** @description Optional, and only at its current value — the phone identifies the buyer, so a different number is rejected. The SDK never sends it. */
+            phone?: string;
         };
         /** @description General errors (auth, not-found). */
         DetailError: {
@@ -655,6 +694,50 @@ export interface operations {
             403: components["responses"]["KycRequired"];
         };
     };
+    createCustomer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateCustomerRequest"];
+            };
+        };
+        responses: {
+            /** @description A customer with this phone already existed and was updated. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Customer"];
+                };
+            };
+            /** @description Customer created. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Customer"];
+                };
+            };
+            /** @description Validation error (e.g. a phone that isn't a Nepali mobile number). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FieldError"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["KycRequired"];
+        };
+    };
     retrieveCustomer: {
         parameters: {
             query?: never;
@@ -674,6 +757,45 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Customer"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["KycRequired"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateCustomer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Opaque prefixed customer id, e.g. "cus_1ce18d624". */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateCustomerRequest"];
+            };
+        };
+        responses: {
+            /** @description The updated customer. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Customer"];
+                };
+            };
+            /** @description Validation error (e.g. a malformed email, or a different phone). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FieldError"];
                 };
             };
             401: components["responses"]["Unauthorized"];

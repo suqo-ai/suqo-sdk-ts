@@ -81,6 +81,18 @@ describe("contract: outgoing request shape", () => {
       await client().customers.retrieve("cus_1ce18d624");
       expect(getLastRequest()?.url).toBe("https://test-be.suqo.ai/api/v1/customers/cus_1ce18d624/");
     });
+
+    it("customers.create()", async () => {
+      await client().customers.create({ phone: "9800000000" });
+      expect(getLastRequest()?.method).toBe("POST");
+      expect(getLastRequest()?.url).toBe("https://test-be.suqo.ai/api/v1/customers/");
+    });
+
+    it("customers.update(id)", async () => {
+      await client().customers.update("cus_1ce18d624", { fullName: "Ram Bahadur" });
+      expect(getLastRequest()?.method).toBe("PATCH");
+      expect(getLastRequest()?.url).toBe("https://test-be.suqo.ai/api/v1/customers/cus_1ce18d624/");
+    });
   });
 
   describe("Bearer header — present on every request", () => {
@@ -111,6 +123,11 @@ describe("contract: outgoing request shape", () => {
       expect(getLastRequest()?.body).toBeUndefined();
     });
 
+    it("customers.update() (a PATCH)", async () => {
+      await client().customers.update("cus_1ce18d624", { address: "Lalitpur" });
+      expect(getLastRequest()?.headers["content-type"]).toBe("application/json");
+    });
+
     it("a GET never sends Content-Type", async () => {
       await client().products.list();
       expect(getLastRequest()?.headers["content-type"]).toBeUndefined();
@@ -118,6 +135,31 @@ describe("contract: outgoing request shape", () => {
   });
 
   describe("request bodies are snake_case, matching openapi.yaml exactly", () => {
+    it("customers.create() — write-side names (phone/email, not buyer_*), every field", async () => {
+      await client().customers.create({
+        phone: "9800000000",
+        fullName: "Jane Doe",
+        email: "jane@example.com",
+        address: "Kathmandu",
+      });
+      expect(getLastRequest()?.body).toEqual({
+        phone: "9800000000",
+        full_name: "Jane Doe",
+        email: "jane@example.com",
+        address: "Kathmandu",
+      });
+    });
+
+    it("customers.create() — omitted optional fields are left out of the body, not sent as null", async () => {
+      await client().customers.create({ phone: "9800000000" });
+      expect(getLastRequest()?.body).toEqual({ phone: "9800000000" });
+    });
+
+    it("customers.update() — only the fields being changed, and \"\" passed through as a clear", async () => {
+      await client().customers.update("cus_1ce18d624", { email: "" });
+      expect(getLastRequest()?.body).toEqual({ email: "" });
+    });
+
     it("subscriptions.create() — top-level fields and the customer->client rename", async () => {
       await client().subscriptions.create({
         pbpId: "pbp_a1104f81b",

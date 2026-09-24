@@ -4,6 +4,7 @@ export {
   type HttpMethod,
   type HttpGetRequestOptions,
   type HttpPostRequestOptions,
+  type HttpPatchRequestOptions,
   type HttpRequestOptions,
 } from "./HttpClient.js";
 export { buildUrl, type QueryParams } from "./urlBuilder.js";

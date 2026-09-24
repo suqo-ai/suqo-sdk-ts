@@ -5,8 +5,11 @@ import { buildUrl, type QueryParams } from "./urlBuilder.js";
 import { backoffDelayMs, isRetryableFailure, isRetryableMethod, parseRetryAfterMs } from "./retry.js";
 import { combineSignals } from "./signals.js";
 
-/** HTTP methods this client supports — every route in the API is one of these two (SDK-SPEC.md §1). */
-export type HttpMethod = "GET" | "POST";
+/**
+ * HTTP methods this client supports (SDK-SPEC.md §1). `GET` for every read; `POST` for every write
+ * except `customers.update()`, the one `PATCH` route.
+ */
+export type HttpMethod = "GET" | "POST" | "PATCH";
 
 /** Fields shared by every request, regardless of method. */
 interface HttpRequestOptionsBase {
@@ -52,11 +55,24 @@ export interface HttpPostRequestOptions<TBody = unknown> extends HttpRequestOpti
 }
 
 /**
+ * Options for a `PATCH` request — a partial update (`customers.update()`). Same body typing as
+ * {@link HttpPostRequestOptions}, and like every write it is never retried (SDK-SPEC.md §8).
+ */
+export interface HttpPatchRequestOptions<TBody = unknown> extends HttpRequestOptionsBase {
+  method: "PATCH";
+  /** JSON-serializable request body — only the fields being changed. */
+  body?: TBody;
+}
+
+/**
  * Options accepted by {@link HttpClient.request}. `HttpClient` itself is internal (not exported
  * from `src/index.ts`); the SDK's actual typed, consumer-facing contract lives one layer up, in
  * each resource method's own public signature.
  */
-export type HttpRequestOptions<TBody = unknown> = HttpGetRequestOptions | HttpPostRequestOptions<TBody>;
+export type HttpRequestOptions<TBody = unknown> =
+  | HttpGetRequestOptions
+  | HttpPostRequestOptions<TBody>
+  | HttpPatchRequestOptions<TBody>;
 
 /** `RequestInit` extended with undici's non-standard `dispatcher` option (Node's built-in `fetch`, addendum §2). */
 interface FetchInit extends RequestInit {
@@ -284,10 +300,11 @@ export class HttpClient {
       headers["Content-Type"] = "application/json";
     }
 
-    // `body` only exists on the POST branch of the HttpRequestOptions union — a GET can't carry
-    // one even at the type level (found in review: a GET-with-body used to be constructible,
-    // reach fetch, throw there, and get silently retried/masked as a generic NetworkError).
-    const body = options.method === "POST" ? options.body : undefined;
+    // `body` only exists on the write (POST/PATCH) branches of the HttpRequestOptions union — a
+    // GET can't carry one even at the type level (found in review: a GET-with-body used to be
+    // constructible, reach fetch, throw there, and get silently retried/masked as a generic
+    // NetworkError). Checked as "not GET" rather than "is POST" so a PATCH body isn't dropped.
+    const body = options.method !== "GET" ? options.body : undefined;
 
     const { signal, cleanup } = combineSignals([AbortSignal.timeout(timeoutMs), options.signal]);
     try {

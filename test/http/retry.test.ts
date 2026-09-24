@@ -14,6 +14,10 @@ describe("isRetryableMethod", () => {
   it("POST (writes: create/cancel/updateBillingCycle) is never retryable", () => {
     expect(isRetryableMethod("POST")).toBe(false);
   });
+
+  it("PATCH (writes: customers.update) is never retryable", () => {
+    expect(isRetryableMethod("PATCH")).toBe(false);
+  });
 });
 
 describe("isRetryableFailure", () => {

@@ -6,7 +6,7 @@
  */
 
 /** SDK version, stamped into request headers (keep in sync with package.json). */
-export const VERSION = "1.0.0";
+export const VERSION = "1.1.0";
 
 export {
   SuqoError,
@@ -45,6 +45,7 @@ export {
   SubscriptionStatus,
   type Product,
   type ProductVat,
+  type ProductImage,
   type Plan,
   type BillingPeriod,
   type Subscription,
@@ -56,6 +57,8 @@ export {
   type CustomerInputBilling,
   type CustomerInputShipping,
   type Customer,
+  type CreateCustomerParams,
+  type UpdateCustomerParams,
   type CreateSubscriptionParams,
   type CreateSubscriptionResponse,
   type UpdateBillingCycleParams,
