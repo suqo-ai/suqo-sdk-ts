@@ -31,7 +31,9 @@ changes noted under each item.
   (`{ image: string; imageOrder: number }`) — the API sends image objects, not bare URLs. At
   runtime you were already getting objects (the SDK passed them through untouched, as
   `{ image, image_order }`); now they're typed and camelCased.
-  _Upgrading:_ replace `product.productImage[i]` used as a URL with `product.productImage[i].image`.
+  _Upgrading:_ replace `product.productImage[i]` used as a URL with `product.productImage[i].image`,
+  and read `imageOrder` instead of `image_order` — code that relied on the old untyped runtime
+  shape (e.g. through a cast) gets `undefined` from `image_order` now, with no error.
 - **Breaking:** `Customer.id` corrected from `number` to `string` — the API has always returned
   an opaque prefixed id (e.g. `"cus_1ce18d624"`), like `pbp_...` on billing periods, never an
   integer; the `number` type made `customers.retrieve()` uncallable as declared. ([#42])
