@@ -544,4 +544,65 @@ describe("HttpClient", () => {
 
     expect(result).toEqual({ ok: true });
   });
+
+  it("sends a PUT body with Content-Type, and never retries it", async () => {
+    const fetchMock = vi
+      .mocked(fetch)
+      .mockResolvedValue(new Response(JSON.stringify({ detail: "boom" }), { status: 500 }));
+
+    await expect(
+      client({ maxRetries: 2 }).request({ method: "PUT", path: "/api/v1/webhooks/whk_1", body: { event: "checkout.succeeded" } }),
+    ).rejects.toBeInstanceOf(ServerError);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [, init] = fetchMock.mock.calls[0]!;
+    expect(init?.method).toBe("PUT");
+    expect(init?.body).toBe(JSON.stringify({ event: "checkout.succeeded" }));
+    expect((init?.headers as Record<string, string>)["Content-Type"]).toBe("application/json");
+  });
+
+  it("resolves a DELETE's empty 204 as undefined, sends no body, and never retries it", async () => {
+    const fetchMock = vi.mocked(fetch).mockResolvedValueOnce(new Response(null, { status: 204 }));
+
+    await expect(client({ maxRetries: 2 }).request({ method: "DELETE", path: "/api/v1/webhooks/whk_1" })).resolves.toBeUndefined();
+
+    const [, init] = fetchMock.mock.calls[0]!;
+    expect(init?.method).toBe("DELETE");
+    expect(init?.body).toBeUndefined();
+  });
+
+  it("a DELETE handed a body (bypassing the types) fails loudly instead of sending it", async () => {
+    await expect(
+      client().request({ method: "DELETE", path: "/api/v1/webhooks/whk_1", body: {} } as never),
+    ).rejects.toThrow(/DELETE request cannot carry a body/);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("fills RateLimitError.retryAfter from a 429's detail when there's no Retry-After header", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(JSON.stringify({ detail: "Request was throttled. Expected available in 41 seconds." }), { status: 429 }),
+    );
+
+    const err = await client({ maxRetries: 0 })
+      .request({ method: "POST", path: "/api/v1/checkout-sessions", body: {} })
+      .catch((e: unknown) => e);
+
+    expect(err).toBeInstanceOf(RateLimitError);
+    expect((err as RateLimitError).retryAfter).toBe(41_000);
+  });
+
+  it("prefers the Retry-After header over the detail text when both are present", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(JSON.stringify({ detail: "Expected available in 41 seconds." }), {
+        status: 429,
+        headers: { "Retry-After": "7" },
+      }),
+    );
+
+    const err = await client({ maxRetries: 0 })
+      .request({ method: "POST", path: "/api/v1/checkout-sessions", body: {} })
+      .catch((e: unknown) => e);
+
+    expect((err as RateLimitError).retryAfter).toBe(7000);
+  });
 });

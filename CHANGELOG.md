@@ -7,6 +7,64 @@ adheres to [Semantic Versioning](https://semver.org/) per [`specs/versioning.md`
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-10-05
+
+**Why a major:** the API changed its wire contract within `/api/v1/` — the checkout webhook
+payload and the customer create body — which `specs/versioning.md` says always forces a new SDK
+major. This release also brings the SDK up to the API's full surface: checkout sessions,
+subscription retrieve/renew and webhook management.
+
+### Changed
+
+- **Breaking:** `CheckoutSucceededEvent` / `CheckoutFailedEvent` match the API's new payload: one
+  delivery per checkout session, `{ event, session_id, amount, status, items }`, with no
+  `subscription_id`. Payments taken through `subscriptions.create()` report the same way.
+  _Upgrading:_ match deliveries on `session_id` (the `publicId` a session was opened with), not
+  `subscription_id`.
+- **Breaking:** `customers.create()` requires `email`, which now identifies the buyer; `phone` is
+  optional. An email or phone you already hold updates that customer. _Upgrading:_ pass `email` on
+  every `customers.create()` call.
+- **Breaking:** a `403` is `KycRequiredError` only when its body carries `status_code`. Any other
+  `403` (`detail` alone, e.g. a key that doesn't belong to the account) is the new
+  `PermissionDeniedError`. _Upgrading:_ code that caught `KycRequiredError` for every 403 should
+  also catch `PermissionDeniedError` (or the base `SuqoError`).
+- **Breaking:** `Product.description`, `termsAndConditions`, `featuresAndBenefits`, `Plan.description`,
+  `ProductVat.vatType` and `ProductVat.vatPercentage` are now `| null` — the API sends null for
+  them. _Upgrading:_ handle `null` where you read these as plain strings.
+- **Breaking:** `BillingPeriod.offers` is typed `Offer[]` instead of `unknown[]`.
+- `Product.type`, `ProductVat.vatType` and `BillingPeriod.intervalType` list their known values
+  (`simple`/`tiered`, `inclusive`/`exclusive`, `day`…`one_time`) for autocomplete, while still
+  accepting a value the API adds later.
+- `subscriptions.create()` is documented as **legacy** — prefer `checkoutSessions.create()`. A buyer
+  may hold one live recurring subscription per product; an inactive one is restarted with
+  `subscriptions.renew()`, not by creating a new one.
+
+### Added
+
+- `checkoutSessions.create({ items, returnUrl, customerId? })` — the recommended way to collect
+  payment: one to ten catalogue (`{ pbpId }`) or partner-priced items in one checkout. Never
+  retried automatically; rate-limited to 20 a minute.
+- `checkoutSessions.retrieve(id)` — reads an open session.
+- `subscriptions.retrieve(id)` and `subscriptions.renew(subscriptionId)`.
+- Webhook management: `webhooks.list()`, `create()`, `retrieve()`, `replace()` (PUT), `update()`
+  (PATCH), `delete()`, `retrieveSecret()` and `testDelivery()`. `webhooks.verify()` is unchanged.
+- `PermissionDeniedError`, plus the new model types (`CheckoutSession`, `CheckoutSessionResponse`,
+  `CreateCheckoutSessionParams`, `CheckoutItemInput`, `Webhook`, `WebhookSecret`, `Offer`, …).
+
+### Fixed
+
+- A `400` whose body is a bare list of messages (cancel, resume, renew, duplicate subscription) now
+  surfaces those messages as `ValidationError.message` instead of `"Validation failed."`.
+- `subscriptions.cancel()`/`resume()` reject an empty, `"."` or `".."` id with `SuqoConfigError` before any request — `cancel("..")` used to POST to `/api/v1/cancel/`. Every method that takes an id in the path now checks it the same way, and the webhook methods also reject `"secret"`, which would hit the signing-secret route.
+- `RateLimitError.retryAfter` is filled from the wait the API writes into `detail` when no
+  `Retry-After` header is sent — which is how the API's rate limit answers today.
+
+### Docs
+
+- `SDK-SPEC.md` §1, §5, §7–§11 and §13, `specs/versioning.md` and `specs/openapi.yaml` updated to
+  the API as of 2026-10-02. `subscriptions.retrieve()` and the new checkout webhook payload are
+  built from the API docs and Swagger and not yet checked against captured responses.
+
 ## [1.1.0] - 2026-09-24
 
 **This release is a deliberate exception to the MAJOR rule.** The three type changes
@@ -101,6 +159,7 @@ changes noted under each item.
   retried `5xx` carrying the header (e.g. a `503` during a maintenance window) was previously
   retried on computed backoff instead of the server's requested wait.
 
-[Unreleased]: https://github.com/suqo-ai/suqo-sdk-ts/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/suqo-ai/suqo-sdk-ts/compare/v2.0.0...HEAD
+[2.0.0]: https://github.com/suqo-ai/suqo-sdk-ts/compare/v1.1.0...v2.0.0
 [1.1.0]: https://github.com/suqo-ai/suqo-sdk-ts/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/suqo-ai/suqo-sdk-ts/tree/v1.0.0

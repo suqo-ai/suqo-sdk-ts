@@ -7,7 +7,7 @@ import {
   deserializeSubscriptionPage,
   SubscriptionsResource,
 } from "../../src/resources/subscriptions.js";
-import { ValidationError } from "../../src/errors/SuqoError.js";
+import { SuqoConfigError, ValidationError } from "../../src/errors/SuqoError.js";
 
 function jsonResponse(body: unknown, init: ResponseInit = {}): Response {
   return new Response(JSON.stringify(body), {
@@ -314,7 +314,71 @@ describe("SubscriptionsResource", () => {
     );
   });
 
-  it("no retrieve() method exists yet — still blocked on backend (Ticket 4)", () => {
-    expect((subscriptions() as unknown as Record<string, unknown>).retrieve).toBeUndefined();
+  it("retrieve(id) GETs /api/v1/subscriptions/{id}/ and deserializes the Subscription", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse(wireSubscription));
+
+    const result = await subscriptions().retrieve("30b0af58-c8bc-4f79-9917-51208b73a0ed");
+
+    expect(fetch).toHaveBeenCalledWith(
+      "https://test-be.suqo.ai/api/v1/subscriptions/30b0af58-c8bc-4f79-9917-51208b73a0ed/",
+      expect.objectContaining({ method: "GET" }),
+    );
+    expect(result).toEqual(deserializeSubscription(wireSubscription));
+  });
+
+  it.each(["", ".", ".."])("retrieve(%j) throws SuqoConfigError before any request (would hit list()'s URL)", async (id) => {
+    await expect(subscriptions().retrieve(id)).rejects.toBeInstanceOf(SuqoConfigError);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("renew(subscriptionId) POSTs { subscription_id } to the singular /api/v1/subscription/renew/ and returns the checkout link", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      jsonResponse(
+        { public_id: "cks_1", expires_at: "2026-10-05T10:38:16+05:45", checkout_url: "https://stage.suqo.ai/checkout/cks_1" },
+        { status: 201 },
+      ),
+    );
+
+    const result = await subscriptions().renew("30b0af58-c8bc-4f79-9917-51208b73a0ed");
+
+    const [url, init] = vi.mocked(fetch).mock.calls[0]!;
+    expect(url).toBe("https://test-be.suqo.ai/api/v1/subscription/renew/");
+    expect(init?.method).toBe("POST");
+    expect(JSON.parse(init?.body as string)).toEqual({ subscription_id: "30b0af58-c8bc-4f79-9917-51208b73a0ed" });
+    expect(result).toEqual({
+      publicId: "cks_1",
+      expiresAt: "2026-10-05T10:38:16+05:45",
+      checkoutUrl: "https://stage.suqo.ai/checkout/cks_1",
+    });
+  });
+
+  it("renew() surfaces the API's bare-list 400 message (e.g. a cancelled subscription) and never retries", async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      jsonResponse(["This subscription was cancelled and cannot be renewed."], { status: 400 }),
+    );
+
+    const err = await subscriptions().renew("sub").catch((e: unknown) => e);
+
+    expect(err).toBeInstanceOf(ValidationError);
+    expect((err as ValidationError).message).toBe("This subscription was cancelled and cannot be renewed.");
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ["cancel", (id: string) => subscriptions().cancel(id)],
+    ["resume", (id: string) => subscriptions().resume(id)],
+  ] as const)("%s() rejects an empty, \".\" or \"..\" id before any request (found in review: cancel('..') POSTed to /api/v1/cancel/)", async (_name, call) => {
+    for (const id of ["", ".", ".."]) {
+      await expect(call(id)).rejects.toBeInstanceOf(SuqoConfigError);
+    }
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("cancel() on a one-time purchase surfaces the bare-list 400 message", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      jsonResponse(["This is a one-time purchase, so there is nothing to cancel."], { status: 400 }),
+    );
+
+    await expect(subscriptions().cancel("sub")).rejects.toThrow("This is a one-time purchase, so there is nothing to cancel.");
   });
 });

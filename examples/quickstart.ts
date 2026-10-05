@@ -1,26 +1,20 @@
 /**
- * End-to-end: list products, create a subscription for a real one, then verify a sample
+ * End-to-end: list products, open a checkout session for a real one, then verify a sample
  * checkout.succeeded webhook for it — the shape of a real integration, not three isolated calls.
+ *
+ * Checkout sessions are the recommended way to collect payment. The older one-subscription flow,
+ * `subscriptions.create()`, is still supported — see `subscriptions.ts`.
  *
  * Run with a sandbox key — either inline, or via a .env file (see examples/README.md):
  *   SUQO_API_KEY=su_test_key_... npx tsx examples/quickstart.ts
  */
 import "dotenv/config";
 import { createHmac } from "node:crypto";
-import { SuqoClient } from "@suqo/sdk";
+import { SuqoClient, type CheckoutSucceededEvent } from "@suqo/sdk";
 
 const suqo = new SuqoClient({ apiKey: requireEnv("SUQO_API_KEY") });
 
-// Team guidance for testing against a live key: SMS goes to a real phone number for whatever you
-// put here. Use the shared live test account (9845976839), or increment from 9000000000 per run
-// (9000000001, 9000000002, ...) so the same real number doesn't get repeatedly texted. Override
-// with SUQO_TEST_PHONE — sandbox calls never send a real SMS, so the default below is fine there.
-const testPhone = process.env.SUQO_TEST_PHONE ?? "9000000000";
-// Unlike SMS, email sends for real in sandbox too, not just live — override with your own address
-// if you want to actually receive it, or leave the placeholder if you don't.
-const testEmail = process.env.SUQO_TEST_EMAIL ?? "jane@example.com";
-
-// 1. List products, pick the first available billing period to subscribe to.
+// 1. List products, pick the first available billing period to charge.
 const products = await suqo.products.list();
 const billingPeriod = products.results[0]?.plan[0]?.billingPeriods[0];
 if (!billingPeriod) {
@@ -29,36 +23,30 @@ if (!billingPeriod) {
   );
 }
 console.log(
-  `Subscribing to pbpId ${billingPeriod.pbpId} (${billingPeriod.price} ${billingPeriod.currency})`,
+  `Charging pbpId ${billingPeriod.pbpId} (${billingPeriod.price} ${billingPeriod.currency})`,
 );
 
-// 2. Create the subscription. It comes back in "pending_checkout" — checkoutUrl is where the
-// buyer pays, not proof they did.
-const subscription = await suqo.subscriptions.create({
-  pbpId: billingPeriod.pbpId,
+// 2. Open a checkout session. No customerId, so the buyer enters their own details at checkout —
+// running this sends nothing to anyone. checkoutUrl is where the buyer pays, not proof they did.
+const session = await suqo.checkoutSessions.create({
   returnUrl: "https://your-app.example/return",
-  customer: {
-    phone: testPhone,
-    fullName: "Jane Doe",
-    email: testEmail,
-    address: "Kathmandu",
-  },
+  items: [{ pbpId: billingPeriod.pbpId }],
 });
-console.log(
-  `Created ${subscription.subscriptionId} — redirect the buyer to ${subscription.checkoutUrl}`,
-);
+console.log(`Opened ${session.publicId} — redirect the buyer to ${session.checkoutUrl}`);
 
 // 3. In production, you'd learn whether the buyer actually paid from a real checkout.succeeded /
 // checkout.failed webhook delivery, not from step 2's response. There's no way to trigger a real
 // delivery from a script, so this signs a sample payload the same way SUQO's backend does, tied to
-// the subscription just created, to show what handling that webhook looks like end to end.
+// the session just opened (session_id is its publicId), to show what handling that webhook looks
+// like end to end.
 const secret = "whsec_example_only_do_not_reuse";
 const timestamp = String(Math.floor(Date.now() / 1000));
 const rawBody = JSON.stringify({
   event: "checkout.succeeded",
-  subscription_id: subscription.subscriptionId,
+  session_id: session.publicId,
   amount: billingPeriod.price,
   status: "succeeded",
+  items: [{ pbp_id: billingPeriod.pbpId }],
 });
 const signature = `sha256=${createHmac("sha256", secret).update(`${timestamp}.`).update(rawBody).digest("hex")}`;
 
@@ -66,8 +54,8 @@ const verified = suqo.webhooks.verify({ rawBody, signature, timestamp, secret })
 console.log(`Sample checkout.succeeded webhook verified: ${verified}`);
 
 if (verified) {
-  const event = JSON.parse(rawBody) as { subscription_id: string; amount: string };
-  console.log(`→ Would now mark ${event.subscription_id} as paid (amount: ${event.amount}).`);
+  const event = JSON.parse(rawBody) as CheckoutSucceededEvent;
+  console.log(`→ Would now mark ${event.session_id} as paid (amount: ${event.amount}).`);
 }
 
 function requireEnv(name: string): string {

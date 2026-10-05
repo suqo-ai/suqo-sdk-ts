@@ -1,4 +1,4 @@
-import type { CustomerInput, SubscriptionCustomer } from "../models/index.js";
+import type { CheckoutSessionResponse, CustomerInput, SubscriptionCustomer } from "../models/index.js";
 import { isRecord } from "../utils/index.js";
 
 /**
@@ -100,4 +100,23 @@ export function deserializeSubscriptionCustomer(wire: unknown): SubscriptionCust
   }
 
   return customer;
+}
+
+/** `openapi.yaml`'s `CheckoutSessionResponse` — what both opening and renewing return. */
+export interface WireCheckoutSessionResponse {
+  public_id: string;
+  expires_at: string;
+  checkout_url: string;
+}
+
+/**
+ * The checkout link both `checkoutSessions.create()` and `subscriptions.renew()` return — shared
+ * here rather than in either resource so neither depends on the other.
+ */
+export function deserializeCheckoutSessionResponse(wire: WireCheckoutSessionResponse): CheckoutSessionResponse {
+  return {
+    publicId: wire.public_id,
+    expiresAt: wire.expires_at,
+    checkoutUrl: wire.checkout_url,
+  };
 }

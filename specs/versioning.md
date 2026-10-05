@@ -17,9 +17,12 @@ table below — the rows themselves are unchanged, since they're the lead's own 
 Strict [SemVer](https://semver.org/): `MAJOR.MINOR.PATCH`.
 
 - **MAJOR** — bump on _either_ of two triggers, whichever happens first:
-  1. **The API's path version changes** (`/api/v1/` → `/api/v2/`). SDK-SPEC.md §13 states this
-     one explicitly: "major version tracks the API path version." A wire-breaking change on the
-     backend always forces a new SDK major, full stop.
+  1. **The API's wire contract breaks** — whether that comes with a new path version
+     (`/api/v1/` → `/api/v2/`) or inside the existing one. A wire-breaking change on the backend
+     always forces a new SDK major, full stop. `2.0.0` is the first real case of the second kind:
+     the API changed its checkout webhook payload and customer create body within `/api/v1/`. So
+     an SDK major number no longer equals the API path version — read the compatibility table
+     below for which API version a release supports.
   2. **The SDK introduces its own breaking change with no API change at all.** Rewriting a
      callback-based method to return Promises, renaming a public export, changing a method's
      return shape — these break callers even though the wire contract underneath didn't move.
@@ -43,16 +46,19 @@ Every real release adds a row here, marked `Shipped` once it's actually publishe
 keeps the lead's original worked example illustrating both MAJOR triggers — the **Status** column
 is what tells the two apart; don't mistake an `Example` row for release history.
 
-| SDK Version (SemVer) | Supported API Version | Change Type                                                                                          | Status                      |
-| -------------------- | --------------------- | ---------------------------------------------------------------------------------------------------- | --------------------------- |
-| `1.0.0`              | `v1`                  | Initial release                                                                                      | Shipped                     |
-| `1.1.0`              | `v1`                  | Added customers create/update; **SDK-only breaking** type fixes as a minor (see Recorded exceptions) | Shipped                     |
-| `2.0.0`              | `v2`                  | Rewrote SDK to support new **v2 API breaking changes**                                               | Example — illustrative only |
-| `3.0.0`              | `v2`                  | No API change; refactored SDK methods to use Promises (**SDK-only breaking change**)                 | Example — illustrative only |
+| SDK Version (SemVer) | Supported API Version | Change Type                                                                                                                                   | Status                                           |
+| -------------------- | --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
+| `1.0.0`              | `v1`                  | Initial release                                                                                                                               | Shipped                                          |
+| `1.1.0`              | `v1`                  | Added customers create/update; **SDK-only breaking** type fixes as a minor (see Recorded exceptions)                                          | Shipped                                          |
+| `2.0.0`              | `v1`                  | **API wire-breaking change within `/api/v1/`** (checkout webhook payload, customer create body); checkout sessions, renew, webhook management | Pending release — swap to Shipped once published |
+| `X.0.0`              | `v2`                  | Rewrote SDK to support new **v2 API breaking changes**                                                                                        | Example — illustrative only                      |
+| `Y.0.0`              | `v2`                  | No API change; refactored SDK methods to use Promises (**SDK-only breaking change**)                                                          | Example — illustrative only                      |
 
-The `2.0.0` example row is trigger (1) above (API-driven). The `3.0.0` example row is the worked
+The `X.0.0` example row is trigger (1) above (API-driven). The `Y.0.0` example row is the worked
 example of trigger (2) — same API, SDK-only breaking change — which is why this file states that
-trigger explicitly instead of just restating SDK-SPEC.md §13 verbatim.
+trigger explicitly instead of just restating SDK-SPEC.md §13 verbatim. (The lead's original example
+numbered these `2.0.0` and `3.0.0`; they were relabelled when a real `2.0.0` was cut against
+`/api/v1/`, so an example can't be mistaken for that release.)
 
 **When adding a row for a real release:** set **Status** to `Shipped` — that word is reserved for
 a release that's actually happened. State the _Change Type_ in the same style as the rows above:

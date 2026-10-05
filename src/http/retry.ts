@@ -1,3 +1,5 @@
+import { isRecord } from "../utils/index.js";
+
 /**
  * Retry policy: which failures are retryable, bounded attempts, exponential backoff with full
  * jitter (SDK-SPEC.md §8).
@@ -9,9 +11,9 @@
  * HTTP methods eligible for retry at all.
  *
  * **SINGLE SWITCH** (SDK-SPEC.md §8, §12): every read in this API is `GET` and every write is
- * `POST` or `PATCH` — reads are naturally idempotent, writes are not, and the backend doesn't
- * support idempotency keys yet, so a retried write could double-act. Flip this the moment
- * idempotency keys ship and writes carry one; until then, only `GET` retries.
+ * `POST`, `PATCH`, `PUT` or `DELETE` — reads are naturally idempotent, writes are not, and the
+ * backend doesn't support idempotency keys yet, so a retried write could double-act. Flip this the
+ * moment idempotency keys ship and writes carry one; until then, only `GET` retries.
  */
 const RETRYABLE_METHODS: ReadonlySet<string> = new Set(["GET"]);
 
@@ -91,4 +93,17 @@ export function parseRetryAfterMs(headerValue: string | null, now: number = Date
   // A date already in the past means "retry now," not "unparseable" or a negative wait.
   const delta = Math.max(dateMs - now, 0);
   return Math.min(delta, MAX_RETRY_AFTER_MS);
+}
+
+/**
+ * The wait the API writes into a 429's `detail` — `"Request was throttled. Expected available in
+ * 41 seconds."` — in milliseconds, capped like the header. The API sends no `Retry-After` header on
+ * its rate limit today, so this is the fallback {@link HttpClient} uses when the header is absent.
+ * Returns `undefined` for anything it doesn't recognise rather than guessing.
+ */
+export function parseRetryAfterDetailMs(body: unknown): number | undefined {
+  if (!isRecord(body) || typeof body.detail !== "string") return undefined;
+  const match = /available in (\d+(?:\.\d+)?) seconds?/i.exec(body.detail);
+  if (!match) return undefined;
+  return Math.min(Number(match[1]) * 1000, MAX_RETRY_AFTER_MS);
 }

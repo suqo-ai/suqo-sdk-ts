@@ -10,7 +10,7 @@
  *
  * @packageDocumentation
  */
-export type { Product, ProductVat, ProductImage, Plan, BillingPeriod } from "./Product.js";
+export type { Product, ProductVat, ProductImage, Plan, BillingPeriod, Offer } from "./Product.js";
 export { SubscriptionStatus } from "./Subscription.js";
 export type { Subscription, SubscriptionProduct } from "./Subscription.js";
 export type {
@@ -28,6 +28,23 @@ export type {
   UpdateBillingCycleParams,
 } from "./subscriptionParams.js";
 export type { CreateCustomerParams, UpdateCustomerParams } from "./customerParams.js";
+export type {
+  CatalogueItemInput,
+  PartnerPricedItemInput,
+  CheckoutItemInput,
+  CreateCheckoutSessionParams,
+  CheckoutSessionResponse,
+  CheckoutLineItem,
+  CheckoutSeller,
+  CheckoutSession,
+} from "./CheckoutSession.js";
+export type {
+  Webhook,
+  CreateWebhookParams,
+  ReplaceWebhookParams,
+  UpdateWebhookParams,
+  WebhookSecret,
+} from "./Webhook.js";
 export type { MessageResponse } from "./MessageResponse.js";
 export type {
   CheckoutSucceededEvent,

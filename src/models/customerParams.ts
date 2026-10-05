@@ -12,15 +12,15 @@
 
 /** What `customers.create(params)` accepts (`openapi.yaml` `CreateCustomerRequest`, renamed). */
 export interface CreateCustomerParams {
+  /** Identifies the buyer. Required. Reads back as `buyerEmail`. */
+  email: string;
   /**
-   * Identifies the buyer and can't be changed later. A Nepali mobile number: 10 digits starting
-   * with 96, 97 or 98 — a `+977` country code, a leading 0, spaces and dashes are accepted and
-   * stripped server-side. Reads back as `buyerPhone`.
+   * Optional. A Nepali mobile number: 10 digits starting with 96, 97 or 98 — a `+977` country
+   * code, a leading 0, spaces and dashes are accepted and stripped server-side. Can't be changed
+   * once set. Reads back as `buyerPhone`.
    */
-  phone: string;
+  phone?: string;
   fullName?: string;
-  /** Reads back as `buyerEmail`. */
-  email?: string;
   address?: string;
 }
 

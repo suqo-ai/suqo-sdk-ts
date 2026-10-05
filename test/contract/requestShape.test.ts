@@ -83,7 +83,7 @@ describe("contract: outgoing request shape", () => {
     });
 
     it("customers.create()", async () => {
-      await client().customers.create({ phone: "9800000000" });
+      await client().customers.create({ email: "jane@example.com" });
       expect(getLastRequest()?.method).toBe("POST");
       expect(getLastRequest()?.url).toBe("https://test-be.suqo.ai/api/v1/customers/");
     });
@@ -92,6 +92,45 @@ describe("contract: outgoing request shape", () => {
       await client().customers.update("cus_1ce18d624", { fullName: "Ram Bahadur" });
       expect(getLastRequest()?.method).toBe("PATCH");
       expect(getLastRequest()?.url).toBe("https://test-be.suqo.ai/api/v1/customers/cus_1ce18d624/");
+    });
+
+    it("subscriptions.retrieve(id)", async () => {
+      await client().subscriptions.retrieve("30b0af58-c8bc-4f79-9917-51208b73a0ed");
+      expect(getLastRequest()?.url).toBe(
+        "https://test-be.suqo.ai/api/v1/subscriptions/30b0af58-c8bc-4f79-9917-51208b73a0ed/",
+      );
+    });
+
+    it("subscriptions.renew(id) — the singular /subscription/ path", async () => {
+      await client().subscriptions.renew("30b0af58-c8bc-4f79-9917-51208b73a0ed");
+      expect(getLastRequest()?.method).toBe("POST");
+      expect(getLastRequest()?.url).toBe("https://test-be.suqo.ai/api/v1/subscription/renew/");
+    });
+
+    it("checkoutSessions.create()", async () => {
+      await client().checkoutSessions.create({ returnUrl: "https://example.com/r", items: [{ pbpId: "pbp_a1104f81b" }] });
+      expect(getLastRequest()?.method).toBe("POST");
+      expect(getLastRequest()?.url).toBe("https://test-be.suqo.ai/api/v1/checkout-sessions/");
+    });
+
+    it("checkoutSessions.retrieve(id)", async () => {
+      await client().checkoutSessions.retrieve("cks_contract01");
+      expect(getLastRequest()?.url).toBe("https://test-be.suqo.ai/api/v1/checkout-sessions/cks_contract01/");
+    });
+
+    it.each([
+      ["webhooks.list()", (c: SuqoClient) => c.webhooks.list(), "GET", "/api/v1/webhooks/"],
+      ["webhooks.create()", (c: SuqoClient) => c.webhooks.create({ event: "checkout.failed", endpointUrl: "https://example.com/h" }), "POST", "/api/v1/webhooks/"],
+      ["webhooks.retrieve(id)", (c: SuqoClient) => c.webhooks.retrieve("whk_contract01"), "GET", "/api/v1/webhooks/whk_contract01/"],
+      ["webhooks.replace(id)", (c: SuqoClient) => c.webhooks.replace("whk_contract01", { event: "checkout.failed", endpointUrl: "https://example.com/h" }), "PUT", "/api/v1/webhooks/whk_contract01/"],
+      ["webhooks.update(id)", (c: SuqoClient) => c.webhooks.update("whk_contract01", { isActive: false }), "PATCH", "/api/v1/webhooks/whk_contract01/"],
+      ["webhooks.delete(id)", (c: SuqoClient) => c.webhooks.delete("whk_contract01"), "DELETE", "/api/v1/webhooks/whk_contract01/"],
+      ["webhooks.retrieveSecret()", (c: SuqoClient) => c.webhooks.retrieveSecret(), "GET", "/api/v1/webhooks/secret/"],
+      ["webhooks.testDelivery(id)", (c: SuqoClient) => c.webhooks.testDelivery("whk_contract01"), "POST", "/api/v1/webhooks/whk_contract01/test-delivery/"],
+    ] as const)("%s", async (_name, call, method, path) => {
+      await call(client());
+      expect(getLastRequest()?.method).toBe(method);
+      expect(getLastRequest()?.url).toBe(`https://test-be.suqo.ai${path}`);
     });
   });
 
@@ -123,6 +162,17 @@ describe("contract: outgoing request shape", () => {
       expect(getLastRequest()?.body).toBeUndefined();
     });
 
+    it("webhooks.replace() (a PUT)", async () => {
+      await client().webhooks.replace("whk_contract01", { event: "checkout.failed", endpointUrl: "https://example.com/h" });
+      expect(getLastRequest()?.headers["content-type"]).toBe("application/json");
+    });
+
+    it("webhooks.delete() (a DELETE, no body)", async () => {
+      await client().webhooks.delete("whk_contract01");
+      expect(getLastRequest()?.headers["content-type"]).toBe("application/json");
+      expect(getLastRequest()?.body).toBeUndefined();
+    });
+
     it("customers.update() (a PATCH)", async () => {
       await client().customers.update("cus_1ce18d624", { address: "Lalitpur" });
       expect(getLastRequest()?.headers["content-type"]).toBe("application/json");
@@ -137,9 +187,9 @@ describe("contract: outgoing request shape", () => {
   describe("request bodies are snake_case, matching openapi.yaml exactly", () => {
     it("customers.create() — write-side names (phone/email, not buyer_*), every field", async () => {
       await client().customers.create({
+        email: "jane@example.com",
         phone: "9800000000",
         fullName: "Jane Doe",
-        email: "jane@example.com",
         address: "Kathmandu",
       });
       expect(getLastRequest()?.body).toEqual({
@@ -150,9 +200,38 @@ describe("contract: outgoing request shape", () => {
       });
     });
 
-    it("customers.create() — omitted optional fields are left out of the body, not sent as null", async () => {
-      await client().customers.create({ phone: "9800000000" });
-      expect(getLastRequest()?.body).toEqual({ phone: "9800000000" });
+    it("customers.create() — only email is required; omitted optional fields are left out, not sent as null", async () => {
+      await client().customers.create({ email: "jane@example.com" });
+      expect(getLastRequest()?.body).toEqual({ email: "jane@example.com" });
+    });
+
+    it("checkoutSessions.create() — customer_id, return_url and both item shapes in wire names", async () => {
+      await client().checkoutSessions.create({
+        customerId: "cus_1ce18d624",
+        returnUrl: "https://example.com/r",
+        items: [
+          { pbpId: "pbp_a1104f81b" },
+          { name: "Setup", amount: "2500.00", intervalType: "one_time", intervalCount: 0 },
+        ],
+      });
+      expect(getLastRequest()?.body).toEqual({
+        customer_id: "cus_1ce18d624",
+        return_url: "https://example.com/r",
+        items: [
+          { pbp_id: "pbp_a1104f81b" },
+          { name: "Setup", amount: "2500.00", interval_type: "one_time", interval_count: 0 },
+        ],
+      });
+    });
+
+    it("subscriptions.renew() — subscription_id in the body", async () => {
+      await client().subscriptions.renew("30b0af58-c8bc-4f79-9917-51208b73a0ed");
+      expect(getLastRequest()?.body).toEqual({ subscription_id: "30b0af58-c8bc-4f79-9917-51208b73a0ed" });
+    });
+
+    it("webhooks.update() — only the fields being changed", async () => {
+      await client().webhooks.update("whk_contract01", { isActive: false });
+      expect(getLastRequest()?.body).toEqual({ is_active: false });
     });
 
     it("customers.update() — only the fields being changed, and \"\" passed through as a clear", async () => {
