@@ -19,12 +19,13 @@ who reads the TypeScript reference can predict the Python behaviour.
 
 The SDK wraps exactly the documented API surface:
 
-| Resource      | Operations                                             | Status         |
-| ------------- | ------------------------------------------------------ | -------------- |
-| Products      | `list`                                                 | Specified      |
-| Subscriptions | `list`, `create`, `cancel`, `updateBillingCycle`       | Specified      |
-| Customers     | `list`, `retrieve`, `create`, `update`                 | Specified (§11) |
-| Webhooks      | signature verification helper (no HTTP calls)          | Specified      |
+| Resource         | Operations                                                                                          | Status          |
+| ---------------- | --------------------------------------------------------------------------------------------------- | --------------- |
+| Products         | `list`                                                                                              | Specified       |
+| Checkout sessions | `create`, `retrieve`                                                                               | Specified       |
+| Subscriptions    | `list`, `retrieve`, `create` (legacy), `cancel`, `resume`, `renew`, `updateBillingCycle`            | Specified       |
+| Customers        | `list`, `retrieve`, `create`, `update`                                                              | Specified (§11) |
+| Webhooks         | `verify` (local, no HTTP); `list`, `create`, `retrieve`, `replace`, `update`, `delete`, `retrieveSecret`, `testDelivery` | Specified       |
 
 The SDK is **server-side only**. The API key is full-access and scoped to a
 seller account; it must never reach a browser. Every language package states
@@ -102,12 +103,25 @@ across languages; only casing/idiom adapts.
 client.products.list({ page?, pageSize? })
                  -> paginated Product list
 
+client.checkoutSessions.create({ items, returnUrl, customerId? })
+                 -> CheckoutSessionResponse { publicId, expiresAt, checkoutUrl }
+                    (recommended way to collect payment; 1-10 items; rate-limited, §10)
+client.checkoutSessions.retrieve(id)
+                 -> CheckoutSession   (open sessions only; 404 once paid/expired)
+
 client.subscriptions.list({ page?, pageSize? })
                  -> paginated Subscription list + status counts
+client.subscriptions.retrieve(id)
+                 -> Subscription
 client.subscriptions.create({ pbpId, returnUrl, customer })
                  -> CreateSubscriptionResponse (status: pending_checkout, checkout_url)
+                    (legacy — prefer checkoutSessions.create)
 client.subscriptions.cancel(id)
                  -> { message }
+client.subscriptions.resume(id)
+                 -> { message }
+client.subscriptions.renew(subscriptionId)
+                 -> CheckoutSessionResponse   (POST /subscription/renew/, singular)
 client.subscriptions.updateBillingCycle({ subscriptionId, nextBillingCycle })
                  -> { message }
 
@@ -115,13 +129,19 @@ client.customers.list({ page?, pageSize? })
                  -> paginated Customer list
 client.customers.retrieve(id)
                  -> Customer
-client.customers.create({ phone, fullName?, email?, address? })
-                 -> Customer   (an existing phone updates that customer instead)
+client.customers.create({ email, phone?, fullName?, address? })
+                 -> Customer   (an existing email or phone updates that customer instead)
 client.customers.update(id, { fullName?, email?, address? })
                  -> Customer   (PATCH; only the given fields change, "" clears)
 
 client.webhooks.verify({ rawBody, signature, timestamp, secret })
                  -> boolean   (no network call; see §9)
+client.webhooks.list() / .create(params) / .retrieve(id)
+client.webhooks.replace(id, params)   (PUT — full overwrite)
+client.webhooks.update(id, params)    (PATCH — only the given fields)
+client.webhooks.delete(id)            (204, resolves void)
+client.webhooks.retrieveSecret()      -> { signingSecret }
+client.webhooks.testDelivery(id)      (202, resolves void)
 ```
 
 - **Decimal fields are strings.** `price`, `amount`, `total_subscribers`, etc.
@@ -162,11 +182,15 @@ until it is null, so callers can stream all rows without manual page math. Manua
 
 ## 7. Error taxonomy
 
-The API uses **two** error shapes; the mapper MUST accept either:
+The mapper MUST accept every shape the API sends, and decide by the body,
+never the status alone:
 
 - Field validation: `{ "field": ["msg"] }` (value may be a string or an array).
 - General: `{ "detail": "msg" }`.
-- KYC 403: `{ "status_code": "<kyc>", "message": "…" }`.
+- Bare list (400 on endpoints with no body to key on — cancel, resume, renew —
+  and the duplicate-subscription error): `["msg", …]`.
+- KYC 403: `{ "status_code": "KYC_INCOMPLETE" | "KYC_VERIFICATION_PENDING", "message": "…" }`, no `detail`.
+- Any other 403: `{ "detail": "msg" }` alone.
 
 Normalized hierarchy (same names, idiomatic casing per language):
 
@@ -175,17 +199,18 @@ Normalized hierarchy (same names, idiomatic casing per language):
 | `SuqoError`           | base — never thrown directly                      | carries `status`, `rawBody`, best-effort `message` |
 | `SuqoConfigError`     | a mistake caught before any request is attempted  | **malformed key**, env/prefix conflict (§2); also a bad call-time argument that would otherwise silently misdirect a request, e.g. an empty `customers.retrieve(id)` |
 | `AuthenticationError` | `401` (`detail: "Invalid or inactive API key."`)  |                                                    |
-| `KycRequiredError`    | `403` KYC not verified                            | exposes `kycStatus` (the KYC status)               |
+| `KycRequiredError`    | `403` whose body carries `status_code`            | exposes `kycStatus` (the KYC status)               |
+| `PermissionDeniedError` | `403` any other body (`detail` alone)           | not `PermissionError` — a Python builtin (Naming Map R2) |
 | `ValidationError`     | `400`                                             | exposes `fieldErrors: Record<string,string[]>`     |
 | `NotFoundError`       | `404`                                             |                                                    |
-| `RateLimitError`      | `429`                                             | **reserved** — not emitted until rate limiting ships (§10) |
+| `RateLimitError`      | `429`                                             | live on `checkoutSessions.create` (§10); exposes `retryAfter` |
 | `ServerError`         | `5xx`                                             |                                                    |
 | `NetworkError`        | transport failure / timeout                       |                                                    |
 
-`ValidationError` normalizes both 400 shapes: field-keyed bodies populate
-`fieldErrors`; a `detail`-shaped 400 (e.g. the duplicate-active-subscription
-case) populates `message` with `fieldErrors` empty. Consumers can rely on the
-class, not the wire shape.
+`ValidationError` normalizes all three 400 shapes: field-keyed bodies populate
+`fieldErrors`; a `detail`-shaped or bare-list 400 (e.g. the duplicate
+subscription case, or cancelling a one-time purchase) populates `message`
+with `fieldErrors` empty. Consumers can rely on the class, not the wire shape.
 
 `SuqoConfigError` is deliberately distinct from the HTTP errors: it signals a
 programmer/config mistake caught before any request is attempted — whether that's
@@ -199,16 +224,21 @@ misdirect a request — analogous to a syntax error in the integration.
 - **Connection reuse / keep-alive** on by default.
 - **Configurable timeout**, sane default (e.g. 30s).
 - **Retry policy:**
-  - **Reads** (`products.list`, `subscriptions.list`, and future
-    `customers.*`) are naturally idempotent → retry on `NetworkError`, `429`
-    (when it lands), and `5xx`, with exponential backoff + jitter, bounded
-    attempts.
-  - **Writes** (`create`, `cancel`, `updateBillingCycle`, `customers.update`) are **NOT retried**
-    automatically. The API does not yet support idempotency keys, so a retried
-    write could double-act. See §12 (backlog). This restriction is a single,
-    clearly-marked switch in the retry layer so it flips to "retry with
-    idempotency key" in one place once the backend ships it.
-- Respect `Retry-After` when present (relevant once rate limiting exists).
+  - **Reads** (every `GET`: `list`, `retrieve`, `retrieveSecret`) are
+    naturally idempotent → retry on `NetworkError`, `429` and `5xx`, with
+    exponential backoff + jitter, bounded attempts.
+  - **Writes** (every `POST`, `PATCH`, `PUT` and `DELETE` — `create`, `cancel`,
+    `resume`, `renew`, `updateBillingCycle`, `update`, `replace`, `delete`,
+    `testDelivery`) are **NOT retried** automatically. The API does not yet
+    support idempotency keys, so a retried write could double-act (a retried
+    `subscriptions.create` opens a second subscription and checkout). See §12
+    (backlog). This restriction is a single, clearly-marked switch in the retry
+    layer so it flips to "retry with idempotency key" in one place once the
+    backend ships it.
+- Respect `Retry-After` when present. The API's own rate limit sends none and
+  names the wait inside `detail` ("…available in 41 seconds"); the SDK reads
+  that as a fallback, capped at 60 s, and surfaces it as
+  `RateLimitError.retryAfter`.
 
 ---
 
@@ -240,24 +270,39 @@ string** — never parse to float. Note the test-delivery body differs (fields
 under `data`); the helper verifies signatures for it but callers should not use
 it to exercise payload parsing.
 
+**Checkout events (changed in 2.0.0).** `checkout.succeeded` and
+`checkout.failed` are sent once per checkout session, not once per
+subscription: `{ event, session_id, amount, status, items }`. `session_id` is
+the `cks_…` returned as `publicId` when the session was opened; `amount` is the
+session total; each entry in `items` echoes what was sent — `{ pbp_id }` for a
+catalogue item, `{ name, amount, interval_type, interval_count }` for a
+partner-priced one. They no longer carry `subscription_id`. Payments taken
+through the legacy `subscriptions.create` report through the same payload.
+
+Registrations are managed over HTTP by the `webhooks` resource (§5): one
+webhook per event per account, `https` endpoints resolving only to public
+addresses. The signing secret comes from `webhooks.retrieveSecret()`.
+
 The SDK never stores the signing secret; it is passed into the verify call by the
 host application.
 
 ---
 
-## 10. Rate limiting — coming later
+## 10. Rate limiting
 
-Rate limiting is **not enforced yet** and the API returns no rate-limit headers
-today. The SDK is built forward-ready:
+Rate limiting is enforced on **one** endpoint: `POST /checkout-sessions/`
+(`checkoutSessions.create`), 20 sessions a minute per account. Every other
+endpoint is unlimited.
 
-- `RateLimitError` (§7) exists in the taxonomy but is never thrown until the API
-  emits `429`.
-- The read-retry path already honours `Retry-After` so no behavioural change is
-  needed when limits arrive.
-- A `docs/user/rate-limiting.md` stub ships from v1 describing the intended model
-  ("token bucket per API key; `429` + `Retry-After`; recommended client
-  backoff"), marked *Planned*. Docs exist before the feature so the section is
-  never bolted on.
+- Past the limit the API answers `429` with the wait inside `detail`
+  (`"Request was throttled. Expected available in 41 seconds."`) and no
+  `Retry-After` or `RateLimit-*` headers. The SDK throws `RateLimitError`
+  (§7) with `retryAfter` read from the header if present, otherwise from that
+  text.
+- `checkoutSessions.create` is a write, so the SDK never retries it (§8): the
+  caller decides whether and when to retry, using `retryAfter`.
+- The read-retry path still honours `Retry-After`, so a future limit on a read
+  needs no behavioural change.
 
 ---
 
@@ -269,12 +314,17 @@ Specified in `openapi.yaml` (`listCustomers`, `retrieveCustomer`,
 once the API documented them. No delete exists.
 
 - `id` is an opaque prefixed string (`cus_…`), never a number.
+- **`email` identifies the buyer (2.0.0).** `create` requires `email`; `phone`
+  is optional. An email or phone the seller already holds updates that
+  customer.
 - **Write names differ from read names.** `create`/`update` send `phone` and
   `email`; the `Customer` reads them back as `buyer_phone`/`buyer_email`. The
   SDK keeps each side's own names rather than forcing one onto the other.
-- `create` on a phone the seller already holds updates that customer (`200`
-  instead of `201`), so it's safe for the caller to retry. The SDK still never
-  retries it automatically (§8).
+- `create` on an email or phone the seller already holds updates that
+  customer (`200` instead of `201`), so it's safe for the caller to retry. The
+  SDK still never retries it automatically (§8).
+- A customer's `id` can be passed to `checkoutSessions.create` as `customerId`,
+  which sends the buyer straight to payment.
 - `update` is the API's one `PATCH` route: send only the changed fields; `""`
   clears one. The phone can't be changed.
 
@@ -303,8 +353,11 @@ Idempotency is **cancelled for v1** but recorded here so it drops in cleanly:
 ## 13. Versioning (from day one)
 
 - The SDK follows **SemVer**.
-- **Major** version tracks the API path version (`v1`). A future `/api/v2/` is a
-  new SDK major.
+- **Major** = any breaking change: the API's wire contract breaking (with a new
+  path version such as `/api/v2/`, or within the existing one — as in SDK
+  `2.0.0`, still on `/api/v1/`), or the SDK breaking its own contract. The SDK
+  major number therefore doesn't equal the API path version; see
+  `specs/versioning.md` for the policy and the compatibility table.
 - **Minor** = additive, backward-compatible (new resource like Customers, new
   optional param).
 - **Patch** = fixes, no contract change.

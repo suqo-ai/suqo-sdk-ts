@@ -2,15 +2,24 @@ import type { HttpClient } from "../http/HttpClient.js";
 import { bridgeAutoPaging, toPageQuery, type PageParams, type SubscriptionPage } from "../pagination.js";
 import { SubscriptionStatus, type Subscription, type SubscriptionProduct } from "../models/Subscription.js";
 import type {
+  CheckoutSessionResponse,
   CreateSubscriptionParams,
   CreateSubscriptionResponse,
   MessageResponse,
   UpdateBillingCycleParams,
 } from "../models/index.js";
-import { deserializeSubscriptionCustomer, serializeCustomerInput } from "./serialization.js";
+import { assertPathId } from "../utils/index.js";
+import {
+  deserializeCheckoutSessionResponse,
+  deserializeSubscriptionCustomer,
+  serializeCustomerInput,
+  type WireCheckoutSessionResponse,
+} from "./serialization.js";
 
 /** No trailing slash here; `HttpClient`/`buildUrl` guarantees it (Ticket 2). */
 const SUBSCRIPTIONS_PATH = "/api/v1/subscriptions";
+/** Singular `subscription`, unlike every other subscription route — that is the real wire path (R1). */
+const RENEW_PATH = "/api/v1/subscription/renew";
 
 /** The wire shape `openapi.yaml`'s `SubscriptionProduct` schema sends — a summary, not the full `Product`. */
 interface WireSubscriptionProduct {
@@ -135,10 +144,11 @@ export function deserializeCreateSubscriptionResponse(
 
 /**
  * `client.subscriptions` (SDK-SPEC.md §5, §6, §7; `openapi.yaml` `listSubscriptions`/
- * `createSubscription`/`cancelSubscription`/`updateBillingCycle`/`resumeSubscription`).
+ * `retrieveSubscription`/`createSubscription`/`cancelSubscription`/`updateBillingCycle`/
+ * `resumeSubscription`/`renewSubscription`).
  *
- * `retrieve(id)` is deliberately **not** implemented — still blocked on a real sample response
- * from backend (docs/implementation-plan.md Ticket 4). Every other operation here is confirmed.
+ * One-time purchases (a billing period whose `intervalType` is `one_time`) appear in `list()` but
+ * can't be cancelled, resumed, rescheduled or renewed — those calls throw `ValidationError`.
  */
 export class SubscriptionsResource {
   readonly #http: HttpClient;
@@ -172,13 +182,30 @@ export class SubscriptionsResource {
   }
 
   /**
+   * Retrieves one of your own subscriptions by id. Built from Swagger's schema; not yet checked
+   * against a captured response.
+   */
+  async retrieve(id: string): Promise<Subscription> {
+    // Same guard as customers.retrieve(): "" would collapse onto list()'s URL.
+    assertPathId(id, "subscriptions.retrieve");
+    const wire = await this.#http.request<WireSubscription>({
+      method: "GET",
+      path: `${SUBSCRIPTIONS_PATH}/${encodeURIComponent(id)}`,
+    });
+    return deserializeSubscription(wire);
+  }
+
+  /**
+   * **Legacy** — prefer `checkoutSessions.create()`, which takes up to ten items in one payment
+   * and doesn't need a full customer object. Still supported; existing integrations keep working.
+   *
    * Creates a subscription in `pending_checkout` state and returns a checkout URL for the buyer
    * to pay (SDK-SPEC.md §5). Redirect the buyer to `checkoutUrl`; the return is **not** proof of
    * payment — learn the real outcome via the `checkout.succeeded`/`checkout.failed` webhooks.
    *
-   * Reuse behavior: an inactive/expired subscription for the same buyer + product + billing
-   * period is reactivated rather than duplicated; only a currently `active` one triggers the
-   * duplicate-subscription `ValidationError`.
+   * `customer.email` identifies the buyer. A buyer may hold only one live recurring subscription
+   * per product: a second one on any billing period of the same product throws `ValidationError`.
+   * To restart an inactive subscription, use `renew()` rather than creating a new one.
    *
    * Not auto-retryable — writes never retry until idempotency ships (SDK-SPEC.md §8, §12).
    */
@@ -199,11 +226,15 @@ export class SubscriptionsResource {
   /**
    * Schedules cancellation for the end of the current billing period — **not** immediate
    * (confirmed with backend 2026-08-17; immediate cancellation is a future capability). Status
-   * moves to `pending_cancellation`; the subscription stays active until the period ends.
+   * moves to `pending_cancellation`; the subscription stays active until the period ends. Calling
+   * it on a subscription already cancelled or pending cancellation returns it unchanged, so a
+   * retry by the caller is safe.
    *
    * Not auto-retryable — writes never retry until idempotency ships (SDK-SPEC.md §8, §12).
    */
   async cancel(id: string): Promise<MessageResponse> {
+    // "", "." and ".." would POST to a different route (e.g. ".." -> /api/v1/cancel/).
+    assertPathId(id, "subscriptions.cancel");
     // encodeURIComponent, found in review: an unescaped id containing `?`/`#`/`/` would otherwise
     // be parsed as URL structure by buildUrl's `new URL(path, base)`, silently corrupting the
     // path instead of erroring — e.g. `?` truncates everything after it, swallowing `/cancel`
@@ -232,17 +263,37 @@ export class SubscriptionsResource {
   }
 
   /**
-   * Resumes a subscription. Confirmed public with backend (2026-08-18); the response shape
-   * follows Swagger's `{ message }` example but — unlike Customers — isn't independently
-   * confirmed, so treat it as likely-correct-but-unverified (docs/implementation-plan.md Ticket 4).
+   * Undoes a scheduled cancellation and returns the subscription to `active`. An already-active
+   * subscription is returned unchanged. Once a subscription is `cancelled` there is nothing to
+   * resume — use `renew()`.
    *
    * Not auto-retryable — writes never retry until idempotency ships (SDK-SPEC.md §8, §12).
    */
   async resume(id: string): Promise<MessageResponse> {
+    assertPathId(id, "subscriptions.resume");
     // encodeURIComponent, found in review: same path-corruption risk as cancel() above.
     return this.#http.request<MessageResponse>({
       method: "POST",
       path: `${SUBSCRIPTIONS_PATH}/${encodeURIComponent(id)}/resume`,
     });
+  }
+
+  /**
+   * Opens a checkout session for the next payment on one of your own subscriptions, reusing its
+   * customer and billing period (or partner-priced item) rather than resubmitting them — how an
+   * inactive subscription is restarted. Send the buyer to the returned `checkoutUrl`, and learn
+   * the outcome from the `checkout.*` webhooks, matched on `publicId`.
+   *
+   * A cancelled or archived subscription, or a paid one-time purchase, can't be renewed: that
+   * throws `ValidationError`. Not auto-retryable — writes never retry until idempotency ships
+   * (SDK-SPEC.md §8, §12).
+   */
+  async renew(subscriptionId: string): Promise<CheckoutSessionResponse> {
+    const wire = await this.#http.request<WireCheckoutSessionResponse, unknown>({
+      method: "POST",
+      path: RENEW_PATH,
+      body: { subscription_id: subscriptionId },
+    });
+    return deserializeCheckoutSessionResponse(wire);
   }
 }

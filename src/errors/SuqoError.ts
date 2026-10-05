@@ -111,6 +111,16 @@ export interface ValidationErrorOptions extends SuqoErrorOptions {
 }
 
 /**
+ * 403 — the key is valid but may not perform this action, for a reason other than KYC (SDK-SPEC.md
+ * §7). The API answers with `{ "detail": "…" }` alone, e.g. a key that doesn't belong to the
+ * account. A KYC-shaped 403 (with `status_code`) is {@link KycRequiredError} instead.
+ *
+ * Named `PermissionDeniedError`, not `PermissionError`: the stem must be identical in every port
+ * (SDK Naming Map R2, R6), and `PermissionError` is a Python builtin.
+ */
+export class PermissionDeniedError extends SuqoError {}
+
+/**
  * 400 — request validation failed (SDK-SPEC.md §7). The API uses two different 400 body shapes;
  * {@link mapHttpError} normalizes both into this one class so consumers rely on `instanceof`,
  * never the wire shape:
@@ -142,12 +152,15 @@ export interface RateLimitErrorOptions extends SuqoErrorOptions {
 }
 
 /**
- * 429 — rate limited (SDK-SPEC.md §7). **Reserved**: the API does not enforce rate limiting yet
- * and never emits 429 today; this class exists so the SDK is forward-ready the moment it does
- * (SDK-SPEC.md §10).
+ * 429 — rate limited (SDK-SPEC.md §7, §10). Live on `checkoutSessions.create()`, the API's one
+ * rate-limited endpoint (20 sessions a minute per account). That call is a write, so the SDK never
+ * retries it on its own — read {@link RateLimitError.retryAfter} and retry yourself.
  */
 export class RateLimitError extends SuqoError {
-  /** Suggested backoff derived from a `Retry-After` header, in milliseconds, if present. See {@link RateLimitErrorOptions.retryAfter}. */
+  /**
+   * Suggested backoff in milliseconds, if the API named one: the `Retry-After` header when present,
+   * otherwise the wait the API writes into `detail` ("…available in 41 seconds"). Capped at 60 s.
+   */
   readonly retryAfter?: number;
 
   constructor(message: string, options: RateLimitErrorOptions = {}) {

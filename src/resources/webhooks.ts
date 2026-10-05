@@ -1,13 +1,60 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
+import type { HttpClient } from "../http/HttpClient.js";
+import type {
+  CreateWebhookParams,
+  ReplaceWebhookParams,
+  UpdateWebhookParams,
+  Webhook,
+  WebhookSecret,
+} from "../models/index.js";
+import { assertPathId } from "../utils/index.js";
 
 /**
- * `client.webhooks` (SDK-SPEC.md §5, §9). Makes **no** network calls and stores no secret — the
- * host application passes its own signing secret into every call. Verifies an inbound delivery
- * genuinely came from SUQO and hasn't been tampered with or replayed; it does **not** parse the
- * event body itself (see `models/WebhookEvent.ts` for why the event types stay snake_case).
+ * `client.webhooks` (SDK-SPEC.md §5, §9). Two jobs on one object:
+ *
+ * - **`verify()`** makes **no** network call and stores no secret — the host application passes
+ *   its own signing secret into every call. It checks an inbound delivery genuinely came from SUQO
+ *   and hasn't been tampered with or replayed; it does **not** parse the event body (see
+ *   `models/WebhookEvent.ts` for why the event types stay snake_case).
+ * - **`list`/`create`/`retrieve`/`replace`/`update`/`delete`/`retrieveSecret`/`testDelivery`**
+ *   call the API to manage which endpoint receives which event. They need the client's key, and
+ *   work before KYC verification.
  *
  * @packageDocumentation
  */
+
+/** No trailing slash here; `HttpClient`/`buildUrl` guarantees it (Ticket 2). */
+const WEBHOOKS_PATH = "/api/v1/webhooks";
+/** Sibling routes under `/webhooks/` that an id must never collide with. */
+const RESERVED_SEGMENTS = ["secret"] as const;
+
+interface WireWebhook {
+  id: string;
+  event: string;
+  endpoint_url: string;
+  is_active: boolean;
+  created_at: string;
+}
+
+/** Exported for direct unit testing — not part of the SDK's public surface. */
+export function deserializeWebhook(wire: WireWebhook): Webhook {
+  return {
+    id: wire.id,
+    event: wire.event,
+    endpointUrl: wire.endpoint_url,
+    isActive: wire.is_active,
+    createdAt: wire.created_at,
+  };
+}
+
+/** Only keys the caller set are sent, so `update()` leaves everything else untouched. */
+function serializeWebhookWrite(params: UpdateWebhookParams): Record<string, unknown> {
+  const wire: Record<string, unknown> = {};
+  if (params.event !== undefined) wire.event = params.event;
+  if (params.endpointUrl !== undefined) wire.endpoint_url = params.endpointUrl;
+  if (params.isActive !== undefined) wire.is_active = params.isActive;
+  return wire;
+}
 
 /** Options accepted by {@link WebhooksResource.verify}. */
 export interface VerifyWebhookOptions {
@@ -47,6 +94,107 @@ const SIGNATURE_PREFIX = "sha256=";
 const HEX_DIGEST_RE = /^[0-9a-f]{64}$/i;
 
 export class WebhooksResource {
+  readonly #http: HttpClient;
+
+  constructor(http: HttpClient) {
+    this.#http = http;
+  }
+
+  /** Every webhook registered by your account. Not paginated — the API returns them all. */
+  async list(): Promise<Webhook[]> {
+    const wire = await this.#http.request<WireWebhook[]>({ method: "GET", path: WEBHOOKS_PATH });
+    return wire.map(deserializeWebhook);
+  }
+
+  /**
+   * Subscribes an `https` endpoint to one event. An account holds at most one webhook per event,
+   * and the endpoint must resolve only to public addresses — either failing throws
+   * `ValidationError`. Not auto-retryable (SDK-SPEC.md §8, §12).
+   */
+  async create(params: CreateWebhookParams): Promise<Webhook> {
+    const wire = await this.#http.request<WireWebhook, unknown>({
+      method: "POST",
+      path: WEBHOOKS_PATH,
+      body: serializeWebhookWrite(params),
+    });
+    return deserializeWebhook(wire);
+  }
+
+  /** Retrieves one of your own webhooks by id (`whk_…`). */
+  async retrieve(id: string): Promise<Webhook> {
+    assertPathId(id, "webhooks.retrieve", RESERVED_SEGMENTS);
+    const wire = await this.#http.request<WireWebhook>({
+      method: "GET",
+      path: `${WEBHOOKS_PATH}/${encodeURIComponent(id)}`,
+    });
+    return deserializeWebhook(wire);
+  }
+
+  /**
+   * Overwrites a webhook's event, endpoint and active flag (`PUT`). `event` and `endpointUrl` are
+   * both required; to change one field on its own, use {@link WebhooksResource.update}. Not
+   * auto-retryable (SDK-SPEC.md §8, §12).
+   */
+  async replace(id: string, params: ReplaceWebhookParams): Promise<Webhook> {
+    assertPathId(id, "webhooks.replace", RESERVED_SEGMENTS);
+    const wire = await this.#http.request<WireWebhook, unknown>({
+      method: "PUT",
+      path: `${WEBHOOKS_PATH}/${encodeURIComponent(id)}`,
+      body: serializeWebhookWrite(params),
+    });
+    return deserializeWebhook(wire);
+  }
+
+  /**
+   * Changes only the fields you send (`PATCH`) — e.g. `{ isActive: false }` pauses deliveries
+   * without deleting the webhook. Not auto-retryable (SDK-SPEC.md §8, §12).
+   */
+  async update(id: string, params: UpdateWebhookParams): Promise<Webhook> {
+    assertPathId(id, "webhooks.update", RESERVED_SEGMENTS);
+    const wire = await this.#http.request<WireWebhook, unknown>({
+      method: "PATCH",
+      path: `${WEBHOOKS_PATH}/${encodeURIComponent(id)}`,
+      body: serializeWebhookWrite(params),
+    });
+    return deserializeWebhook(wire);
+  }
+
+  /** Removes a webhook. Past delivery records are kept for debugging. Not auto-retryable (SDK-SPEC.md §8, §12). */
+  async delete(id: string): Promise<void> {
+    assertPathId(id, "webhooks.delete", RESERVED_SEGMENTS);
+    await this.#http.request<undefined>({
+      method: "DELETE",
+      path: `${WEBHOOKS_PATH}/${encodeURIComponent(id)}`,
+    });
+  }
+
+  /**
+   * Returns the account's signing secret — the `secret` to pass to {@link WebhooksResource.verify}.
+   * The API creates it on the first call; it can't be rotated through the API. Treat it like a
+   * password: never log it.
+   */
+  async retrieveSecret(): Promise<WebhookSecret> {
+    const wire = await this.#http.request<{ signing_secret: string }>({
+      method: "GET",
+      path: `${WEBHOOKS_PATH}/secret`,
+    });
+    return { signingSecret: wire.signing_secret };
+  }
+
+  /**
+   * Queues a signed test delivery to the webhook's endpoint so you can check your receiver. It
+   * resolves once the job is queued; the delivery itself arrives asynchronously. Note a test
+   * delivery's body differs from a real event's (fields under `data`) — use it to check
+   * `verify()`, not your payload parsing. Not auto-retryable (SDK-SPEC.md §8, §12).
+   */
+  async testDelivery(id: string): Promise<void> {
+    assertPathId(id, "webhooks.testDelivery", RESERVED_SEGMENTS);
+    await this.#http.request<unknown>({
+      method: "POST",
+      path: `${WEBHOOKS_PATH}/${encodeURIComponent(id)}/test-delivery`,
+    });
+  }
+
   /**
    * Verifies an inbound webhook delivery's signature. Returns `false` for any failure mode —
    * malformed signature, expired timestamp, or a genuine mismatch — never throws, so a caller

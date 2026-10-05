@@ -45,11 +45,11 @@ const wireProduct = {
   product_id: "prod_1",
   name: "Widget",
   description: "A widget",
-  type: "physical",
+  type: "simple",
   is_active: true,
   terms_and_conditions: "...",
   features_and_benefits: "...",
-  vat: { is_vat_active: true, vat_type: "standard", vat_percentage: "13.00" },
+  vat: { is_vat_active: true, vat_type: "exclusive", vat_percentage: "13.00" },
   product_image: [{ image: "https://cdn.example/1.png", image_order: 0 }],
   plan: [wirePlan],
   total_subscribers: "42",
@@ -104,7 +104,7 @@ describe("deserializeProduct", () => {
     expect(product.productId).toBe("prod_1");
     expect(product.isActive).toBe(true);
     expect(product.totalSubscribers).toBe("42");
-    expect(product.vat).toEqual({ isVatActive: true, vatType: "standard", vatPercentage: "13.00" });
+    expect(product.vat).toEqual({ isVatActive: true, vatType: "exclusive", vatPercentage: "13.00" });
     expect(product.plan).toEqual([
       {
         planId: "plan_1",
@@ -169,6 +169,57 @@ describe("deserializeProduct", () => {
     const { billing_periods: _billingPeriods, ...planWithoutBillingPeriods } = wirePlan;
     const plan = deserializePlan(planWithoutBillingPeriods);
     expect(plan.billingPeriods).toEqual([]);
+  });
+});
+
+describe("2.0.0 product fields", () => {
+  it("description, termsAndConditions and featuresAndBenefits come back null when the wire sends null", () => {
+    const product = deserializeProduct({ ...wireProduct, description: null, terms_and_conditions: null, features_and_benefits: null });
+    expect(product.description).toBeNull();
+    expect(product.termsAndConditions).toBeNull();
+    expect(product.featuresAndBenefits).toBeNull();
+  });
+
+  it("...and null, never undefined, when the wire omits those keys entirely", () => {
+    const { description: _d, terms_and_conditions: _t, features_and_benefits: _f, ...without } = wireProduct;
+    const product = deserializeProduct(without);
+    expect(product.description).toBeNull();
+    expect(product.termsAndConditions).toBeNull();
+    expect(product.featuresAndBenefits).toBeNull();
+  });
+
+  it("a plan's description is null when the wire sends or omits it", () => {
+    expect(deserializePlan({ ...wirePlan, description: null }).description).toBeNull();
+    const { description: _d, ...planWithout } = wirePlan;
+    expect(deserializePlan(planWithout).description).toBeNull();
+  });
+
+  it("vatType and vatPercentage are null when unset, and vatPercentage stays a string when set", () => {
+    const unset = deserializeProduct({ ...wireProduct, vat: { is_vat_active: false, vat_type: null, vat_percentage: null } });
+    expect(unset.vat).toEqual({ isVatActive: false, vatType: null, vatPercentage: null });
+    expect(typeof deserializeProduct(wireProduct).vat?.vatPercentage).toBe("string");
+  });
+
+  it("maps offers to camelCase Offer objects, with discountAmount a number of whole rupees", () => {
+    const period = deserializeBillingPeriod({
+      ...wireBillingPeriod,
+      offers: [{ id: "off_1", discount_amount: 100, starts_at: "2026-10-01", valid_until: null, is_active: true }],
+    });
+    expect(period.offers).toEqual([
+      { id: "off_1", discountAmount: 100, startsAt: "2026-10-01", validUntil: null, isActive: true },
+    ]);
+  });
+
+  it("an omitted offers key degrades to an empty array, and omitted offer dates to null", () => {
+    const { offers: _o, ...periodWithout } = wireBillingPeriod;
+    expect(deserializeBillingPeriod(periodWithout).offers).toEqual([]);
+    const period = deserializeBillingPeriod({ ...wireBillingPeriod, offers: [{ id: "off_1", discount_amount: 5, is_active: false }] });
+    expect(period.offers[0]).toEqual({ id: "off_1", discountAmount: 5, startsAt: null, validUntil: null, isActive: false });
+  });
+
+  it("passes a one_time interval type and an unknown product type through untouched (round-trip, Naming Map §9)", () => {
+    expect(deserializeBillingPeriod({ ...wireBillingPeriod, interval_type: "one_time", interval_count: 0 }).intervalType).toBe("one_time");
+    expect(deserializeProduct({ ...wireProduct, type: "bundle" }).type).toBe("bundle");
   });
 });
 

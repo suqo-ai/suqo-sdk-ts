@@ -4,3 +4,4 @@
  * @packageDocumentation
  */
 export { isRecord } from "./isRecord.js";
+export { assertPathId } from "./assertPathId.js";

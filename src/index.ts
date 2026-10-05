@@ -6,13 +6,14 @@
  */
 
 /** SDK version, stamped into request headers (keep in sync with package.json). */
-export const VERSION = "1.1.0";
+export const VERSION = "2.0.0";
 
 export {
   SuqoError,
   SuqoConfigError,
   AuthenticationError,
   KycRequiredError,
+  PermissionDeniedError,
   ValidationError,
   NotFoundError,
   RateLimitError,
@@ -46,6 +47,7 @@ export {
   type Product,
   type ProductVat,
   type ProductImage,
+  type Offer,
   type Plan,
   type BillingPeriod,
   type Subscription,
@@ -59,6 +61,19 @@ export {
   type Customer,
   type CreateCustomerParams,
   type UpdateCustomerParams,
+  type CatalogueItemInput,
+  type PartnerPricedItemInput,
+  type CheckoutItemInput,
+  type CreateCheckoutSessionParams,
+  type CheckoutSessionResponse,
+  type CheckoutLineItem,
+  type CheckoutSeller,
+  type CheckoutSession,
+  type Webhook,
+  type CreateWebhookParams,
+  type ReplaceWebhookParams,
+  type UpdateWebhookParams,
+  type WebhookSecret,
   type CreateSubscriptionParams,
   type CreateSubscriptionResponse,
   type UpdateBillingCycleParams,

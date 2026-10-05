@@ -1,6 +1,6 @@
 import type { HttpClient } from "../http/HttpClient.js";
 import { bridgeAutoPaging, deserializePage, toPageQuery, type Page, type PageParams } from "../pagination.js";
-import type { BillingPeriod, Plan, Product, ProductVat } from "../models/index.js";
+import type { BillingPeriod, Offer, Plan, Product, ProductVat } from "../models/index.js";
 
 /** `GET /api/v1/products/` — no trailing slash here; `HttpClient`/`buildUrl` guarantees it (Ticket 2). */
 const PRODUCTS_PATH = "/api/v1/products";
@@ -21,13 +21,21 @@ interface WireBillingPeriod {
   is_current: boolean;
   is_limited: boolean;
   is_archived: boolean;
-  offers: unknown[];
+  offers?: WireOffer[];
+}
+
+interface WireOffer {
+  id: string;
+  discount_amount: number;
+  starts_at?: string | null;
+  valid_until?: string | null;
+  is_active: boolean;
 }
 
 interface WirePlan {
   plan_id: string;
   plan_name: string;
-  description: string;
+  description?: string | null;
   // Optional, not required — `openapi.yaml`'s Product schema has no `required` list at all, so
   // omitting this key entirely is spec-legal (found in review: the deserializer used to assume
   // it was always present and crashed on `.map()` when it wasn't).
@@ -36,8 +44,8 @@ interface WirePlan {
 
 interface WireProductVat {
   is_vat_active: boolean;
-  vat_type: string;
-  vat_percentage: string;
+  vat_type?: string | null;
+  vat_percentage?: string | null;
 }
 
 interface WireProductImage {
@@ -48,11 +56,13 @@ interface WireProductImage {
 interface WireProduct {
   product_id: string;
   name: string;
-  description: string;
+  // Nullable on the wire (openapi.yaml), and optional because the schema doesn't list them as
+  // required — `?? null` below turns an omitted key into the documented `null`.
+  description?: string | null;
   type: string;
   is_active: boolean;
-  terms_and_conditions: string;
-  features_and_benefits: string;
+  terms_and_conditions?: string | null;
+  features_and_benefits?: string | null;
   // Optional (not just nullable) and `plan` optional too — same reasoning as `WirePlan.billing_periods`
   // above: no `required` list on this schema, so both are legally omittable, not just nullable.
   vat?: WireProductVat | null;
@@ -78,7 +88,17 @@ export function deserializeBillingPeriod(wire: WireBillingPeriod): BillingPeriod
     isCurrent: wire.is_current,
     isLimited: wire.is_limited,
     isArchived: wire.is_archived,
-    offers: wire.offers,
+    offers: (wire.offers ?? []).map(deserializeOffer),
+  };
+}
+
+function deserializeOffer(wire: WireOffer): Offer {
+  return {
+    id: wire.id,
+    discountAmount: wire.discount_amount,
+    startsAt: wire.starts_at ?? null,
+    validUntil: wire.valid_until ?? null,
+    isActive: wire.is_active,
   };
 }
 
@@ -87,7 +107,7 @@ export function deserializePlan(wire: WirePlan): Plan {
   return {
     planId: wire.plan_id,
     planName: wire.plan_name,
-    description: wire.description,
+    description: wire.description ?? null,
     // `openapi.yaml`'s Product schema has no `required` list at all, so `billing_periods` being
     // omitted entirely (not just an empty array) is spec-legal — `?? []` degrades to an empty
     // list instead of `.map` throwing on `undefined` (found in review, reproduced).
@@ -98,8 +118,8 @@ export function deserializePlan(wire: WirePlan): Plan {
 function deserializeProductVat(wire: WireProductVat): ProductVat {
   return {
     isVatActive: wire.is_vat_active,
-    vatType: wire.vat_type,
-    vatPercentage: wire.vat_percentage,
+    vatType: wire.vat_type ?? null,
+    vatPercentage: wire.vat_percentage ?? null,
   };
 }
 
@@ -108,11 +128,11 @@ export function deserializeProduct(wire: WireProduct): Product {
   return {
     productId: wire.product_id,
     name: wire.name,
-    description: wire.description,
+    description: wire.description ?? null,
     type: wire.type,
     isActive: wire.is_active,
-    termsAndConditions: wire.terms_and_conditions,
-    featuresAndBenefits: wire.features_and_benefits,
+    termsAndConditions: wire.terms_and_conditions ?? null,
+    featuresAndBenefits: wire.features_and_benefits ?? null,
     // `== null` (not `=== null`) is deliberate — it catches both an explicit `null` and an
     // entirely omitted `vat` key. `openapi.yaml` has no `required` list for Product, so omitting
     // `vat` is spec-legal, and the old `=== null` check crashed on `deserializeProductVat(undefined)`

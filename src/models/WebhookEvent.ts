@@ -1,4 +1,5 @@
 import type { SubscriptionStatus } from "./Subscription.js";
+import type { IntervalType } from "./wireEnums.js";
 
 /**
  * The confirmed webhook event payload shapes: the original three (Ticket 0 item 2) plus four
@@ -16,34 +17,48 @@ import type { SubscriptionStatus } from "./Subscription.js";
  */
 
 /**
- * Fields shared by every *subscription-related* webhook event (2026-08-25).
- * Deliberately named for **subscription** events specifically, not a generic `BaseWebhookEvent` —
- * `subscription_id` is common to these three because all three happen to be about a subscription,
- * not because every webhook event SUQO will ever send is guaranteed to carry one. A future event
- * about a different resource (e.g. a customer- or payout-level event) would need its own base, not
- * be forced through this one. SDK Naming Map v1.1 has no coverage of this at all — same gap as the
- * event fields themselves.
+ * One item echoed on a `checkout.*` event, in the shape it was sent: a catalogue item carries
+ * `pbp_id` alone; a partner-priced item carries `name`/`amount`/`interval_type`/`interval_count`.
+ * Internal alias — the Naming Map registers no public name for it.
  */
-interface SubscriptionWebhookEventBase {
-  subscription_id: string;
+type CheckoutEventItem =
+  | { pbp_id: string }
+  | {
+      name: string;
+      /** Decimal string. Never coerced to a number — SDK-SPEC.md §9. */
+      amount: string;
+      interval_type: IntervalType;
+      interval_count: number;
+    };
+
+/**
+ * Fields shared by both checkout events. **Changed in 2.0.0:** one delivery per checkout
+ * session, keyed by `session_id`, carrying `items` — not one per subscription keyed by
+ * `subscription_id`. Payments taken through the legacy `subscriptions.create()` report through
+ * this same payload. Built from the API docs and Swagger; not yet checked against a captured
+ * delivery.
+ */
+interface CheckoutWebhookEventBase {
+  /** The `cks_…` returned as `publicId` when the session was opened — match deliveries back on this. */
+  session_id: string;
+  /** The session total. Decimal string. Never coerced to a number — SDK-SPEC.md §9. */
+  amount: string;
+  /** What the session carries. */
+  items: CheckoutEventItem[];
 }
 
 /** A successful checkout. `status` is always `"succeeded"` on this event — never anything else. */
-export interface CheckoutSucceededEvent extends SubscriptionWebhookEventBase {
+export interface CheckoutSucceededEvent extends CheckoutWebhookEventBase {
   event: "checkout.succeeded";
-  /** Decimal string. Never coerced to a number — SDK-SPEC.md §9. */
-  amount: string;
   status: "succeeded";
 }
 
 /**
- * A failed checkout. `status` is always `"failed"` — the platform deliberately omits the specific
- * failure reason from this payload.
+ * A failed checkout — final, after SUQO's own retries. `status` is always `"failed"`; the specific
+ * failure reason is deliberately not in the payload.
  */
-export interface CheckoutFailedEvent extends SubscriptionWebhookEventBase {
+export interface CheckoutFailedEvent extends CheckoutWebhookEventBase {
   event: "checkout.failed";
-  /** Decimal string. Never coerced to a number — SDK-SPEC.md §9. */
-  amount: string;
   status: "failed";
 }
 
@@ -53,8 +68,9 @@ export interface CheckoutFailedEvent extends SubscriptionWebhookEventBase {
  * §9's prose still says `subscription.status.change`; that's the doc that's stale, not this type
  * (docs/implementation-plan.md Ticket 0 item 2).
  */
-export interface SubscriptionStatusChangedEvent extends SubscriptionWebhookEventBase {
+export interface SubscriptionStatusChangedEvent {
   event: "subscription.status_changed";
+  subscription_id: string;
   previous_status: SubscriptionStatus;
   current_status: SubscriptionStatus;
   /** ISO 8601 timestamp. */

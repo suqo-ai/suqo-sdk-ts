@@ -26,13 +26,15 @@ function sign(rawBody: string, timestamp: string): string {
   return `sha256=${hex}`;
 }
 
-// A real checkout.succeeded delivery — see docs/user/webhooks.md for the confirmed event shapes.
-// Event payloads stay snake_case on the wire, unlike every other model in this SDK.
+// A checkout.succeeded delivery in the 2.0.0 shape — one per checkout session, keyed by
+// session_id — see docs/user/webhooks.md. Event payloads stay snake_case on the wire, unlike every
+// other model in this SDK.
 const rawBody = JSON.stringify({
   event: "checkout.succeeded",
-  subscription_id: "9e385de0-ecf3-426e-928e-9eb70c74312c",
+  session_id: "cks_3n9k2xQ7m",
   amount: "500.00", // decimal string — never a number, even in the raw wire payload
   status: "succeeded",
+  items: [{ pbp_id: "pbp_3n9k2x" }],
 });
 const timestamp = String(Math.floor(Date.now() / 1000));
 

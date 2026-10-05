@@ -172,7 +172,7 @@ customers.update(id: string, params: UpdateCustomerParams) -> Customer   // thro
 |---|---|
 | Write-side names differ from read-side | `phone`/`email` are sent as-is and read back as `buyer_phone`/`buyer_email`. The params keep the write names rather than borrowing the read side's `buyer*` prefix. |
 | Only set keys are sent | `undefined` fields are dropped from the body; `""` is passed through, since on `update()` it means "clear this field". |
-| `create()` on an existing phone | The API updates that customer and answers `200` instead of `201`; both resolve to the `Customer`. |
+| `create()` on an existing phone | The API updates that customer and answers `200` instead of `201`; both resolve to the `Customer`. **Superseded in 2.0.0** — `email` is required and identifies the buyer; see the 2.0.0 section below. |
 | `update()` is the SDK's only `PATCH` | `HttpClient` gained a `PATCH` branch for it. Like every write, it's never retried (SDK-SPEC.md §8). |
 
 ### Conformance checklist — Step E writes
@@ -211,7 +211,7 @@ subscriptions.resume(id: string) -> MessageResponse
 
 | Rule | Detail |
 |---|---|
-| `retrieve(id)` is **absent**, not stubbed | Still blocked on a real sample response from backend. Matches the Ticket 0 precedent of not building placeholders for unconfirmed shapes — the method simply doesn't exist yet, rather than existing and throwing. |
+| `retrieve(id)` is **absent**, not stubbed | Still blocked on a real sample response from backend. Matches the Ticket 0 precedent of not building placeholders for unconfirmed shapes — the method simply doesn't exist yet, rather than existing and throwing. **Superseded in 2.0.0** — built from Swagger's schema; see the 2.0.0 section below. |
 | `create()` routes through the customer boundary | `params.customer` is serialized via `serializeCustomerInput` (Step B) and nested under the wire's `client` key. |
 | `cancel`/`updateBillingCycle`/`resume` need no deserializer | `MessageResponse`'s one field (`message`) already matches the wire 1:1 — these three call `request<MessageResponse>()` directly. |
 | `cancel` is scheduled, not immediate | Confirmed with backend 2026-08-17 — status moves to `pending_cancellation`, stays active until period end. |
@@ -226,7 +226,7 @@ subscriptions.resume(id: string) -> MessageResponse
 - [ ] A duplicate-active-subscription 400 (`detail`-shaped) surfaces as `ValidationError.message`,
       not `fieldErrors` — proven end-to-end through `create()`, not just at the mapper level
       (Ticket 1 already covers the mapper itself).
-- [ ] No `retrieve` method exists on the resource at all.
+- [ ] ~~No `retrieve` method exists on the resource at all.~~ Superseded in 2.0.0 (see below).
 
 ---
 
@@ -260,6 +260,62 @@ is not attached here (Ticket 5) — it makes no network call and needs no key.
       that the resource method resolves.
 - [ ] Resource classes themselves are not exported from the public surface (`src/index.ts`) — only
       their instances, reached through `SuqoClient`.
+
+---
+
+## 2.0.0 — API sync (2026-10-05)
+
+The API changed its wire contract inside `/api/v1/` (new endpoints, a new checkout webhook payload,
+`email` identifying a customer), so the SDK follows as a major release. Names follow SDK Naming Map
+1.4; shapes follow `specs/openapi.yaml`.
+
+### New and changed signatures
+
+```
+checkoutSessions.create(params: CreateCheckoutSessionParams) -> CheckoutSessionResponse
+checkoutSessions.retrieve(id: string) -> CheckoutSession            // throws SuqoConfigError on "", ".", ".."
+subscriptions.retrieve(id: string) -> Subscription                  // throws SuqoConfigError on "", ".", ".."
+subscriptions.renew(subscriptionId: string) -> CheckoutSessionResponse
+customers.create(params: CreateCustomerParams) -> Customer           // email now required, phone optional
+```
+
+```mermaid
+classDiagram
+  class CreateCheckoutSessionParams { +items: CheckoutItemInput[] +returnUrl +customerId? }
+  class CatalogueItemInput { +pbpId }
+  class PartnerPricedItemInput { +name +amount +intervalType +intervalCount }
+  class CheckoutSessionResponse { +publicId +expiresAt +checkoutUrl }
+  class CheckoutSession { +publicId +lineItems: CheckoutLineItem[] +customerId +sellerDetails: CheckoutSeller +isExpired }
+  CreateCheckoutSessionParams o-- CatalogueItemInput
+  CreateCheckoutSessionParams o-- PartnerPricedItemInput
+  CheckoutSession o-- CheckoutLineItem
+  CheckoutSession o-- CheckoutSeller
+```
+
+| Rule | Detail |
+|---|---|
+| One shared link type | `checkoutSessions.create()` and `subscriptions.renew()` both return `CheckoutSessionResponse` — one wire schema, one deserializer (`deserializeCheckoutSessionResponse`, exported from `checkoutSessions.ts` for `subscriptions.ts`). |
+| Items are one shape or the other | `CatalogueItemInput` declares the partner-priced fields as `never` (and vice versa), so a mix is a compile error. At runtime the serializer sends only `pbp_id` when `pbpId` is set, so a non-literal object carrying both still can't send a mix. |
+| No discount field on partner-priced items | The docs say `amount` already includes any discount; Swagger lists an optional `discount_amount`. Not exposed until confirmed — adding it later is additive, removing it would break. |
+| `renew` takes the id positionally | Naming Map R8: one required scalar. It travels in the body (`{ subscription_id }`) on the singular `/api/v1/subscription/renew/` path — the wire path is kept exactly (R1). |
+| `CheckoutSession` from a captured response | `line_items` is an array and `is_expired` a boolean (Swagger says object and string). `imageUrls` is catalogue-only and `planName` partner-priced-only — each stays absent, not `null`, on the other kind; every other nullable key degrades to `null`. |
+| `subscriptions.retrieve` from Swagger | Reuses `deserializeSubscription`; not yet checked against a captured response. |
+| `customers.create` body | `email` always sent, `phone` only when given; `update()` still never sends `phone`. |
+| Product fields | `description`/`termsAndConditions`/`featuresAndBenefits`/plan `description`/`vatType`/`vatPercentage` are nullable and degrade to `null`; `type`/`intervalType`/`vatType` are loose unions (known values or any string, Naming Map §9); `offers` is `Offer[]`. |
+| Path-id guard shared | `assertPathId()` (`src/utils/`) replaces the customers-only guard, used by every method with an id in its path. |
+| Writes never auto-retry | `checkoutSessions.create`, `renew`, and the webhook writes — SDK-SPEC.md §8, §12. `checkoutSessions.create` is rate-limited; its `RateLimitError.retryAfter` falls back to the wait in the 429's `detail`. |
+
+### Conformance checklist — 2.0.0
+
+- [ ] `checkoutSessions.create()` sends `items` (each `{ pbp_id }` or `{ name, amount, interval_type, interval_count }`), `return_url`, and `customer_id` only when given.
+- [ ] A catalogue item never sends partner-priced keys, even from a non-literal object.
+- [ ] `checkoutSessions.create()` on a 429 throws `RateLimitError` with `retryAfter` from `detail`, after exactly one request.
+- [ ] `checkoutSessions.retrieve()` maps `line_items` to an array and `is_expired` to a boolean; a 404 is `NotFoundError` with `return_url` in `rawBody`.
+- [ ] `subscriptions.renew(id)` POSTs `{ subscription_id }` to `/api/v1/subscription/renew/` and returns the same `CheckoutSessionResponse` shape as `checkoutSessions.create()`.
+- [ ] `subscriptions.retrieve("")`/`(".")`/`("..")` throw `SuqoConfigError` before any request.
+- [ ] A bare-list 400 from `cancel`/`resume`/`renew` surfaces its message as `ValidationError.message`, `fieldErrors` empty.
+- [ ] `customers.create({ email })` sends `{ email }` alone.
+- [ ] Omitted nullable product keys come back `null`, never `undefined`; `offers` maps to camelCase `Offer`s.
 
 ---
 

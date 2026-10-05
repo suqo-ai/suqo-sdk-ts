@@ -197,27 +197,36 @@ describe("CustomersResource", () => {
     expect(result.buyerPhone).toBe("9800000000");
   });
 
-  it("create() resolves to the Customer on a 200 too (a phone the seller already holds updates that customer)", async () => {
+  it("create() resolves to the Customer on a 200 too (an email or phone the seller already holds updates that customer)", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(jsonResponse(wireCustomer, 200));
 
-    const result = await customers().create({ phone: "9800000000" });
+    const result = await customers().create({ email: "jane@example.com" });
 
     expect(result.id).toBe("cus_1ce18d624");
   });
 
-  it("create() leaves omitted optional fields out of the body entirely", async () => {
+  it("create() needs only email (2.0.0: email identifies the buyer) and leaves omitted optional fields — phone included — out of the body", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(jsonResponse(wireCustomer, 201));
 
-    await customers().create({ phone: "9800000000" });
+    await customers().create({ email: "jane@example.com" });
 
     const init = vi.mocked(fetch).mock.calls[0]![1];
-    expect(JSON.parse(init?.body as string)).toEqual({ phone: "9800000000" });
+    expect(JSON.parse(init?.body as string)).toEqual({ email: "jane@example.com" });
+  });
+
+  it("create() sends phone when given", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse(wireCustomer, 201));
+
+    await customers().create({ email: "jane@example.com", phone: "9800000000" });
+
+    const init = vi.mocked(fetch).mock.calls[0]![1];
+    expect(JSON.parse(init?.body as string)).toEqual({ email: "jane@example.com", phone: "9800000000" });
   });
 
   it("create() is never retried on a 5xx — it's a write (SDK-SPEC.md §8)", async () => {
     vi.mocked(fetch).mockResolvedValue(jsonResponse({ detail: "boom" }, 503));
 
-    await expect(customers().create({ phone: "9800000000" })).rejects.toThrow();
+    await expect(customers().create({ email: "jane@example.com" })).rejects.toThrow();
     expect(fetch).toHaveBeenCalledTimes(1);
   });
 

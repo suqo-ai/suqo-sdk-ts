@@ -4,8 +4,8 @@ info:
   version: 1.0.0
   description: >
     Public, API-key-authenticated endpoints for third-party consumers. Read your
-    products, create and manage subscriptions, and list your customers directly
-    from your own software.
+    products, collect payment through checkout sessions, manage subscriptions,
+    customers and webhook registrations directly from your own software.
 
     This document is the single source of truth for the SUQO SDKs. Language SDKs
     generate their request/response models from it; the human docs at
@@ -20,16 +20,24 @@ info:
     - Authentication is a bearer API key: header `Authorization: Bearer <api_key>`.
       There is no X-Api-Key header.
 
-    - Two error shapes exist. Field validation errors are keyed by field name with
-      an array-or-string message: `{"field": ["msg"]}`. General errors (auth,
-      not-found) use `{"detail": "msg"}`. SDK error mapping MUST handle both.
+    - Three 400 shapes exist. Field validation errors are keyed by field name
+      with an array-or-string message: `{"field": ["msg"]}`. General errors use
+      `{"detail": "msg"}`. Endpoints that take no body to key a field on (cancel,
+      resume, renew) answer with a bare list: `["msg"]`. SDK error mapping MUST
+      handle all three.
 
-    - Rate limiting is NOT yet enforced. It is reserved and will be introduced
-      later (see the SDK spec "Rate limiting — coming later" section).
+    - Two 403 shapes exist, told apart by the body: KYC not cleared carries
+      `status_code` + `message` and no `detail`; any other refusal carries
+      `detail` alone. KYC is not enforced on the sandbox, and products and the
+      webhook routes never require it.
+
+    - Rate limiting applies to `POST /checkout-sessions/` only: 20 sessions a
+      minute per account, answered with 429 and the wait named inside `detail`
+      ("…available in 41 seconds"). No `Retry-After` header is sent.
 
     - Idempotency (X-Idempotency-Key) is NOT implemented. It is on the backlog.
-      Until it ships, write operations (create, cancel, update-billing-cycle)
-      are NOT safe to auto-retry.
+      Until it ships, every write (POST, PATCH, PUT, DELETE) is NOT safe to
+      auto-retry.
 
 servers:
   - url: https://be.suqo.ai
@@ -43,10 +51,14 @@ security:
 tags:
   - name: Products
     description: List active products with plans, billing periods, and VAT config.
+  - name: CheckoutSessions
+    description: Open and read checkout sessions — the recommended way to collect payment.
   - name: Subscriptions
-    description: List, create, cancel, and set the billing cycle of subscriptions.
+    description: List, retrieve, cancel, resume, renew and reschedule subscriptions. Creating one directly is legacy.
   - name: Customers
     description: List, retrieve, create and update customers. No delete.
+  - name: Webhooks
+    description: Manage which endpoint receives which event. Verifying deliveries is local (SDK-SPEC.md §9).
 
 paths:
   /api/v1/products/:
@@ -95,22 +107,25 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/SubscriptionListEnvelope' }
         '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/KycRequired' }
+        '403': { $ref: '#/components/responses/Forbidden' }
     post:
       operationId: createSubscription
       tags: [Subscriptions]
-      summary: Create a subscription
+      summary: Create a subscription (legacy)
       description: >
+        LEGACY — still supported, but new integrations should use
+        `POST /checkout-sessions/`, which takes up to ten items in one payment.
+        `client.email` identifies the buyer. A buyer may hold only one live
+        recurring subscription per product; a second one on any billing period
+        of the same product is refused with a bare-list 400. An inactive
+        subscription is restarted with `POST /subscription/renew/`, not by
+        creating a new one.
+
         Creates a subscription in `pending_checkout` state (no billing cycle set
         yet) and returns a checkout URL for the buyer to pay. Redirect the buyer
         to `checkout_url`; SUQO runs the whole payment flow and returns them to
         your `return_url`. The return does NOT prove payment — learn the outcome
         via the `checkout.succeeded` / `checkout.failed` webhooks.
-
-        Reuse behaviour: an inactive/expired subscription for the same buyer +
-        product + billing period is reactivated (reset to a clean
-        `pending_checkout`) rather than duplicated. Only a currently ACTIVE one
-        triggers the duplicate error.
 
         NOTE (write op): not auto-retryable until idempotency ships.
       requestBody:
@@ -127,11 +142,15 @@ paths:
         '400':
           description: >
             Validation error. Known triggers: unknown/invisible `pbp_id`;
-            account has no API usage type; `return_url` missing; an active
-            subscription already exists for this buyer + product + billing period.
+            account has no API usage type; `return_url` missing (field-keyed);
+            the buyer already holds a live subscription on another billing
+            period of the same product (a bare list).
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/FieldError' }
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/FieldError'
+                  - $ref: '#/components/schemas/MessageList'
               examples:
                 unknownPbp:
                   value: { pbp_id: "PlanBillingPeriod with public_id '...' does not exist or is not visible." }
@@ -139,10 +158,10 @@ paths:
                   value: { api_usage_type: "Your account does not have an API usage type configured." }
                 missingReturnUrl:
                   value: { return_url: "A return URL is required for reminder-and-payment accounts." }
-                duplicateActive:
-                  value: { detail: "An active subscription already exists for this buyer, product, and billing period." }
+                duplicateSubscription:
+                  value: ["You already have a subscription to this product."]
         '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/KycRequired' }
+        '403': { $ref: '#/components/responses/Forbidden' }
 
   /api/v1/subscriptions/{id}/cancel/:
     post:
@@ -151,7 +170,9 @@ paths:
       summary: Cancel a subscription
       description: >
         Schedules cancellation for the end of the current billing period. No
-        request body. Status moves to `pending_cancellation`; the subscription
+        request body. A subscription already cancelled or pending cancellation
+        is returned unchanged (200), so a retry is safe. One-time purchases
+        cannot be cancelled (bare-list 400). Status moves to `pending_cancellation`; the subscription
         stays active until the period ends, then transitions to `cancelled`.
         Immediate cancellation (setting `is_inactive = true` right away) is
         planned for a future release — not current behaviour (confirmed with
@@ -171,8 +192,9 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Message' }
               example: { message: "Subscription will be cancelled at the end of the current billing period." }
+        '400': { $ref: '#/components/responses/MessageListError' }
         '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/KycRequired' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
 
   /api/v1/subscriptions/update-billing-cycle/:
@@ -208,7 +230,7 @@ paths:
                 notFound:
                   value: { subscription_id: "Subscription '...' does not exist." }
         '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/KycRequired' }
+        '403': { $ref: '#/components/responses/Forbidden' }
 
   /api/v1/subscriptions/{id}/resume/:
     post:
@@ -216,10 +238,9 @@ paths:
       tags: [Subscriptions]
       summary: Resume a subscription
       description: >
-        Resumes a subscription. Confirmed public with backend (2026-08-18);
-        the response shape below matches Swagger's example but is not
-        independently confirmed the way Customers was — treated as
-        likely-correct-but-unverified (docs/implementation-plan.md Ticket 4).
+        Undoes a scheduled cancellation and returns the subscription to
+        `active`. An already-active subscription is returned unchanged.
+        One-time purchases cannot be resumed (bare-list 400).
 
         NOTE (write op): not auto-retryable until idempotency ships.
       parameters:
@@ -235,18 +256,321 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Message' }
               example: { message: "Subscription resumed." }
+        '400': { $ref: '#/components/responses/MessageListError' }
         '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/KycRequired' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
 
-  # -------------------------------------------------------------------------
-  # subscriptions/{id}/ (retrieve) is intentionally NOT specified here yet.
-  # The route exists and is public, but its real response shape is
-  # unconfirmed — Swagger collapses `client`/`product` to plain "string" for
-  # it, the same tool-limitation seen elsewhere, so it can't be trusted as a
-  # source. Do not add it until backend sends a real sample response
-  # (docs/implementation-plan.md Ticket 4).
-  # -------------------------------------------------------------------------
+  /api/v1/subscriptions/{id}/:
+    get:
+      operationId: retrieveSubscription
+      tags: [Subscriptions]
+      summary: Retrieve a subscription
+      description: >
+        Returns one of your own subscriptions. Shape from Swagger (2.0.0); not
+        yet checked against a captured response.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+          description: Subscription UUID.
+      responses:
+        '200':
+          description: The subscription.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Subscription' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/v1/subscription/renew/:
+    post:
+      operationId: renewSubscription
+      tags: [Subscriptions]
+      summary: Renew a subscription
+      description: >
+        Opens a checkout session for the next payment on one of your own
+        subscriptions, reusing its customer and billing period (or inline item).
+        Note the SINGULAR `subscription` in the path — that is the real route.
+        A cancelled or archived subscription, or a paid one-time purchase,
+        cannot be renewed (bare-list 400).
+
+        NOTE (write op): not auto-retryable until idempotency ships.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RenewSubscriptionRequest' }
+      responses:
+        '201':
+          description: Checkout session opened.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CheckoutSessionResponse' }
+        '400': { $ref: '#/components/responses/MessageListError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/v1/checkout-sessions/:
+    post:
+      operationId: createCheckoutSession
+      tags: [CheckoutSessions]
+      summary: Open a checkout session
+      description: >
+        Opens a session for one to ten items and returns a URL for the buyer to
+        pay, valid for about 30 minutes. Each item is either a catalogue item
+        (`pbp_id` alone) or a partner-priced item (`name`, `amount`,
+        `interval_type`, `interval_count` together) — never a mix. Prices are
+        snapshotted at creation. If two items resolve to the same product, only
+        the last is kept, silently. With `customer_id`, the buyer goes straight
+        to payment; without it, they enter their full name, email, phone and
+        address at checkout. The outcome arrives on `checkout.succeeded` /
+        `checkout.failed`, keyed by `session_id` (this `public_id`).
+
+        The one rate-limited endpoint: 20 sessions a minute per account.
+
+        NOTE (write op): not auto-retryable until idempotency ships.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateCheckoutSessionRequest' }
+      responses:
+        '201':
+          description: Checkout session opened.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CheckoutSessionResponse' }
+        '400':
+          description: An item, the customer or the return URL was rejected.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FieldError' }
+              example: { return_url: ["A return URL is required."] }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /api/v1/checkout-sessions/{public_id}/:
+    get:
+      operationId: retrieveCheckoutSession
+      tags: [CheckoutSessions]
+      summary: Retrieve a checkout session
+      description: >
+        Reads one of your own OPEN sessions. Once paid or past `expires_at` it
+        answers 404, as does an unknown id or another account's. Shape confirmed
+        against a captured response (2026-10-05): `line_items` is an array and
+        `is_expired` a boolean (Swagger says object and string).
+      parameters:
+        - name: public_id
+          in: path
+          required: true
+          schema: { type: string }
+          description: The session's `cks_…` id.
+      responses:
+        '200':
+          description: The open session.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CheckoutSession' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404':
+          description: >
+            No open session with this id. `return_url` is the session's own when
+            it exists but is paid or expired, blank otherwise.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  detail: { type: string }
+                  return_url: { type: string }
+
+  /api/v1/webhooks/:
+    get:
+      operationId: listWebhooks
+      tags: [Webhooks]
+      summary: List webhooks
+      description: Every webhook registered by your account. Not paginated.
+      responses:
+        '200':
+          description: All registrations.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Webhook' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/PermissionDenied' }
+    post:
+      operationId: createWebhook
+      tags: [Webhooks]
+      summary: Register a webhook
+      description: >
+        Subscribes an https endpoint to one event. One webhook per event per
+        account; the endpoint must resolve only to public addresses.
+
+        NOTE (write op): not auto-retryable until idempotency ships.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateWebhookRequest' }
+      responses:
+        '201':
+          description: Registered.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Webhook' }
+        '400':
+          description: The event is already taken, or the endpoint was rejected.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FieldError' }
+              example: { event: ["A webhook for this event already exists."] }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/PermissionDenied' }
+
+  /api/v1/webhooks/secret/:
+    get:
+      operationId: retrieveWebhookSecret
+      tags: [Webhooks]
+      summary: Retrieve the signing secret
+      description: >
+        Returns the account's signing secret, creating it on the first read.
+        Not rotatable through this API.
+      responses:
+        '200':
+          description: The signing secret.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WebhookSecret' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/PermissionDenied' }
+
+  /api/v1/webhooks/{public_id}/:
+    parameters:
+      - name: public_id
+        in: path
+        required: true
+        schema: { type: string }
+        description: The webhook's `whk_…` id.
+    get:
+      operationId: retrieveWebhook
+      tags: [Webhooks]
+      summary: Retrieve a webhook
+      responses:
+        '200':
+          description: The registration.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Webhook' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/PermissionDenied' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      operationId: replaceWebhook
+      tags: [Webhooks]
+      summary: Replace a webhook
+      description: >
+        Overwrites the event, endpoint and active flag. `event` and
+        `endpoint_url` are both required. Swagger's operationId is
+        `webhooks_update`; registered as `replace` in the SDK so `update`
+        means a partial change on every resource (Naming Map 1.4).
+
+        NOTE (write op): not auto-retryable until idempotency ships.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ReplaceWebhookRequest' }
+      responses:
+        '200':
+          description: Replaced.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Webhook' }
+        '400':
+          description: The event is already taken, or the endpoint was rejected.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FieldError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/PermissionDenied' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      operationId: updateWebhook
+      tags: [Webhooks]
+      summary: Update a webhook
+      description: >
+        Changes only the fields sent — `{"is_active": false}` pauses deliveries.
+
+        NOTE (write op): not auto-retryable until idempotency ships.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateWebhookRequest' }
+      responses:
+        '200':
+          description: Updated.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Webhook' }
+        '400':
+          description: The event is already taken, or the endpoint was rejected.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FieldError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/PermissionDenied' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      operationId: deleteWebhook
+      tags: [Webhooks]
+      summary: Delete a webhook
+      description: >
+        Removes the registration. Past delivery records are kept.
+
+        NOTE (write op): not auto-retryable until idempotency ships.
+      responses:
+        '204':
+          description: Deleted. No body.
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/PermissionDenied' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/v1/webhooks/{public_id}/test-delivery/:
+    post:
+      operationId: testWebhookDelivery
+      tags: [Webhooks]
+      summary: Send a test delivery
+      description: >
+        Queues a signed test payload to the endpoint. Returns once queued; the
+        delivery is asynchronous. The test body differs from a real event's
+        (fields under `data`).
+
+        NOTE (write op): not auto-retryable until idempotency ships.
+      parameters:
+        - name: public_id
+          in: path
+          required: true
+          schema: { type: string }
+          description: The webhook's `whk_…` id.
+      responses:
+        '202':
+          description: Queued.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DetailError' }
+              example: { detail: "Test webhook enqueued." }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/PermissionDenied' }
+        '404': { $ref: '#/components/responses/NotFound' }
 
   /api/v1/customers/:
     get:
@@ -272,7 +596,7 @@ paths:
                         type: array
                         items: { $ref: '#/components/schemas/Customer' }
         '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/KycRequired' }
+        '403': { $ref: '#/components/responses/Forbidden' }
 
     post:
       operationId: createCustomer
@@ -280,11 +604,12 @@ paths:
       summary: Create a customer
       description: >
         Records a customer on the seller's account without opening a
-        subscription. `phone` identifies the buyer. The name, email and address
-        are the seller's own copy and are not shared with other sellers. A phone
-        the seller already holds updates that customer and returns 200 instead
-        of 201, which makes this safe to retry. The `phone` and `email` sent
-        here read back as `buyer_phone` and `buyer_email`.
+        subscription. `email` identifies the buyer and is required; `phone` is
+        optional. The name and address are the seller's own copy and are not
+        shared with other sellers. An email or phone the seller already holds
+        updates that customer and returns 200 instead of 201, which makes this
+        safe to retry. The `phone` and `email` sent here read back as
+        `buyer_phone` and `buyer_email`.
 
         NOTE (write op): not auto-retried by the SDK.
       requestBody:
@@ -294,7 +619,7 @@ paths:
             schema: { $ref: '#/components/schemas/CreateCustomerRequest' }
       responses:
         '200':
-          description: A customer with this phone already existed and was updated.
+          description: A customer with this email or phone already existed and was updated.
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Customer' }
@@ -309,7 +634,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/FieldError' }
         '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/KycRequired' }
+        '403': { $ref: '#/components/responses/Forbidden' }
 
   /api/v1/customers/{id}/:
     get:
@@ -332,7 +657,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Customer' }
         '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/KycRequired' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
     patch:
       operationId: updateCustomer
@@ -367,7 +692,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/FieldError' }
         '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/KycRequired' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
 
 components:
@@ -401,12 +726,41 @@ components:
         application/json:
           schema: { $ref: '#/components/schemas/DetailError' }
           example: { detail: "Invalid or inactive API key." }
-    KycRequired:
-      description: Owner not KYC-verified.
+    Forbidden:
+      description: >
+        Two shapes, told apart by the body. KYC not cleared: `status_code` +
+        `message`, no `detail` (SDK: KycRequiredError). Any other refusal:
+        `detail` alone (SDK: PermissionDeniedError). KYC is not enforced on the
+        sandbox.
       content:
         application/json:
-          schema: { $ref: '#/components/schemas/KycError' }
-          example: { status_code: "<kyc_status>", message: "KYC verification needed to perform this action." }
+          schema:
+            oneOf:
+              - $ref: '#/components/schemas/KycError'
+              - $ref: '#/components/schemas/DetailError'
+          example: { status_code: "KYC_VERIFICATION_PENDING", message: "KYC verification needed to perform this action." }
+    PermissionDenied:
+      description: The key may not perform this action (SDK PermissionDeniedError). Never KYC-shaped.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/DetailError' }
+          example: { detail: "You do not have permission to perform this action." }
+    RateLimited:
+      description: >
+        Rate limit exceeded. The wait is named inside `detail`, not in a
+        Retry-After header.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/DetailError' }
+          example: { detail: "Request was throttled. Expected available in 41 seconds." }
+    MessageListError:
+      description: >
+        Rejected, on an endpoint with no body to key a field on — a bare list of
+        messages, not a field-keyed object.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/MessageList' }
+          example: ["This is a one-time purchase, so there is nothing to cancel."]
     NotFound:
       description: Resource not found.
       content:
@@ -538,7 +892,7 @@ components:
       properties:
         phone:
           type: string
-          description: Buyer identity — matches or creates the buyer.
+          description: Nepali mobile number. The buyer is identified by `email`, not this.
         full_name: { type: string }
         email: { type: string }
         address: { type: string }
@@ -599,17 +953,21 @@ components:
       properties:
         product_id: { type: string, description: Product UUID. }
         name: { type: string }
-        description: { type: string }
-        type: { type: string }
+        description: { type: [string, 'null'] }
+        type: { type: string, enum: [simple, tiered] }
         is_active: { type: boolean }
-        terms_and_conditions: { type: string }
-        features_and_benefits: { type: string }
+        terms_and_conditions: { type: [string, 'null'] }
+        features_and_benefits: { type: [string, 'null'] }
         vat:
           type: [object, 'null']
           properties:
             is_vat_active: { type: boolean }
-            vat_type: { type: string }
-            vat_percentage: { type: string }
+            vat_type: { type: [string, 'null'], enum: [inclusive, exclusive, null] }
+            vat_percentage:
+              type: [string, 'null']
+              description: >
+                Decimal string (e.g. "13.00"). Swagger declares `number`;
+                confirmed as a string (2026-10-02).
         product_image:
           type: array
           description: >
@@ -637,7 +995,7 @@ components:
       properties:
         plan_id: { type: string }
         plan_name: { type: string }
-        description: { type: string }
+        description: { type: [string, 'null'] }
         billing_periods:
           type: array
           items: { $ref: '#/components/schemas/BillingPeriod' }
@@ -648,7 +1006,13 @@ components:
         pbp_id:
           type: string
           description: Public id — pass this to create a subscription.
-        interval_type: { type: string, example: month }
+        interval_type:
+          type: string
+          enum: [day, week, month, year, one_time]
+          description: >
+            `one_time` is a single purchase, not a cadence: no next billing date,
+            excluded from the subscription list counters, and it cannot be
+            cancelled, resumed or rescheduled.
         interval_count: { type: integer }
         label: { type: string }
         price: { type: string, description: Decimal string. }
@@ -658,7 +1022,25 @@ components:
         is_archived: { type: boolean }
         offers:
           type: array
-          items: {}
+          items: { $ref: '#/components/schemas/Offer' }
+
+    Offer:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        discount_amount:
+          type: integer
+          description: >
+            Whole units of the currency (rupees, not paisa). Already applied to
+            the billing period's `price` while active — do not subtract again.
+        starts_at: { type: [string, 'null'], format: date }
+        valid_until: { type: [string, 'null'], format: date }
+        is_active: { type: boolean }
+
+    MessageList:
+      type: array
+      description: A bare list of messages — the 400 body on endpoints with no request body.
+      items: { type: string }
 
     Message:
       type: object
@@ -690,21 +1072,21 @@ components:
 
     CreateCustomerRequest:
       type: object
-      required: [phone]
+      required: [email]
       properties:
+        email:
+          type: string
+          format: email
+          description: Identifies the buyer. Reads back as `buyer_email`.
         phone:
           type: string
           maxLength: 15
           description: >
-            Identifies the buyer and cannot be changed once set. Reads back as
-            `buyer_phone`. Nepali mobile number: 10 digits starting with 96, 97
-            or 98. A +977 country code, a leading 0, spaces and dashes are
-            accepted and stripped.
+            Optional. Cannot be changed once set. Reads back as `buyer_phone`.
+            Nepali mobile number: 10 digits starting with 96, 97 or 98. A +977
+            country code, a leading 0, spaces and dashes are accepted and
+            stripped.
         full_name: { type: [string, 'null'], maxLength: 255 }
-        email:
-          type: [string, 'null']
-          format: email
-          description: Reads back as `buyer_email`.
         address: { type: [string, 'null'] }
 
     UpdateCustomerRequest:
@@ -722,6 +1104,157 @@ components:
           description: >
             Optional, and only at its current value — the phone identifies the
             buyer, so a different number is rejected. The SDK never sends it.
+
+    RenewSubscriptionRequest:
+      type: object
+      required: [subscription_id]
+      properties:
+        subscription_id: { type: string, format: uuid }
+
+    CreateCheckoutSessionRequest:
+      type: object
+      required: [items, return_url]
+      properties:
+        items:
+          type: array
+          minItems: 1
+          maxItems: 10
+          items:
+            oneOf:
+              - $ref: '#/components/schemas/CatalogueItemInput'
+              - $ref: '#/components/schemas/PartnerPricedItemInput'
+        return_url: { type: string, format: uri }
+        customer_id:
+          type: [string, 'null']
+          description: >
+            A `cus_…` on your account. Omitted, null or "" lets the buyer enter
+            their full name, email, phone and address at checkout.
+
+    CatalogueItemInput:
+      type: object
+      required: [pbp_id]
+      additionalProperties: false
+      properties:
+        pbp_id: { type: string, description: Existing billing period to charge. }
+
+    PartnerPricedItemInput:
+      type: object
+      required: [name, amount, interval_type, interval_count]
+      description: >
+        A partner-priced item. `amount` must already include any discount — the
+        docs state there is no separate discount field (Swagger lists an
+        optional `discount_amount`; not exposed by the SDK pending
+        confirmation).
+      properties:
+        name: { type: string }
+        amount: { type: string, description: Decimal string. }
+        interval_type: { type: string, enum: [day, week, month, year, one_time] }
+        interval_count:
+          type: integer
+          description: >
+            1-1095 for day, 1-156 for week, 1-36 for month, 1-3 for year; must
+            be 0 for one_time.
+
+    CheckoutSessionResponse:
+      type: object
+      required: [public_id, expires_at, checkout_url]
+      properties:
+        public_id: { type: string, description: "`cks_…` — also `session_id` on the checkout webhooks." }
+        expires_at: { type: string, description: ISO 8601; may carry a +05:45 offset. }
+        checkout_url: { type: string, format: uri }
+
+    CheckoutSession:
+      type: object
+      properties:
+        public_id: { type: string }
+        line_items:
+          type: array
+          items: { $ref: '#/components/schemas/CheckoutLineItem' }
+        customer_id: { type: [string, 'null'] }
+        seller_details: { $ref: '#/components/schemas/CheckoutSeller' }
+        return_url: { type: string, format: uri }
+        expires_at: { type: string }
+        completed_at: { type: [string, 'null'] }
+        is_expired: { type: boolean }
+
+    CheckoutLineItem:
+      type: object
+      properties:
+        name: { type: string }
+        amount: { type: string, description: Decimal string. }
+        pbp_id: { type: [string, 'null'], description: null for a partner-priced item. }
+        currency: { type: string }
+        vat_type: { type: [string, 'null'] }
+        vat_percentage: { type: [string, 'null'] }
+        discount_amount: { type: [string, 'null'] }
+        interval_type: { type: string, enum: [day, week, month, year, one_time] }
+        interval_count: { type: integer }
+        display_label: { type: string }
+        current_period_end: { type: [string, 'null'] }
+        extends_to: { type: [string, 'null'], format: date }
+        next_payment_due: { type: [string, 'null'], format: date }
+        image_urls:
+          type: array
+          items: { type: string }
+          description: Catalogue items only.
+        plan_name: { type: [string, 'null'], description: Partner-priced items only. }
+
+    CheckoutSeller:
+      type: object
+      properties:
+        id: { type: string }
+        phone: { type: string }
+        business_logo: { type: [string, 'null'], format: uri }
+        business_name: { type: string }
+
+    WebhookEventName:
+      type: string
+      enum:
+        - checkout.succeeded
+        - checkout.failed
+        - subscription.status_changed
+        - api_key.created
+        - api_key.deleted
+        - api_key.expiring_soon
+        - api_key.expired
+
+    Webhook:
+      type: object
+      properties:
+        id: { type: string, description: "`whk_…`" }
+        event: { $ref: '#/components/schemas/WebhookEventName' }
+        endpoint_url: { type: string, format: uri }
+        is_active: { type: boolean }
+        created_at: { type: string, format: date-time }
+
+    CreateWebhookRequest:
+      type: object
+      required: [event, endpoint_url]
+      properties:
+        event: { $ref: '#/components/schemas/WebhookEventName' }
+        endpoint_url: { type: string, format: uri, maxLength: 200 }
+        is_active: { type: boolean }
+
+    ReplaceWebhookRequest:
+      type: object
+      required: [event, endpoint_url]
+      properties:
+        event: { $ref: '#/components/schemas/WebhookEventName' }
+        endpoint_url: { type: string, format: uri, maxLength: 200 }
+        is_active: { type: boolean }
+
+    UpdateWebhookRequest:
+      type: object
+      description: Send only the fields being changed; none is required.
+      properties:
+        event: { $ref: '#/components/schemas/WebhookEventName' }
+        endpoint_url: { type: string, format: uri, maxLength: 200 }
+        is_active: { type: boolean }
+
+    WebhookSecret:
+      type: object
+      properties:
+        signing_secret: { type: string, description: "`whsec_…`" }
 
     DetailError:
       type: object
@@ -745,5 +1278,8 @@ components:
       type: object
       description: 403 when the owning seller is not KYC-verified.
       properties:
-        status_code: { type: string, description: The KYC status code. }
+        status_code:
+          type: string
+          enum: [KYC_INCOMPLETE, KYC_VERIFICATION_PENDING]
+          description: The KYC status code.
         message: { type: string }

@@ -38,9 +38,9 @@ export interface paths {
         get: operations["listSubscriptions"];
         put?: never;
         /**
-         * Create a subscription
-         * @description Creates a subscription in `pending_checkout` state (no billing cycle set yet) and returns a checkout URL for the buyer to pay. Redirect the buyer to `checkout_url`; SUQO runs the whole payment flow and returns them to your `return_url`. The return does NOT prove payment — learn the outcome via the `checkout.succeeded` / `checkout.failed` webhooks.
-         *     Reuse behaviour: an inactive/expired subscription for the same buyer + product + billing period is reactivated (reset to a clean `pending_checkout`) rather than duplicated. Only a currently ACTIVE one triggers the duplicate error.
+         * Create a subscription (legacy)
+         * @description LEGACY — still supported, but new integrations should use `POST /checkout-sessions/`, which takes up to ten items in one payment. `client.email` identifies the buyer. A buyer may hold only one live recurring subscription per product; a second one on any billing period of the same product is refused with a bare-list 400. An inactive subscription is restarted with `POST /subscription/renew/`, not by creating a new one.
+         *     Creates a subscription in `pending_checkout` state (no billing cycle set yet) and returns a checkout URL for the buyer to pay. Redirect the buyer to `checkout_url`; SUQO runs the whole payment flow and returns them to your `return_url`. The return does NOT prove payment — learn the outcome via the `checkout.succeeded` / `checkout.failed` webhooks.
          *     NOTE (write op): not auto-retryable until idempotency ships.
          */
         post: operations["createSubscription"];
@@ -61,7 +61,7 @@ export interface paths {
         put?: never;
         /**
          * Cancel a subscription
-         * @description Schedules cancellation for the end of the current billing period. No request body. Status moves to `pending_cancellation`; the subscription stays active until the period ends, then transitions to `cancelled`. Immediate cancellation (setting `is_inactive = true` right away) is planned for a future release — not current behaviour (confirmed with backend 2026-08-17).
+         * @description Schedules cancellation for the end of the current billing period. No request body. A subscription already cancelled or pending cancellation is returned unchanged (200), so a retry is safe. One-time purchases cannot be cancelled (bare-list 400). Status moves to `pending_cancellation`; the subscription stays active until the period ends, then transitions to `cancelled`. Immediate cancellation (setting `is_inactive = true` right away) is planned for a future release — not current behaviour (confirmed with backend 2026-08-17).
          *     NOTE (write op): not auto-retryable until idempotency ships.
          */
         post: operations["cancelSubscription"];
@@ -103,10 +103,194 @@ export interface paths {
         put?: never;
         /**
          * Resume a subscription
-         * @description Resumes a subscription. Confirmed public with backend (2026-08-18); the response shape below matches Swagger's example but is not independently confirmed the way Customers was — treated as likely-correct-but-unverified (docs/implementation-plan.md Ticket 4).
+         * @description Undoes a scheduled cancellation and returns the subscription to `active`. An already-active subscription is returned unchanged. One-time purchases cannot be resumed (bare-list 400).
          *     NOTE (write op): not auto-retryable until idempotency ships.
          */
         post: operations["resumeSubscription"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/subscriptions/{id}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Retrieve a subscription
+         * @description Returns one of your own subscriptions. Shape from Swagger (2.0.0); not yet checked against a captured response.
+         */
+        get: operations["retrieveSubscription"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/subscription/renew/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Renew a subscription
+         * @description Opens a checkout session for the next payment on one of your own subscriptions, reusing its customer and billing period (or inline item). Note the SINGULAR `subscription` in the path — that is the real route. A cancelled or archived subscription, or a paid one-time purchase, cannot be renewed (bare-list 400).
+         *     NOTE (write op): not auto-retryable until idempotency ships.
+         */
+        post: operations["renewSubscription"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/checkout-sessions/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Open a checkout session
+         * @description Opens a session for one to ten items and returns a URL for the buyer to pay, valid for about 30 minutes. Each item is either a catalogue item (`pbp_id` alone) or a partner-priced item (`name`, `amount`, `interval_type`, `interval_count` together) — never a mix. Prices are snapshotted at creation. If two items resolve to the same product, only the last is kept, silently. With `customer_id`, the buyer goes straight to payment; without it, they enter their full name, email, phone and address at checkout. The outcome arrives on `checkout.succeeded` / `checkout.failed`, keyed by `session_id` (this `public_id`).
+         *     The one rate-limited endpoint: 20 sessions a minute per account.
+         *     NOTE (write op): not auto-retryable until idempotency ships.
+         */
+        post: operations["createCheckoutSession"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/checkout-sessions/{public_id}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Retrieve a checkout session
+         * @description Reads one of your own OPEN sessions. Once paid or past `expires_at` it answers 404, as does an unknown id or another account's. Shape confirmed against a captured response (2026-10-05): `line_items` is an array and `is_expired` a boolean (Swagger says object and string).
+         */
+        get: operations["retrieveCheckoutSession"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/webhooks/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List webhooks
+         * @description Every webhook registered by your account. Not paginated.
+         */
+        get: operations["listWebhooks"];
+        put?: never;
+        /**
+         * Register a webhook
+         * @description Subscribes an https endpoint to one event. One webhook per event per account; the endpoint must resolve only to public addresses.
+         *     NOTE (write op): not auto-retryable until idempotency ships.
+         */
+        post: operations["createWebhook"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/webhooks/secret/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Retrieve the signing secret
+         * @description Returns the account's signing secret, creating it on the first read. Not rotatable through this API.
+         */
+        get: operations["retrieveWebhookSecret"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/webhooks/{public_id}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The webhook's `whk_…` id. */
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        /** Retrieve a webhook */
+        get: operations["retrieveWebhook"];
+        /**
+         * Replace a webhook
+         * @description Overwrites the event, endpoint and active flag. `event` and `endpoint_url` are both required. Swagger's operationId is `webhooks_update`; registered as `replace` in the SDK so `update` means a partial change on every resource (Naming Map 1.4).
+         *     NOTE (write op): not auto-retryable until idempotency ships.
+         */
+        put: operations["replaceWebhook"];
+        post?: never;
+        /**
+         * Delete a webhook
+         * @description Removes the registration. Past delivery records are kept.
+         *     NOTE (write op): not auto-retryable until idempotency ships.
+         */
+        delete: operations["deleteWebhook"];
+        options?: never;
+        head?: never;
+        /**
+         * Update a webhook
+         * @description Changes only the fields sent — `{"is_active": false}` pauses deliveries.
+         *     NOTE (write op): not auto-retryable until idempotency ships.
+         */
+        patch: operations["updateWebhook"];
+        trace?: never;
+    };
+    "/api/v1/webhooks/{public_id}/test-delivery/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send a test delivery
+         * @description Queues a signed test payload to the endpoint. Returns once queued; the delivery is asynchronous. The test body differs from a real event's (fields under `data`).
+         *     NOTE (write op): not auto-retryable until idempotency ships.
+         */
+        post: operations["testWebhookDelivery"];
         delete?: never;
         options?: never;
         head?: never;
@@ -128,7 +312,7 @@ export interface paths {
         put?: never;
         /**
          * Create a customer
-         * @description Records a customer on the seller's account without opening a subscription. `phone` identifies the buyer. The name, email and address are the seller's own copy and are not shared with other sellers. A phone the seller already holds updates that customer and returns 200 instead of 201, which makes this safe to retry. The `phone` and `email` sent here read back as `buyer_phone` and `buyer_email`.
+         * @description Records a customer on the seller's account without opening a subscription. `email` identifies the buyer and is required; `phone` is optional. The name and address are the seller's own copy and are not shared with other sellers. An email or phone the seller already holds updates that customer and returns 200 instead of 201, which makes this safe to retry. The `phone` and `email` sent here read back as `buyer_phone` and `buyer_email`.
          *     NOTE (write op): not auto-retried by the SDK.
          */
         post: operations["createCustomer"];
@@ -259,7 +443,7 @@ export interface components {
         };
         /** @description When billing is omitted, billing info is filled from the buyer's profile. On a reused subscription, only non-null fields overwrite (partial refresh). */
         ClientWrite: {
-            /** @description Buyer identity — matches or creates the buyer. */
+            /** @description Nepali mobile number. The buyer is identified by `email`, not this. */
             phone: string;
             full_name: string;
             email: string;
@@ -316,15 +500,18 @@ export interface components {
             /** @description Product UUID. */
             product_id?: string;
             name?: string;
-            description?: string;
-            type?: string;
+            description?: string | null;
+            /** @enum {string} */
+            type?: "simple" | "tiered";
             is_active?: boolean;
-            terms_and_conditions?: string;
-            features_and_benefits?: string;
+            terms_and_conditions?: string | null;
+            features_and_benefits?: string | null;
             vat?: {
                 is_vat_active?: boolean;
-                vat_type?: string;
-                vat_percentage?: string;
+                /** @enum {string|null} */
+                vat_type?: "inclusive" | "exclusive" | null;
+                /** @description Decimal string (e.g. "13.00"). Swagger declares `number`; confirmed as a string (2026-10-02). */
+                vat_percentage?: string | null;
             } | null;
             /** @description Ordered images (blank images excluded). Each is an object, not a bare URL string (previously declared `items: { type: string }`, which never matched the wire). */
             product_image?: components["schemas"]["ProductImage"][];
@@ -345,14 +532,17 @@ export interface components {
         Plan: {
             plan_id?: string;
             plan_name?: string;
-            description?: string;
+            description?: string | null;
             billing_periods?: components["schemas"]["BillingPeriod"][];
         };
         BillingPeriod: {
             /** @description Public id — pass this to create a subscription. */
             pbp_id?: string;
-            /** @example month */
-            interval_type?: string;
+            /**
+             * @description `one_time` is a single purchase, not a cadence: no next billing date, excluded from the subscription list counters, and it cannot be cancelled, resumed or rescheduled.
+             * @enum {string}
+             */
+            interval_type?: "day" | "week" | "month" | "year" | "one_time";
             interval_count?: number;
             label?: string;
             /** @description Decimal string. */
@@ -362,8 +552,21 @@ export interface components {
             is_current?: boolean;
             is_limited?: boolean;
             is_archived?: boolean;
-            offers?: unknown[];
+            offers?: components["schemas"]["Offer"][];
         };
+        Offer: {
+            /** Format: uuid */
+            id?: string;
+            /** @description Whole units of the currency (rupees, not paisa). Already applied to the billing period's `price` while active — do not subtract again. */
+            discount_amount?: number;
+            /** Format: date */
+            starts_at?: string | null;
+            /** Format: date */
+            valid_until?: string | null;
+            is_active?: boolean;
+        };
+        /** @description A bare list of messages — the 400 body on endpoints with no request body. */
+        MessageList: string[];
         Message: {
             message?: string;
         };
@@ -379,14 +582,14 @@ export interface components {
             created_at: string;
         };
         CreateCustomerRequest: {
-            /** @description Identifies the buyer and cannot be changed once set. Reads back as `buyer_phone`. Nepali mobile number: 10 digits starting with 96, 97 or 98. A +977 country code, a leading 0, spaces and dashes are accepted and stripped. */
-            phone: string;
-            full_name?: string | null;
             /**
              * Format: email
-             * @description Reads back as `buyer_email`.
+             * @description Identifies the buyer. Reads back as `buyer_email`.
              */
-            email?: string | null;
+            email: string;
+            /** @description Optional. Cannot be changed once set. Reads back as `buyer_phone`. Nepali mobile number: 10 digits starting with 96, 97 or 98. A +977 country code, a leading 0, spaces and dashes are accepted and stripped. */
+            phone?: string;
+            full_name?: string | null;
             address?: string | null;
         };
         /** @description Send only the fields being changed; none is required. `""` clears a field. */
@@ -401,6 +604,116 @@ export interface components {
             /** @description Optional, and only at its current value — the phone identifies the buyer, so a different number is rejected. The SDK never sends it. */
             phone?: string;
         };
+        RenewSubscriptionRequest: {
+            /** Format: uuid */
+            subscription_id: string;
+        };
+        CreateCheckoutSessionRequest: {
+            items: (components["schemas"]["CatalogueItemInput"] | components["schemas"]["PartnerPricedItemInput"])[];
+            /** Format: uri */
+            return_url: string;
+            /** @description A `cus_…` on your account. Omitted, null or "" lets the buyer enter their full name, email, phone and address at checkout. */
+            customer_id?: string | null;
+        };
+        CatalogueItemInput: {
+            /** @description Existing billing period to charge. */
+            pbp_id: string;
+        };
+        /** @description A partner-priced item. `amount` must already include any discount — the docs state there is no separate discount field (Swagger lists an optional `discount_amount`; not exposed by the SDK pending confirmation). */
+        PartnerPricedItemInput: {
+            name: string;
+            /** @description Decimal string. */
+            amount: string;
+            /** @enum {string} */
+            interval_type: "day" | "week" | "month" | "year" | "one_time";
+            /** @description 1-1095 for day, 1-156 for week, 1-36 for month, 1-3 for year; must be 0 for one_time. */
+            interval_count: number;
+        };
+        CheckoutSessionResponse: {
+            /** @description `cks_…` — also `session_id` on the checkout webhooks. */
+            public_id: string;
+            /** @description ISO 8601; may carry a +05:45 offset. */
+            expires_at: string;
+            /** Format: uri */
+            checkout_url: string;
+        };
+        CheckoutSession: {
+            public_id?: string;
+            line_items?: components["schemas"]["CheckoutLineItem"][];
+            customer_id?: string | null;
+            seller_details?: components["schemas"]["CheckoutSeller"];
+            /** Format: uri */
+            return_url?: string;
+            expires_at?: string;
+            completed_at?: string | null;
+            is_expired?: boolean;
+        };
+        CheckoutLineItem: {
+            name?: string;
+            /** @description Decimal string. */
+            amount?: string;
+            /** @description null for a partner-priced item. */
+            pbp_id?: string | null;
+            currency?: string;
+            vat_type?: string | null;
+            vat_percentage?: string | null;
+            discount_amount?: string | null;
+            /** @enum {string} */
+            interval_type?: "day" | "week" | "month" | "year" | "one_time";
+            interval_count?: number;
+            display_label?: string;
+            current_period_end?: string | null;
+            /** Format: date */
+            extends_to?: string | null;
+            /** Format: date */
+            next_payment_due?: string | null;
+            /** @description Catalogue items only. */
+            image_urls?: string[];
+            /** @description Partner-priced items only. */
+            plan_name?: string | null;
+        };
+        CheckoutSeller: {
+            id?: string;
+            phone?: string;
+            /** Format: uri */
+            business_logo?: string | null;
+            business_name?: string;
+        };
+        /** @enum {string} */
+        WebhookEventName: "checkout.succeeded" | "checkout.failed" | "subscription.status_changed" | "api_key.created" | "api_key.deleted" | "api_key.expiring_soon" | "api_key.expired";
+        Webhook: {
+            /** @description `whk_…` */
+            id?: string;
+            event?: components["schemas"]["WebhookEventName"];
+            /** Format: uri */
+            endpoint_url?: string;
+            is_active?: boolean;
+            /** Format: date-time */
+            created_at?: string;
+        };
+        CreateWebhookRequest: {
+            event: components["schemas"]["WebhookEventName"];
+            /** Format: uri */
+            endpoint_url: string;
+            is_active?: boolean;
+        };
+        ReplaceWebhookRequest: {
+            event: components["schemas"]["WebhookEventName"];
+            /** Format: uri */
+            endpoint_url: string;
+            is_active?: boolean;
+        };
+        /** @description Send only the fields being changed; none is required. */
+        UpdateWebhookRequest: {
+            event?: components["schemas"]["WebhookEventName"];
+            /** Format: uri */
+            endpoint_url?: string;
+            is_active?: boolean;
+        };
+        WebhookSecret: {
+            /** @description `whsec_…` */
+            signing_secret?: string;
+        };
         /** @description General errors (auth, not-found). */
         DetailError: {
             detail?: string;
@@ -411,8 +724,11 @@ export interface components {
         };
         /** @description 403 when the owning seller is not KYC-verified. */
         KycError: {
-            /** @description The KYC status code. */
-            status_code?: string;
+            /**
+             * @description The KYC status code.
+             * @enum {string}
+             */
+            status_code?: "KYC_INCOMPLETE" | "KYC_VERIFICATION_PENDING";
             message?: string;
         };
     };
@@ -431,19 +747,61 @@ export interface components {
                 "application/json": components["schemas"]["DetailError"];
             };
         };
-        /** @description Owner not KYC-verified. */
-        KycRequired: {
+        /** @description Two shapes, told apart by the body. KYC not cleared: `status_code` + `message`, no `detail` (SDK: KycRequiredError). Any other refusal: `detail` alone (SDK: PermissionDeniedError). KYC is not enforced on the sandbox. */
+        Forbidden: {
             headers: {
                 [name: string]: unknown;
             };
             content: {
                 /**
                  * @example {
-                 *       "status_code": "<kyc_status>",
+                 *       "status_code": "KYC_VERIFICATION_PENDING",
                  *       "message": "KYC verification needed to perform this action."
                  *     }
                  */
-                "application/json": components["schemas"]["KycError"];
+                "application/json": components["schemas"]["KycError"] | components["schemas"]["DetailError"];
+            };
+        };
+        /** @description The key may not perform this action (SDK PermissionDeniedError). Never KYC-shaped. */
+        PermissionDenied: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                /**
+                 * @example {
+                 *       "detail": "You do not have permission to perform this action."
+                 *     }
+                 */
+                "application/json": components["schemas"]["DetailError"];
+            };
+        };
+        /** @description Rate limit exceeded. The wait is named inside `detail`, not in a Retry-After header. */
+        RateLimited: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                /**
+                 * @example {
+                 *       "detail": "Request was throttled. Expected available in 41 seconds."
+                 *     }
+                 */
+                "application/json": components["schemas"]["DetailError"];
+            };
+        };
+        /** @description Rejected, on an endpoint with no body to key a field on — a bare list of messages, not a field-keyed object. */
+        MessageListError: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                /**
+                 * @example [
+                 *       "This is a one-time purchase, so there is nothing to cancel."
+                 *     ]
+                 */
+                "application/json": components["schemas"]["MessageList"];
             };
         };
         /** @description Resource not found. */
@@ -525,7 +883,7 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthorized"];
-            403: components["responses"]["KycRequired"];
+            403: components["responses"]["Forbidden"];
         };
     };
     createSubscription: {
@@ -550,17 +908,17 @@ export interface operations {
                     "application/json": components["schemas"]["CreateSubscriptionResponse"];
                 };
             };
-            /** @description Validation error. Known triggers: unknown/invisible `pbp_id`; account has no API usage type; `return_url` missing; an active subscription already exists for this buyer + product + billing period. */
+            /** @description Validation error. Known triggers: unknown/invisible `pbp_id`; account has no API usage type; `return_url` missing (field-keyed); the buyer already holds a live subscription on another billing period of the same product (a bare list). */
             400: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["FieldError"];
+                    "application/json": components["schemas"]["FieldError"] | components["schemas"]["MessageList"];
                 };
             };
             401: components["responses"]["Unauthorized"];
-            403: components["responses"]["KycRequired"];
+            403: components["responses"]["Forbidden"];
         };
     };
     cancelSubscription: {
@@ -589,8 +947,9 @@ export interface operations {
                     "application/json": components["schemas"]["Message"];
                 };
             };
+            400: components["responses"]["MessageListError"];
             401: components["responses"]["Unauthorized"];
-            403: components["responses"]["KycRequired"];
+            403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
         };
     };
@@ -631,7 +990,7 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthorized"];
-            403: components["responses"]["KycRequired"];
+            403: components["responses"]["Forbidden"];
         };
     };
     resumeSubscription: {
@@ -660,8 +1019,388 @@ export interface operations {
                     "application/json": components["schemas"]["Message"];
                 };
             };
+            400: components["responses"]["MessageListError"];
             401: components["responses"]["Unauthorized"];
-            403: components["responses"]["KycRequired"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    retrieveSubscription: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Subscription UUID. */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The subscription. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Subscription"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    renewSubscription: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RenewSubscriptionRequest"];
+            };
+        };
+        responses: {
+            /** @description Checkout session opened. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CheckoutSessionResponse"];
+                };
+            };
+            400: components["responses"]["MessageListError"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    createCheckoutSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateCheckoutSessionRequest"];
+            };
+        };
+        responses: {
+            /** @description Checkout session opened. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CheckoutSessionResponse"];
+                };
+            };
+            /** @description An item, the customer or the return URL was rejected. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "return_url": [
+                     *         "A return URL is required."
+                     *       ]
+                     *     }
+                     */
+                    "application/json": components["schemas"]["FieldError"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    retrieveCheckoutSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The session's `cks_…` id. */
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The open session. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CheckoutSession"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            /** @description No open session with this id. `return_url` is the session's own when it exists but is paid or expired, blank otherwise. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail?: string;
+                        return_url?: string;
+                    };
+                };
+            };
+        };
+    };
+    listWebhooks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description All registrations. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Webhook"][];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["PermissionDenied"];
+        };
+    };
+    createWebhook: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateWebhookRequest"];
+            };
+        };
+        responses: {
+            /** @description Registered. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Webhook"];
+                };
+            };
+            /** @description The event is already taken, or the endpoint was rejected. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "event": [
+                     *         "A webhook for this event already exists."
+                     *       ]
+                     *     }
+                     */
+                    "application/json": components["schemas"]["FieldError"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["PermissionDenied"];
+        };
+    };
+    retrieveWebhookSecret: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The signing secret. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WebhookSecret"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["PermissionDenied"];
+        };
+    };
+    retrieveWebhook: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The webhook's `whk_…` id. */
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The registration. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Webhook"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    replaceWebhook: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The webhook's `whk_…` id. */
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReplaceWebhookRequest"];
+            };
+        };
+        responses: {
+            /** @description Replaced. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Webhook"];
+                };
+            };
+            /** @description The event is already taken, or the endpoint was rejected. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FieldError"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    deleteWebhook: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The webhook's `whk_…` id. */
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted. No body. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateWebhook: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The webhook's `whk_…` id. */
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateWebhookRequest"];
+            };
+        };
+        responses: {
+            /** @description Updated. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Webhook"];
+                };
+            };
+            /** @description The event is already taken, or the endpoint was rejected. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FieldError"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    testWebhookDelivery: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The webhook's `whk_…` id. */
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Queued. */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "Test webhook enqueued."
+                     *     }
+                     */
+                    "application/json": components["schemas"]["DetailError"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["PermissionDenied"];
             404: components["responses"]["NotFound"];
         };
     };
@@ -691,7 +1430,7 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthorized"];
-            403: components["responses"]["KycRequired"];
+            403: components["responses"]["Forbidden"];
         };
     };
     createCustomer: {
@@ -707,7 +1446,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description A customer with this phone already existed and was updated. */
+            /** @description A customer with this email or phone already existed and was updated. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -735,7 +1474,7 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthorized"];
-            403: components["responses"]["KycRequired"];
+            403: components["responses"]["Forbidden"];
         };
     };
     retrieveCustomer: {
@@ -760,7 +1499,7 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthorized"];
-            403: components["responses"]["KycRequired"];
+            403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
         };
     };
@@ -799,7 +1538,7 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthorized"];
-            403: components["responses"]["KycRequired"];
+            403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
         };
     };

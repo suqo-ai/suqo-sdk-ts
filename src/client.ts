@@ -1,7 +1,13 @@
 import { SdkConfig } from "./config/index.js";
 import type { SuqoEnvironment } from "./config/index.js";
 import { HttpClient } from "./http/HttpClient.js";
-import { ProductsResource, SubscriptionsResource, CustomersResource, WebhooksResource } from "./resources/index.js";
+import {
+  ProductsResource,
+  SubscriptionsResource,
+  CustomersResource,
+  CheckoutSessionsResource,
+  WebhooksResource,
+} from "./resources/index.js";
 
 /** Options accepted by {@link SuqoClient}'s constructor (SDK-SPEC.md §2, §4; addendum §5). */
 export interface SuqoClientOptions {
@@ -35,10 +41,9 @@ export interface SuqoClientOptions {
  * else to configure in the common case (SDK-SPEC.md §2). Construction throws `SuqoConfigError`
  * immediately on a malformed key, or on a `baseUrl` override that disagrees with the key.
  *
- * `.products`/`.subscriptions`/`.customers` all share this one instance's `HttpClient` — same
- * `baseUrl`/`apiKey`/`timeout`/`maxRetries` for every call, regardless of which resource makes it.
- * `.webhooks` is deliberately **not** wired to that shared `HttpClient` — it makes no network
- * call and needs no key at all (SDK-SPEC.md §9), so it's constructed independently.
+ * Every resource shares this one instance's `HttpClient` — same `baseUrl`/`apiKey`/`timeout`/
+ * `maxRetries` for every call, regardless of which resource makes it. `webhooks.verify()` is the
+ * one method that makes no network call (SDK-SPEC.md §9).
  */
 export class SuqoClient {
   readonly #config: SdkConfig;
@@ -49,7 +54,12 @@ export class SuqoClient {
   readonly subscriptions: SubscriptionsResource;
   /** List, retrieve, create and update the seller's customers (SDK-SPEC.md §5, §6). */
   readonly customers: CustomersResource;
-  /** Verify inbound webhook deliveries (SDK-SPEC.md §9). Makes no network call, needs no key. */
+  /** Open and read checkout sessions — the recommended way to collect payment (SDK-SPEC.md §5). */
+  readonly checkoutSessions: CheckoutSessionsResource;
+  /**
+   * Manage webhook registrations, and verify inbound deliveries (SDK-SPEC.md §5, §9). `verify()`
+   * makes no network call; the management methods do.
+   */
   readonly webhooks: WebhooksResource;
 
   constructor(options: SuqoClientOptions) {
@@ -58,7 +68,8 @@ export class SuqoClient {
     this.products = new ProductsResource(http);
     this.subscriptions = new SubscriptionsResource(http);
     this.customers = new CustomersResource(http);
-    this.webhooks = new WebhooksResource();
+    this.checkoutSessions = new CheckoutSessionsResource(http);
+    this.webhooks = new WebhooksResource(http);
   }
 
   /** `"sandbox" | "live"` — inferred from the key prefix, never selected explicitly (SDK-SPEC.md §2). */

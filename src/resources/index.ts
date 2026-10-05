@@ -4,16 +4,13 @@
  * (`src/index.ts`) — consumers reach them through `suqo.products`/`.subscriptions`/`.customers`,
  * never by importing a resource class directly.
  *
- * `resume` shipped in Ticket 4 (confirmed public 2026-08-18, response shape
- * likely-correct-but-unverified). `retrieve` did NOT — still blocked on a real sample response
- * from backend; see `docs/implementation-plan.md` Ticket 4.
- *
- * `WebhooksResource` (Ticket 5) is the one exception to "shares the client's HttpClient" — it
- * makes no network call and needs no key, so `SuqoClient` constructs it independently.
+ * Every resource shares the client's one `HttpClient`. `WebhooksResource.verify()` alone makes no
+ * network call; its management methods (2.0.0) do.
  *
  * @packageDocumentation
  */
 export { ProductsResource } from "./products.js";
 export { SubscriptionsResource } from "./subscriptions.js";
 export { CustomersResource } from "./customers.js";
+export { CheckoutSessionsResource } from "./checkoutSessions.js";
 export { WebhooksResource } from "./webhooks.js";
