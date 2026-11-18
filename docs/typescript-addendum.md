@@ -126,16 +126,48 @@ never lands in a log line.
 ## 6. Resource surface
 
 ```ts
-suqo.products.list({ page?, pageSize? })                 // -> ProductPage
-suqo.subscriptions.list({ page?, pageSize? })            // -> SubscriptionPage (+status counts)
-suqo.subscriptions.create({ pbpId, returnUrl, customer })  // -> CreateSubscriptionResponse
-suqo.subscriptions.cancel(id)                            // -> { message: string }
-suqo.subscriptions.updateBillingCycle({ subscriptionId, nextBillingCycle })
-suqo.customers.list()      // stub -> throws until documented (spec §11)
-suqo.customers.retrieve(id) // stub
+suqo.products.list({ page?, pageSize? })                    // -> Page<Product>
 
-suqo.webhooks.verify({ rawBody, signature, timestamp, secret, toleranceSec? })
+suqo.checkoutSessions.create({ items, returnUrl, customerId? }) // -> CheckoutSessionResponse
+suqo.checkoutSessions.retrieve(id)                          // -> CheckoutSession (open sessions only)
+
+suqo.subscriptions.list({ page?, pageSize? })               // -> SubscriptionPage<Subscription> (+status counts)
+suqo.subscriptions.retrieve(id)                             // -> Subscription
+suqo.subscriptions.create({ pbpId, returnUrl, customer })   // -> CreateSubscriptionResponse (legacy)
+suqo.subscriptions.cancel(id)                               // -> MessageResponse
+suqo.subscriptions.resume(id)                               // -> MessageResponse
+suqo.subscriptions.renew(subscriptionId)                    // -> CheckoutSessionResponse
+suqo.subscriptions.updateBillingCycle({ subscriptionId, nextBillingCycle }) // -> MessageResponse
+
+suqo.customers.list({ page?, pageSize? })                   // -> Page<Customer>
+suqo.customers.retrieve(id)                                 // -> Customer
+suqo.customers.create({ email, phone?, fullName?, address? }) // -> Customer
+suqo.customers.update(id, { fullName?, email?, address? })  // -> Customer (PATCH)
+
+suqo.webhooks.list()                                        // -> Webhook[]
+suqo.webhooks.create(params)                                // -> Webhook
+suqo.webhooks.retrieve(id)                                  // -> Webhook
+suqo.webhooks.replace(id, params)                           // -> Webhook (PUT, full overwrite)
+suqo.webhooks.update(id, params)                            // -> Webhook (PATCH, given fields only)
+suqo.webhooks.delete(id)                                    // -> void
+suqo.webhooks.retrieveSecret()                              // -> WebhookSecret
+suqo.webhooks.testDelivery(id)                              // -> void
+suqo.webhooks.verify({ rawBody, signature, timestamp, secret, toleranceSec? }) // -> boolean, no network
+
+// Every paginated list() also has autoPaging(params?) — see §7.
 ```
+
+- Every method that puts an id in the path rejects `""`, `"."` and `".."` with
+  `SuqoConfigError` before any request; the webhook methods also reject
+  `"secret"`, which would hit the signing-secret route.
+- Writes (`POST`, `PATCH`, `PUT`, `DELETE`) are never retried automatically;
+  reads are (spec §8).
+- Wire enums (`intervalType`, `vatType`, `Product.type`,
+  `CheckoutSession.sessionType`) are typed as their known values **or** any
+  string, so a value the API adds later still decodes. Their aliases stay
+  internal (`src/models/wireEnums.ts`), not exported.
+- A nullable or non-required wire field decodes to `null` when the API omits
+  it, never `undefined`.
 
 - Method args are **camelCase**; the client maps to the API's snake_case
   (`pbpId` → `pbp_id`, `nextBillingCycle` → `next_billing_cycle`) at the
@@ -186,24 +218,32 @@ per SDK Naming Map v1.1 §04.)
 ```ts
 import {
   SuqoError, SuqoConfigError, AuthenticationError, KycRequiredError,
-  ValidationError, NotFoundError, RateLimitError, ServerError, NetworkError,
+  PermissionDeniedError, ValidationError, NotFoundError, RateLimitError,
+  ServerError, NetworkError,
 } from "@suqo/sdk";
 
 try {
-  await suqo.subscriptions.create({ /* … */ });
+  await suqo.checkoutSessions.create({ /* … */ });
 } catch (e) {
   if (e instanceof ValidationError) {
-    e.fieldErrors;   // Record<string, string[]>  (empty if the 400 used `detail`)
-    e.message;       // populated when the 400 was `{ detail: … }`
+    e.fieldErrors;   // Record<string, string[]>  (empty for a `detail` or bare-list 400)
+    e.message;       // populated when the 400 was `{ detail: … }` or `["msg", …]`
   } else if (e instanceof KycRequiredError) {
-    e.kycStatus;     // the KYC status string
+    e.kycStatus;     // the KYC status string (403 whose body has `status_code`)
+  } else if (e instanceof PermissionDeniedError) {
+    // any other 403 (`detail` alone)
+  } else if (e instanceof RateLimitError) {
+    e.retryAfter;    // milliseconds, from Retry-After or the wait written in `detail` (max 60 s)
   }
 }
 ```
 
-All extend `SuqoError` (`status`, `rawBody`, `message`). The mapper accepts both
-the field-keyed and `detail` 400 shapes and always yields a typed class, so
-`instanceof` checks are reliable regardless of wire shape.
+All extend `SuqoError` (`status`, `rawBody`, `message`). The mapper decides by
+the body, never the status alone: it accepts the field-keyed, `detail` and
+bare-list 400 shapes and both 403 shapes, and always yields a typed class, so
+`instanceof` checks are reliable regardless of wire shape (spec §7).
+`PermissionDeniedError`, not `PermissionError`, because the latter is a Python
+builtin and names must match across ports (Naming Map R2).
 
 ---
 
