@@ -70,6 +70,7 @@ interface CheckoutSession {
   expiresAt: string;             // kept as sent — may carry a +05:45 offset
   completedAt: string | null;
   isExpired: boolean;
+  sessionType: 'subscription' | 'billing' | string | null; // null if the API doesn't send it
 }
 
 interface CheckoutLineItem {

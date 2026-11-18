@@ -300,6 +300,8 @@ classDiagram
 | `renew` takes the id positionally | Naming Map R8: one required scalar. It travels in the body (`{ subscription_id }`) on the singular `/api/v1/subscription/renew/` path — the wire path is kept exactly (R1). |
 | `CheckoutSession` from a captured response | `line_items` is an array and `is_expired` a boolean (Swagger says object and string). `imageUrls` is catalogue-only and `planName` partner-priced-only — each stays absent, not `null`, on the other kind; every other nullable key degrades to `null`. |
 | `subscriptions.retrieve` from Swagger | Reuses `deserializeSubscription`; not yet checked against a captured response. |
+| `CheckoutSession.sessionType` (added 2026-11-18) | Swagger added `session_type` (`subscription`/`billing`) after the captured response. A loose union, degrading to `null` when omitted; not yet seen in a captured response. |
+| `SubscriptionProduct` fields nullable (2026-11-18) | Swagger marks all seven nullable; each degrades to `null` (omitted or null), so the type never promises a `string` the wire didn't send — same class as #42. |
 | `customers.create` body | `email` always sent, `phone` only when given; `update()` still never sends `phone`. |
 | Product fields | `description`/`termsAndConditions`/`featuresAndBenefits`/plan `description`/`vatType`/`vatPercentage` are nullable and degrade to `null`; `type`/`intervalType`/`vatType` are loose unions (known values or any string, Naming Map §9); `offers` is `Offer[]`. |
 | Path-id guard shared | `assertPathId()` (`src/utils/`) replaces the customers-only guard, used by every method with an id in its path. |

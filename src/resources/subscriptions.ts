@@ -23,13 +23,13 @@ const RENEW_PATH = "/api/v1/subscription/renew";
 
 /** The wire shape `openapi.yaml`'s `SubscriptionProduct` schema sends — a summary, not the full `Product`. */
 interface WireSubscriptionProduct {
-  product_id: string;
-  name: string;
-  plan_name: string;
-  pbp_id: string;
-  label: string;
-  price: string;
-  currency: string;
+  product_id?: string | null;
+  name?: string | null;
+  plan_name?: string | null;
+  pbp_id?: string | null;
+  label?: string | null;
+  price?: string | null;
+  currency?: string | null;
 }
 
 /**
@@ -79,13 +79,13 @@ interface WireCreateSubscriptionResponse {
 
 function deserializeSubscriptionProduct(wire: WireSubscriptionProduct): SubscriptionProduct {
   return {
-    productId: wire.product_id,
-    name: wire.name,
-    planName: wire.plan_name,
-    pbpId: wire.pbp_id,
-    label: wire.label,
-    price: wire.price,
-    currency: wire.currency,
+    productId: wire.product_id ?? null,
+    name: wire.name ?? null,
+    planName: wire.plan_name ?? null,
+    pbpId: wire.pbp_id ?? null,
+    label: wire.label ?? null,
+    price: wire.price ?? null,
+    currency: wire.currency ?? null,
   };
 }
 

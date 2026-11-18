@@ -89,6 +89,25 @@ describe("deserializeSubscription", () => {
     const subscription = deserializeSubscription(withoutProduct);
     expect(subscription.product).toBeNull();
   });
+
+  it("product fields sent as null stay null (Swagger marks every SubscriptionProduct field nullable)", () => {
+    const allNull = Object.fromEntries(Object.keys(wireSubscriptionProduct).map((k) => [k, null]));
+    const subscription = deserializeSubscription({ ...wireSubscription, product: allNull });
+    expect(subscription.product).toEqual({
+      productId: null,
+      name: null,
+      planName: null,
+      pbpId: null,
+      label: null,
+      price: null,
+      currency: null,
+    });
+  });
+
+  it("omitted product fields come back null, never undefined", () => {
+    const subscription = deserializeSubscription({ ...wireSubscription, product: {} });
+    expect(Object.values(subscription.product ?? {})).toEqual([null, null, null, null, null, null, null]);
+  });
 });
 
 describe("deserializeSubscriptionPage", () => {

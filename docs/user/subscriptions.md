@@ -123,6 +123,8 @@ A billing period whose `intervalType` is `one_time` (see [`products.md`](product
 
 `Subscription.product.price` stays a string end to end — never coerced to `number`, same as `products.md`'s pricing fields. See [`docs/user/products.md`](products.md) for the same convention on the product side.
 
+Every field on `Subscription.product` (`productId`, `name`, `planName`, `pbpId`, `label`, `price`, `currency`) can be `null`: the API may send null for any of them. `product` itself is `null` when the API sends no product.
+
 ## Retries
 
 None of the write methods above (`create`, `cancel`, `updateBillingCycle`, `resume`, `renew`) are automatically retried on failure — see [`docs/user/errors.md`](errors.md#writes-arent-automatically-retried) and [`docs/user/idempotency.md`](idempotency.md) for why, and what changes once the backend supports idempotency keys.

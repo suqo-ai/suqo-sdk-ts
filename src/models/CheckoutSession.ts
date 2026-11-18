@@ -1,4 +1,4 @@
-import type { IntervalType, VatType } from "./wireEnums.js";
+import type { CheckoutSessionType, IntervalType, VatType } from "./wireEnums.js";
 
 /**
  * The `checkoutSessions` resource's model types (`specs/openapi.yaml` `CreateCheckoutSessionRequest`
@@ -130,4 +130,9 @@ export interface CheckoutSession {
   expiresAt: string;
   completedAt: string | null;
   isExpired: boolean;
+  /**
+   * What the session was opened for: `"subscription"` or `"billing"` today, and any value the API
+   * adds later. `null` if the API doesn't send it.
+   */
+  sessionType: CheckoutSessionType | null;
 }

@@ -402,16 +402,17 @@ export interface components {
             /** Format: date-time */
             created_at?: string;
         };
+        /** @description Every field may be null (Swagger, 2026-11-18). */
         SubscriptionProduct: {
-            product_id?: string;
-            name?: string;
-            plan_name?: string;
-            pbp_id?: string;
-            label?: string;
+            product_id?: string | null;
+            name?: string | null;
+            plan_name?: string | null;
+            pbp_id?: string | null;
+            label?: string | null;
             /** @description Decimal string. Parse as decimal */
-            price?: string;
+            price?: string | null;
             /** @example NPR */
-            currency?: string;
+            currency?: string | null;
         };
         ClientRead: {
             phone?: string;
@@ -647,6 +648,11 @@ export interface components {
             expires_at?: string;
             completed_at?: string | null;
             is_expired?: boolean;
+            /**
+             * @description Added to Swagger after 2026-10-05; not yet seen in a captured response.
+             * @enum {string}
+             */
+            session_type?: "subscription" | "billing";
         };
         CheckoutLineItem: {
             name?: string;

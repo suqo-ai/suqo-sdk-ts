@@ -72,6 +72,7 @@ const wireSession = {
   expires_at: "2026-10-05T10:38:16.453690+05:45",
   completed_at: null,
   is_expired: false,
+  session_type: "subscription",
 };
 
 describe("deserializeCheckoutSessionResponse", () => {
@@ -92,6 +93,7 @@ describe("deserializeCheckoutSession", () => {
     expect(session.customerId).toBe("cus_test0001");
     expect(session.isExpired).toBe(false);
     expect(session.completedAt).toBeNull();
+    expect(session.sessionType).toBe("subscription");
     expect(session.sellerDetails).toEqual({
       id: "00000000-0000-0000-0000-000000000001",
       phone: "9800000000",
@@ -133,11 +135,17 @@ describe("deserializeCheckoutSession", () => {
   });
 
   it("omitted nullable keys come back null, never undefined, and missing line_items an empty array", () => {
-    const { customer_id: _c, completed_at: _d, line_items: _l, ...bare } = wireSession;
+    const { customer_id: _c, completed_at: _d, line_items: _l, session_type: _s, ...bare } = wireSession;
     const session = deserializeCheckoutSession(bare);
     expect(session.customerId).toBeNull();
     expect(session.completedAt).toBeNull();
+    expect(session.sessionType).toBeNull();
     expect(session.lineItems).toEqual([]);
+  });
+
+  it("keeps a session_type value the API adds later instead of rejecting it", () => {
+    const session = deserializeCheckoutSession({ ...wireSession, session_type: "invoice" });
+    expect(session.sessionType).toBe("invoice");
   });
 });
 

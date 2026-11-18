@@ -7,7 +7,7 @@ adheres to [Semantic Versioning](https://semver.org/) per [`specs/versioning.md`
 
 ## [Unreleased]
 
-## [2.0.0] - 2026-10-05
+## [2.0.0] - 2026-11-18
 
 **Why a major:** the API changed its wire contract within `/api/v1/` — the checkout webhook
 payload and the customer create body — which `specs/versioning.md` says always forces a new SDK
@@ -32,6 +32,10 @@ subscription retrieve/renew and webhook management.
   `ProductVat.vatType` and `ProductVat.vatPercentage` are now `| null` — the API sends null for
   them. _Upgrading:_ handle `null` where you read these as plain strings.
 - **Breaking:** `BillingPeriod.offers` is typed `Offer[]` instead of `unknown[]`.
+- **Breaking:** every field of `SubscriptionProduct` (`Subscription.product`: `productId`, `name`,
+  `planName`, `pbpId`, `label`, `price`, `currency`) is now `string | null` — the API may send null
+  for any of them, and an omitted field also comes back `null`. _Upgrading:_ handle `null` where you
+  read these as plain strings.
 - `Product.type`, `ProductVat.vatType` and `BillingPeriod.intervalType` list their known values
   (`simple`/`tiered`, `inclusive`/`exclusive`, `day`…`one_time`) for autocomplete, while still
   accepting a value the API adds later.
@@ -44,7 +48,8 @@ subscription retrieve/renew and webhook management.
 - `checkoutSessions.create({ items, returnUrl, customerId? })` — the recommended way to collect
   payment: one to ten catalogue (`{ pbpId }`) or partner-priced items in one checkout. Never
   retried automatically; rate-limited to 20 a minute.
-- `checkoutSessions.retrieve(id)` — reads an open session.
+- `checkoutSessions.retrieve(id)` — reads an open session, including its `sessionType`
+  (`"subscription"` or `"billing"`, or `null` if the API doesn't send it).
 - `subscriptions.retrieve(id)` and `subscriptions.renew(subscriptionId)`.
 - Webhook management: `webhooks.list()`, `create()`, `retrieve()`, `replace()` (PUT), `update()`
   (PATCH), `delete()`, `retrieveSecret()` and `testDelivery()`. `webhooks.verify()` is unchanged.
@@ -62,7 +67,7 @@ subscription retrieve/renew and webhook management.
 ### Docs
 
 - `SDK-SPEC.md` §1, §5, §7–§11 and §13, `specs/versioning.md` and `specs/openapi.yaml` updated to
-  the API as of 2026-10-02. `subscriptions.retrieve()` and the new checkout webhook payload are
+  the API as of 2026-10-02, then re-checked against Swagger on 2026-11-18. `subscriptions.retrieve()` and the new checkout webhook payload are
   built from the API docs and Swagger and not yet checked against captured responses.
 
 ## [1.1.0] - 2026-09-24

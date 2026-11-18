@@ -839,14 +839,15 @@ components:
 
     SubscriptionProduct:
       type: object
+      description: Every field may be null (Swagger, 2026-11-18).
       properties:
-        product_id: { type: string }
-        name: { type: string }
-        plan_name: { type: string }
-        pbp_id: { type: string }
-        label: { type: string }
-        price: { type: string, description: Decimal string. Parse as decimal, never float. }
-        currency: { type: string, example: NPR }
+        product_id: { type: [string, 'null'] }
+        name: { type: [string, 'null'] }
+        plan_name: { type: [string, 'null'] }
+        pbp_id: { type: [string, 'null'] }
+        label: { type: [string, 'null'] }
+        price: { type: [string, 'null'], description: Decimal string. Parse as decimal, never float. }
+        currency: { type: [string, 'null'], example: NPR }
 
     ClientRead:
       type: object
@@ -1176,6 +1177,10 @@ components:
         expires_at: { type: string }
         completed_at: { type: [string, 'null'] }
         is_expired: { type: boolean }
+        session_type:
+          type: string
+          enum: [subscription, billing]
+          description: Added to Swagger after 2026-10-05; not yet seen in a captured response.
 
     CheckoutLineItem:
       type: object

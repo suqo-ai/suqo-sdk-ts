@@ -52,6 +52,7 @@ interface WireCheckoutSession {
   expires_at: string;
   completed_at?: string | null;
   is_expired: boolean;
+  session_type?: string | null;
 }
 
 function deserializeLineItem(wire: WireCheckoutLineItem): CheckoutLineItem {
@@ -91,6 +92,7 @@ export function deserializeCheckoutSession(wire: WireCheckoutSession): CheckoutS
     expiresAt: wire.expires_at,
     completedAt: wire.completed_at ?? null,
     isExpired: wire.is_expired,
+    sessionType: wire.session_type ?? null,
   };
 }
 

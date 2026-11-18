@@ -21,3 +21,6 @@ export type VatType = "inclusive" | "exclusive" | Loose;
 
 /** A product's pricing model. */
 export type ProductType = "simple" | "tiered" | Loose;
+
+/** What a checkout session was opened for. */
+export type CheckoutSessionType = "subscription" | "billing" | Loose;
