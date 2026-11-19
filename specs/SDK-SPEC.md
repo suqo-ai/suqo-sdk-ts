@@ -191,6 +191,9 @@ never the status alone:
   and the duplicate-subscription error): `["msg", …]`.
 - KYC 403: `{ "status_code": "KYC_INCOMPLETE" | "KYC_VERIFICATION_PENDING", "message": "…" }`, no `detail`.
 - Any other 403: `{ "detail": "msg" }` alone.
+- Not JSON at all (a proxy/WAF page, e.g. Cloudflare `error code: 1010`): not
+  a SUQO shape. The class still follows the status, the message falls back to
+  `Request failed with status N`, and the raw text is kept in `rawBody`.
 
 Normalized hierarchy (same names, idiomatic casing per language):
 

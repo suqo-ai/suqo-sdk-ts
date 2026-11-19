@@ -22,9 +22,10 @@ export interface HttpErrorInput {
   /** The response's HTTP status text, if available — used only for the generic fallback message. */
   statusText?: string;
   /**
-   * The parsed response body, if the response had one and it parsed as JSON. Expected to be one
+   * The response body: parsed JSON when it parsed, otherwise the raw text. Expected to be one
    * of `openapi.yaml`'s three error shapes (`FieldError`, `DetailError`, `KycError`) — the shape
-   * is detected here, never assumed from the status code alone.
+   * is detected here, never assumed from the status code alone. A non-JSON body (a proxy/WAF
+   * page) gets the generic status message, never a SUQO-specific one.
    */
   body?: unknown;
   /** The backend's request id for this call, if one was returned (nice-to-have — Ticket 0 item 3). */
@@ -118,7 +119,12 @@ function messageFrom(body: unknown, fallback: string): string {
  * ```ts
  * const response = await fetch(url);
  * if (!response.ok) {
- *   throw mapHttpError({ status: response.status, body: await response.json().catch(() => undefined) });
+ *   const text = await response.text();
+ *   let body: unknown = text || undefined;
+ *   try {
+ *     body = JSON.parse(text); // a SUQO error body; a proxy/WAF page stays text
+ *   } catch {}
+ *   throw mapHttpError({ status: response.status, body });
  * }
  * ```
  */
@@ -129,6 +135,11 @@ export function mapHttpError(input: HttpErrorInput): SuqoError {
   // exactOptionalPropertyTypes; requestId is narrower (string), so it's only spread in when
   // actually provided, never as an explicit `key: undefined`.
   const base = { status, rawBody: body, ...(requestId !== undefined ? { requestId } : {}) };
+  // The friendly per-status fallbacks below describe SUQO's own refusals; a text body (e.g.
+  // Cloudflare's HTML "error code: 1010") came from something in front of the API, so it gets the
+  // neutral status message and the caller reads the cause in `rawBody`. An empty body keeps the
+  // friendly fallback.
+  const fallback = (suqoMessage: string): string => (typeof body === "string" ? fallbackMessage : suqoMessage);
 
   switch (status) {
     case 401:
@@ -140,7 +151,7 @@ export function mapHttpError(input: HttpErrorInput): SuqoError {
         const message = messageFrom(body, "KYC verification needed to perform this action.");
         return new KycRequiredError(message, { ...base, kycStatus: body.status_code });
       }
-      return new PermissionDeniedError(messageFrom(body, "You do not have permission to perform this action."), base);
+      return new PermissionDeniedError(messageFrom(body, fallback("You do not have permission to perform this action.")), base);
     }
     case 400: {
       if (isDetailShaped(body)) {
@@ -151,10 +162,10 @@ export function mapHttpError(input: HttpErrorInput): SuqoError {
       if (isMessageList(body)) {
         return new ValidationError(body.join(" "), { ...base, fieldErrors: {} });
       }
-      return new ValidationError("Validation failed.", { ...base, fieldErrors: fieldErrorsFrom(body) });
+      return new ValidationError(fallback("Validation failed."), { ...base, fieldErrors: fieldErrorsFrom(body) });
     }
     case 404:
-      return new NotFoundError(messageFrom(body, "Not found."), base);
+      return new NotFoundError(messageFrom(body, fallback("Not found.")), base);
     case 429:
       return new RateLimitError(messageFrom(body, fallbackMessage), {
         ...base,

@@ -11,7 +11,7 @@
 export interface SuqoErrorOptions {
   /** HTTP status code this error was mapped from, if any (absent for `SuqoConfigError`/`NetworkError` — there was no response). */
   status?: number;
-  /** The raw, parsed response body this error was mapped from, if any. */
+  /** The response body this error was mapped from, if any: parsed JSON, or the raw text when it wasn't JSON. */
   rawBody?: unknown;
   /**
    * The backend's request id for this call, if the response included one — ties a failure to a
@@ -42,7 +42,7 @@ export interface SuqoErrorOptions {
 export class SuqoError extends Error {
   /** HTTP status code this error was mapped from, if any. */
   readonly status?: number;
-  /** The raw, parsed response body this error was mapped from, if any. */
+  /** The response body this error was mapped from, if any: parsed JSON, or the raw text when it wasn't JSON. */
   readonly rawBody?: unknown;
   /** The backend's request id for this call, if one was returned. See {@link SuqoErrorOptions.requestId}. */
   readonly requestId?: string;
@@ -114,6 +114,11 @@ export interface ValidationErrorOptions extends SuqoErrorOptions {
  * 403 — the key is valid but may not perform this action, for a reason other than KYC (SDK-SPEC.md
  * §7). The API answers with `{ "detail": "…" }` alone, e.g. a key that doesn't belong to the
  * account. A KYC-shaped 403 (with `status_code`) is {@link KycRequiredError} instead.
+ *
+ * Also thrown for a 403 that isn't JSON at all — usually a firewall in front of the API (e.g.
+ * Cloudflare's `error code: 1010`, which blocks some HTTP clients by `User-Agent`). Its message is
+ * just `Request failed with status 403`; read {@link SuqoError.rawBody} (the page's text) for the
+ * real cause.
  *
  * Named `PermissionDeniedError`, not `PermissionError`: the stem must be identical in every port
  * (SDK Naming Map R2, R6), and `PermissionError` is a Python builtin.
