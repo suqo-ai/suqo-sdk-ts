@@ -1180,7 +1180,10 @@ components:
         session_type:
           type: string
           enum: [subscription, billing]
-          description: Added to Swagger after 2026-10-05; not yet seen in a captured response.
+          description: >-
+            Seen as `subscription` in captured GET responses (2026-11-19), on both a new purchase and a
+            renewal, so it does not tell the two apart. A renewal is marked by `subscription_id` on its
+            line items.
 
     CheckoutLineItem:
       type: object
@@ -1203,6 +1206,12 @@ components:
           items: { type: string }
           description: Catalogue items only.
         plan_name: { type: [string, 'null'], description: Partner-priced items only. }
+        subscription_id:
+          type: string
+          format: uuid
+          description: >-
+            Renewals only — the subscription a `POST /subscription/renew/` session renews. Missing
+            from Swagger; confirmed by backend and in a captured GET response (2026-11-19).
 
     CheckoutSeller:
       type: object

@@ -34,6 +34,8 @@ interface WireCheckoutLineItem {
   image_urls?: string[];
   /** Partner-priced items only. */
   plan_name?: string | null;
+  /** Renewals only. Confirmed in a captured GET response (2026-11-19); missing from Swagger. */
+  subscription_id?: string;
 }
 
 interface WireCheckoutSeller {
@@ -73,6 +75,8 @@ function deserializeLineItem(wire: WireCheckoutLineItem): CheckoutLineItem {
     // Each kind carries one of these and not the other, so they stay absent rather than null.
     ...(wire.image_urls !== undefined ? { imageUrls: wire.image_urls } : {}),
     ...(wire.plan_name !== undefined ? { planName: wire.plan_name } : {}),
+    // Only a renewal's lines carry it; absent (not null) on a new purchase.
+    ...(wire.subscription_id !== undefined ? { subscriptionId: wire.subscription_id } : {}),
   };
 }
 

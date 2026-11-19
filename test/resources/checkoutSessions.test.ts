@@ -127,6 +127,16 @@ describe("deserializeCheckoutSession", () => {
     expect(partnerPriced?.pbpId).toBeNull();
     expect(partnerPriced?.planName).toBeNull();
     expect(partnerPriced).not.toHaveProperty("imageUrls");
+    expect(catalogue).not.toHaveProperty("subscriptionId");
+    expect(partnerPriced).not.toHaveProperty("subscriptionId");
+  });
+
+  it("keeps subscription_id as subscriptionId on a renewal's line items", () => {
+    // Shape from a captured renewal GET /api/v1/checkout-sessions/{public_id}/ (2026-11-19).
+    const renewalLine = { ...wireCatalogueLine, subscription_id: "9f32df5d-0000-4000-8000-000000000001" };
+    const [line] = deserializeCheckoutSession({ ...wireSession, line_items: [renewalLine] }).lineItems;
+    expect(line?.subscriptionId).toBe("9f32df5d-0000-4000-8000-000000000001");
+    expect(line).not.toHaveProperty("subscription_id");
   });
 
   it("decimal fields stay strings, never coerced to numbers", () => {
