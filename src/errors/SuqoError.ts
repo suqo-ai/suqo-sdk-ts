@@ -115,6 +115,11 @@ export interface ValidationErrorOptions extends SuqoErrorOptions {
  * §7). The API answers with `{ "detail": "…" }` alone, e.g. a key that doesn't belong to the
  * account. A KYC-shaped 403 (with `status_code`) is {@link KycRequiredError} instead.
  *
+ * Also thrown for a 403 that isn't JSON at all — usually a firewall in front of the API (e.g.
+ * Cloudflare's `error code: 1010`, which blocks some HTTP clients by `User-Agent`). Its message is
+ * just `Request failed with status 403`; read {@link SuqoError.rawBody} (the page's text) for the
+ * real cause.
+ *
  * Named `PermissionDeniedError`, not `PermissionError`: the stem must be identical in every port
  * (SDK Naming Map R2, R6), and `PermissionError` is a Python builtin.
  */

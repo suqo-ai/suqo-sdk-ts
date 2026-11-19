@@ -119,7 +119,12 @@ function messageFrom(body: unknown, fallback: string): string {
  * ```ts
  * const response = await fetch(url);
  * if (!response.ok) {
- *   throw mapHttpError({ status: response.status, body: await response.text() });
+ *   const text = await response.text();
+ *   let body: unknown = text || undefined;
+ *   try {
+ *     body = JSON.parse(text); // a SUQO error body; a proxy/WAF page stays text
+ *   } catch {}
+ *   throw mapHttpError({ status: response.status, body });
  * }
  * ```
  */
@@ -130,10 +135,11 @@ export function mapHttpError(input: HttpErrorInput): SuqoError {
   // exactOptionalPropertyTypes; requestId is narrower (string), so it's only spread in when
   // actually provided, never as an explicit `key: undefined`.
   const base = { status, rawBody: body, ...(requestId !== undefined ? { requestId } : {}) };
-  // The friendly per-status fallbacks below describe SUQO's own refusals; a body that isn't a
-  // SUQO JSON object (e.g. Cloudflare's HTML "error code: 1010") came from something in front of
-  // the API, so it gets the neutral status message and the caller reads the cause in `rawBody`.
-  const fallback = (suqoMessage: string): string => (isRecord(body) ? suqoMessage : fallbackMessage);
+  // The friendly per-status fallbacks below describe SUQO's own refusals; a text body (e.g.
+  // Cloudflare's HTML "error code: 1010") came from something in front of the API, so it gets the
+  // neutral status message and the caller reads the cause in `rawBody`. An empty body keeps the
+  // friendly fallback.
+  const fallback = (suqoMessage: string): string => (typeof body === "string" ? fallbackMessage : suqoMessage);
 
   switch (status) {
     case 401:
