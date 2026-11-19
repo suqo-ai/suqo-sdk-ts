@@ -121,7 +121,7 @@ describe("contract: response decoding", () => {
   });
 
   it("customers.create() decodes the write-side phone/email back as buyerPhone/buyerEmail", async () => {
-    const customer = await client().customers.create({ phone: "9812345678", email: "ram@example.com" });
+    const customer = await client().customers.create({ email: "ram@example.com", phone: "9812345678" });
     expect(customer.buyerPhone).toBe("9812345678");
     expect(customer.buyerEmail).toBe("ram@example.com");
     expect(customer.fullName).toBeNull();
@@ -137,6 +137,41 @@ describe("contract: response decoding", () => {
   it("products.list() decodes productImage as camelCase image objects", async () => {
     const page = await client().products.list();
     expect(page.results[0]?.productImage).toEqual([{ image: "https://cdn.example/product.png", imageOrder: 0 }]);
+  });
+
+  it("subscriptions.retrieve() decodes a camelCase Subscription with the client->customer rename", async () => {
+    const subscription = await client().subscriptions.retrieve("30b0af58-c8bc-4f79-9917-51208b73a0ed");
+    expect(subscription.subscriptionId).toBe("30b0af58-c8bc-4f79-9917-51208b73a0ed");
+    expect(subscription).toHaveProperty("customer");
+    expect(subscription).not.toHaveProperty("client");
+  });
+
+  it("subscriptions.renew() and checkoutSessions.create() decode the same CheckoutSessionResponse", async () => {
+    const expected = {
+      publicId: "cks_contract01",
+      expiresAt: "2026-10-05T10:38:16.453690+05:45",
+      checkoutUrl: "https://stage.suqo.ai/checkout/cks_contract01",
+    };
+    await expect(client().subscriptions.renew("30b0af58-c8bc-4f79-9917-51208b73a0ed")).resolves.toEqual(expected);
+    await expect(
+      client().checkoutSessions.create({ returnUrl: "https://example.com/r", items: [{ pbpId: "pbp_a1104f81b" }] }),
+    ).resolves.toEqual(expected);
+  });
+
+  it("checkoutSessions.retrieve() decodes line items as an array and isExpired as a boolean", async () => {
+    const session = await client().checkoutSessions.retrieve("cks_contract01");
+    expect(Array.isArray(session.lineItems)).toBe(true);
+    expect(session.lineItems[0]?.pbpId).toBe("pbp_a1104f81b");
+    expect(typeof session.isExpired).toBe("boolean");
+    expect(session.sellerDetails.businessLogo).toBeNull();
+  });
+
+  it("webhooks.list()/retrieveSecret() decode camelCase; delete()/testDelivery() resolve to undefined", async () => {
+    const [webhook] = await client().webhooks.list();
+    expect(webhook?.endpointUrl).toBe("https://example.com/hooks/suqo");
+    await expect(client().webhooks.retrieveSecret()).resolves.toEqual({ signingSecret: "whsec_contract_test" });
+    await expect(client().webhooks.delete("whk_contract01")).resolves.toBeUndefined();
+    await expect(client().webhooks.testDelivery("whk_contract01")).resolves.toBeUndefined();
   });
 
   it("decimal-shaped fields (price, total_subscribers) stay strings end to end, never coerced to number", async () => {

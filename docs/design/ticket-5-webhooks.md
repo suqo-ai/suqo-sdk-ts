@@ -142,12 +142,13 @@ classDiagram
     +customers: CustomersResource
     +webhooks: WebhooksResource
   }
-  SuqoClient --> HttpClient : constructs one, shares with 3 resources
-  SuqoClient --> WebhooksResource : constructs independently — no HttpClient
+  SuqoClient --> HttpClient : constructs one, shares with every resource
+  SuqoClient --> WebhooksResource : passes the shared HttpClient (2.0.0)
 ```
 
-`WebhooksResource` is the one resource that does **not** take the shared `HttpClient` in its
-constructor — it has nothing to call over the network, so there's nothing to share.
+**Changed in 2.0.0:** `WebhooksResource` takes the shared `HttpClient` like every other resource,
+because its management methods (`list`, `create`, …) call the API. `verify()` itself still makes no
+network call and never reads the key — the checklist below still holds for it.
 
 ### Conformance checklist — Step C
 
@@ -156,6 +157,62 @@ constructor — it has nothing to call over the network, so there's nothing to s
 - [ ] Constructing a `SuqoClient` with a deliberately invalid `apiKey` still fails at the point
       `SdkConfig` validates it (SDK-SPEC.md §2) — `webhooks` isn't reachable at all in that case,
       same as every other resource, since construction never partially succeeds.
+
+---
+
+## 2.0.0 — Webhook management and the new checkout payload (2026-10-05)
+
+### Checkout event payload (Step A, changed)
+
+`checkout.succeeded`/`checkout.failed` are now one delivery **per checkout session**, keyed by
+`session_id`, carrying `line_items` — not one per subscription keyed by a top-level
+`subscription_id`. Payments taken through the legacy `subscriptions.create()` report through the
+same payload. `SubscriptionWebhookEventBase` is gone: `subscription.status_changed` now declares
+`subscription_id` itself, and the two checkout events share a `CheckoutWebhookEventBase`. The line
+item type is an internal alias (no registered public name).
+
+**Corrected 2026-11-19** against delivery samples captured by the backend team. The first 2.0.0
+draft followed the public docs (`items[]` echoing only what was sent); the real key is `line_items`,
+each entry a full line item. The same samples showed `api_key.*` `expires_at` can be `null`.
+
+| Field | Type | Notes |
+|---|---|---|
+| `session_id` | `string` | `cks_…` — the `publicId` returned by `checkoutSessions.create()` |
+| `amount` | `string` | Session total, decimal string |
+| `status` | `"succeeded"` / `"failed"` | Fixed per event |
+| `line_items` | array | `name`, `amount`, `pbp_id` (`null` if partner-priced), `currency`, `vat_type`, `vat_percentage`, `discount_amount`, `interval_type`, `interval_count`; `image_urls` (catalogue only), `plan_name` (partner-priced only), `subscription_id` (renewals only) |
+
+### Management methods (new)
+
+```
+webhooks.list() -> Webhook[]
+webhooks.create(params: CreateWebhookParams) -> Webhook
+webhooks.retrieve(id: string) -> Webhook
+webhooks.replace(id: string, params: ReplaceWebhookParams) -> Webhook   // PUT
+webhooks.update(id: string, params: UpdateWebhookParams) -> Webhook     // PATCH
+webhooks.delete(id: string) -> void                                     // 204, no body
+webhooks.retrieveSecret() -> WebhookSecret
+webhooks.testDelivery(id: string) -> void                               // 202
+```
+
+| Rule | Detail |
+|---|---|
+| `replace` is `PUT`, `update` is `PATCH` | Swagger names them `update`/`partial_update`; registered as `replace`/`update` (Naming Map 1.4) so `update` is a partial change on every resource, matching `customers.update()`. |
+| `retrieveSecret()`, not `secret()` | A verb, like every other method — it makes a network call and creates the secret on first read, unlike the local `verify()`. |
+| `HttpClient` gained `PUT` and `DELETE` | Both writes, never retried. `DELETE` carries no body (enforced at the type level and at runtime); its empty `204` resolves as `undefined`. |
+| Only set keys are sent | `create`/`replace`/`update` share one serializer that drops `undefined`. |
+| Event typing | Params take the strict `WebhookEventType`; the read-side `Webhook.event` is a loose union so a newer event name still decodes (Naming Map §9). |
+| No KYC | The webhook routes never require KYC; a 403 there is `PermissionDeniedError`. |
+
+### Conformance checklist — 2.0.0
+
+- [x] The backend's captured `checkout.*`, renewal, `subscription.status_changed` and `api_key.*` samples each type-check as their event type; a checkout body with `items` instead of `line_items` does not (`test/models/WebhookEvent.test.ts`).
+- [ ] Each management method hits its documented method and path, trailing slash included (`/api/v1/webhooks/secret/`, `/api/v1/webhooks/{id}/test-delivery/`).
+- [ ] `update(id, { isActive: false })` sends `{ is_active: false }` alone.
+- [ ] `delete()` sends no body and resolves to `undefined` on a `204`.
+- [ ] Every method taking an id throws `SuqoConfigError` on `""`, `"."`, `".."` before any request.
+- [ ] No management write retries on a `5xx`.
+- [ ] `verify()` behaves exactly as before — none of Step B's checklist changes.
 
 ---
 
@@ -176,7 +233,8 @@ constructor — it has nothing to call over the network, so there's nothing to s
    `HttpClient` to do its job; this one needs nothing at all beyond what's passed into `verify()`
    itself. Giving it a constructor with no required arguments (rather than, say, forcing it to
    accept an unused `HttpClient` just for API consistency with the other three) is honest about
-   what it actually depends on.
+   what it actually depends on. **Superseded in 2.0.0** — the management methods need the shared
+   `HttpClient`, so it's now a constructor argument; `verify()` still never touches it.
 
 ---
 

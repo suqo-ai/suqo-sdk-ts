@@ -35,8 +35,10 @@ then run `npx tsx ...` separately — or just use a `.env` file, which works the
 
 ## Be careful with the phone number and email you use
 
-`quickstart.ts`/`subscriptions.ts` create a real subscription, which sends real notifications:
+`subscriptions.ts` creates a real subscription, which sends real notifications:
 **SMS** only with a live key (`su_key_...`); **email** in both sandbox and live, always.
+`quickstart.ts` and `checkout-session.ts` open a checkout session without a customer, so they send
+nothing to anyone.
 
 - **Phone** — use the shared live test account **`9845976839`**, or increment from
   **`9000000000`** per run, so the same real number isn't repeatedly texted.
@@ -45,18 +47,19 @@ then run `npx tsx ...` separately — or just use a `.env` file, which works the
 Override via env vars (default `9000000000` / `jane@example.com`):
 
 ```bash
-SUQO_TEST_PHONE=9000000000 SUQO_TEST_EMAIL=you@example.com npx tsx examples/quickstart.ts
+SUQO_TEST_PHONE=9000000000 SUQO_TEST_EMAIL=you@example.com npx tsx examples/subscriptions.ts
 ```
 
 ## What's here
 
-| Script                                   | Shows                                                                                     |
-| ---------------------------------------- | ----------------------------------------------------------------------------------------- |
-| [`quickstart.ts`](quickstart.ts)         | The full flow: list products → create a subscription → verify its webhook. Start here.    |
-| [`list-products.ts`](list-products.ts)   | Browsing the catalog — works pre-KYC.                                                     |
-| [`subscriptions.ts`](subscriptions.ts)   | `create`/`cancel`/`updateBillingCycle`/`resume`.                                          |
-| [`list-customers.ts`](list-customers.ts) | `list`/`retrieve` — read-only (doesn't exercise `create`/`update`).                       |
-| [`verify-webhook.ts`](verify-webhook.ts) | Signature verification, including a tampered and a stale delivery. Makes no network call. |
+| Script                                       | Shows                                                                                     |
+| -------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| [`quickstart.ts`](quickstart.ts)             | The full flow: list products → open a checkout session → verify its webhook. Start here.  |
+| [`checkout-session.ts`](checkout-session.ts) | `checkoutSessions.create`/`retrieve`, and handling the rate limit.                        |
+| [`list-products.ts`](list-products.ts)       | Browsing the catalog — works pre-KYC.                                                     |
+| [`subscriptions.ts`](subscriptions.ts)       | `create` (legacy)/`cancel`/`updateBillingCycle`/`resume`.                                 |
+| [`list-customers.ts`](list-customers.ts)     | `list`/`retrieve` — read-only (doesn't exercise `create`/`update`).                       |
+| [`verify-webhook.ts`](verify-webhook.ts)     | Signature verification, including a tampered and a stale delivery. Makes no network call. |
 
 ## What this doesn't cover
 

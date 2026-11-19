@@ -1,6 +1,9 @@
 /**
  * The subscription lifecycle: create, list, cancel, change the billing date, and resume.
  *
+ * `subscriptions.create()` is legacy — still supported, but new integrations should collect
+ * payment with `checkoutSessions.create()` (see `checkout-session.ts`).
+ *
  * Only `create()` is safe to run unconditionally against a fresh sandbox — `cancel()`,
  * `updateBillingCycle()`, and `resume()` each need a subscription in a particular state (an
  * active one to cancel, a cancelled one to resume, and so on), so this script creates one, then

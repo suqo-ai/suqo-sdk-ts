@@ -1,6 +1,8 @@
 import { createHmac } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { WebhooksResource } from "../../src/resources/webhooks.js";
+import { HttpClient } from "../../src/http/HttpClient.js";
+import { SdkConfig } from "../../src/config/SdkConfig.js";
 
 const SECRET = "whsec_test_secret";
 
@@ -15,7 +17,8 @@ function nowSeconds(): string {
 }
 
 function webhooks(): WebhooksResource {
-  return new WebhooksResource();
+  // verify() never touches the HttpClient — it's here only because the management methods need it.
+  return new WebhooksResource(new HttpClient(new SdkConfig({ apiKey: "su_test_key_abc123" })));
 }
 
 describe("WebhooksResource.verify", () => {

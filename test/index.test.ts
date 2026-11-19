@@ -12,6 +12,7 @@ describe("public export surface", () => {
     expect(sdk.SuqoConfigError).toBeTypeOf("function");
     expect(sdk.AuthenticationError).toBeTypeOf("function");
     expect(sdk.KycRequiredError).toBeTypeOf("function");
+    expect(sdk.PermissionDeniedError).toBeTypeOf("function");
     expect(sdk.ValidationError).toBeTypeOf("function");
     expect(sdk.NotFoundError).toBeTypeOf("function");
     expect(sdk.RateLimitError).toBeTypeOf("function");
@@ -32,6 +33,7 @@ describe("public export surface", () => {
     expect(suqo.products).toBeDefined();
     expect(suqo.subscriptions).toBeDefined();
     expect(suqo.customers).toBeDefined();
+    expect(suqo.checkoutSessions).toBeDefined();
     expect(suqo.webhooks).toBeDefined();
     expect(suqo.webhooks.verify).toBeTypeOf("function");
   });

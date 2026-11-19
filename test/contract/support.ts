@@ -153,6 +153,56 @@ const mockCustomer = {
   created_at: "2026-01-01T00:00:00Z",
 };
 
+/** What opening or renewing a checkout session returns. */
+const mockCheckoutLink = {
+  public_id: "cks_contract01",
+  expires_at: "2026-10-05T10:38:16.453690+05:45",
+  checkout_url: "https://stage.suqo.ai/checkout/cks_contract01",
+};
+
+// Shape confirmed against a captured GET /api/v1/checkout-sessions/{public_id}/ (2026-10-05);
+// values invented.
+const mockCheckoutSession = {
+  public_id: "cks_contract01",
+  line_items: [
+    {
+      name: "Widget",
+      amount: "1222.00",
+      pbp_id: "pbp_a1104f81b",
+      currency: "NPR",
+      vat_type: null,
+      image_urls: [],
+      interval_type: "month",
+      interval_count: 1,
+      vat_percentage: null,
+      discount_amount: null,
+      display_label: "Monthly",
+      current_period_end: null,
+      extends_to: "2026-11-05",
+      next_payment_due: "2026-11-05",
+    },
+  ],
+  customer_id: "cus_1ce18d624",
+  seller_details: {
+    id: "00000000-0000-0000-0000-000000000001",
+    phone: "9800000000",
+    business_logo: null,
+    business_name: "Example Traders",
+  },
+  return_url: "https://example.com/return",
+  expires_at: "2026-10-05T10:38:16.453690+05:45",
+  completed_at: null,
+  is_expired: false,
+};
+
+const mockWebhook = {
+  id: "whk_contract01",
+  event: "checkout.succeeded",
+  endpoint_url: "https://example.com/hooks/suqo",
+  is_active: true,
+  created_at: "2026-07-03T10:15:00Z",
+};
+
 /** One `msw` handler per documented operation in `specs/openapi.yaml`. */
 export const handlers: HttpHandler[] = [
   http.get(`${SANDBOX_BASE_URL}/api/v1/products/`, async ({ request }) => {
@@ -247,6 +297,70 @@ export const handlers: HttpHandler[] = [
       ...(body.email !== undefined ? { buyer_email: body.email } : {}),
       ...(body.address !== undefined ? { address: body.address } : {}),
     });
+  }),
+
+  http.get(`${SANDBOX_BASE_URL}/api/v1/subscriptions/:id/`, async ({ request, params }) => {
+    await capture(request);
+    return HttpResponse.json({ ...mockSubscription, subscription_id: params.id });
+  }),
+
+  http.post(`${SANDBOX_BASE_URL}/api/v1/subscription/renew/`, async ({ request }) => {
+    await capture(request);
+    return HttpResponse.json(mockCheckoutLink, { status: 201 });
+  }),
+
+  http.post(`${SANDBOX_BASE_URL}/api/v1/checkout-sessions/`, async ({ request }) => {
+    await capture(request);
+    return HttpResponse.json(mockCheckoutLink, { status: 201 });
+  }),
+
+  http.get(`${SANDBOX_BASE_URL}/api/v1/checkout-sessions/:id/`, async ({ request, params }) => {
+    await capture(request);
+    return HttpResponse.json({ ...mockCheckoutSession, public_id: params.id });
+  }),
+
+  http.get(`${SANDBOX_BASE_URL}/api/v1/webhooks/`, async ({ request }) => {
+    await capture(request);
+    return HttpResponse.json([mockWebhook]);
+  }),
+
+  http.post(`${SANDBOX_BASE_URL}/api/v1/webhooks/`, async ({ request }) => {
+    await capture(request);
+    const body = (await request.clone().json()) as Record<string, unknown>;
+    return HttpResponse.json({ ...mockWebhook, ...body }, { status: 201 });
+  }),
+
+  // Registered before the `:id` routes so `secret` isn't swallowed as an id.
+  http.get(`${SANDBOX_BASE_URL}/api/v1/webhooks/secret/`, async ({ request }) => {
+    await capture(request);
+    return HttpResponse.json({ signing_secret: "whsec_contract_test" });
+  }),
+
+  http.get(`${SANDBOX_BASE_URL}/api/v1/webhooks/:id/`, async ({ request, params }) => {
+    await capture(request);
+    return HttpResponse.json({ ...mockWebhook, id: params.id });
+  }),
+
+  http.put(`${SANDBOX_BASE_URL}/api/v1/webhooks/:id/`, async ({ request, params }) => {
+    await capture(request);
+    const body = (await request.clone().json()) as Record<string, unknown>;
+    return HttpResponse.json({ ...mockWebhook, ...body, id: params.id });
+  }),
+
+  http.patch(`${SANDBOX_BASE_URL}/api/v1/webhooks/:id/`, async ({ request, params }) => {
+    await capture(request);
+    const body = (await request.clone().json()) as Record<string, unknown>;
+    return HttpResponse.json({ ...mockWebhook, ...body, id: params.id });
+  }),
+
+  http.delete(`${SANDBOX_BASE_URL}/api/v1/webhooks/:id/`, async ({ request }) => {
+    await capture(request);
+    return new HttpResponse(null, { status: 204 });
+  }),
+
+  http.post(`${SANDBOX_BASE_URL}/api/v1/webhooks/:id/test-delivery/`, async ({ request }) => {
+    await capture(request);
+    return HttpResponse.json({ detail: "Test webhook enqueued." }, { status: 202 });
   }),
 ];
 

@@ -2,6 +2,8 @@
 
 `list()`, `retrieve()`, `create()` and `update()`. There's no `delete`. A customer record is also created implicitly the first time someone subscribes, via [`subscriptions.create()`](subscriptions.md)'s `customer` field — `create()` is for recording one without opening a subscription.
 
+A customer you record here can be passed to [`checkoutSessions.create()`](checkout-sessions.md) as `customerId`, which sends the buyer straight to payment without asking for their details again.
+
 ## Listing
 
 ```ts
@@ -23,16 +25,17 @@ const customer = await suqo.customers.retrieve("cus_1ce18d624");
 
 ```ts
 const customer = await suqo.customers.create({
-  phone: "9800000000", // required
+  email: "ram@example.com", // required
+  phone: "9800000000", // optional
   fullName: "Ram Bahadur",
-  email: "ram@example.com",
   address: "Kathmandu",
 });
 ```
 
-- `phone` identifies the buyer and can't be changed later. It must be a Nepali mobile number (10 digits starting with 96, 97 or 98); a `+977` country code, a leading 0, spaces and dashes are accepted and stripped.
-- If you already have a customer with that phone, `create()` updates that customer instead of making a second one, and returns it. That makes `create()` safe for you to retry — though the SDK never retries it automatically, like every write.
-- The name, email and address are your account's own copy of the buyer's details and aren't shared with other sellers.
+- **Changed in 2.0.0:** `email` identifies the buyer and is required; `phone` is optional. (In 1.x, `phone` was required.)
+- `phone`, if you send it, can't be changed later. It must be a Nepali mobile number (10 digits starting with 96, 97 or 98); a `+977` country code, a leading 0, spaces and dashes are accepted and stripped.
+- If you already have a customer with that email or phone, `create()` updates that customer instead of making a second one, and returns it. That makes `create()` safe for you to retry — though the SDK never retries it automatically, like every write.
+- The name and address are your account's own copy of the buyer's details and aren't shared with other sellers.
 - **Write vs. read names:** you send `phone`/`email`, and they come back on the `Customer` as `buyerPhone`/`buyerEmail`.
 
 ## Updating one

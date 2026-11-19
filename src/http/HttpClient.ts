@@ -2,14 +2,21 @@ import { mapHttpError } from "../errors/mapHttpError.js";
 import { NetworkError, SuqoError } from "../errors/SuqoError.js";
 import type { SdkConfig } from "../config/index.js";
 import { buildUrl, type QueryParams } from "./urlBuilder.js";
-import { backoffDelayMs, isRetryableFailure, isRetryableMethod, parseRetryAfterMs } from "./retry.js";
+import {
+  backoffDelayMs,
+  isRetryableFailure,
+  isRetryableMethod,
+  parseRetryAfterDetailMs,
+  parseRetryAfterMs,
+} from "./retry.js";
 import { combineSignals } from "./signals.js";
 
 /**
- * HTTP methods this client supports (SDK-SPEC.md §1). `GET` for every read; `POST` for every write
- * except `customers.update()`, the one `PATCH` route.
+ * HTTP methods this client supports (SDK-SPEC.md §1). `GET` for every read; every other method is
+ * a write — `POST` for most, `PATCH` for partial updates (`customers.update()`,
+ * `webhooks.update()`), `PUT` for `webhooks.replace()` and `DELETE` for `webhooks.delete()`.
  */
-export type HttpMethod = "GET" | "POST" | "PATCH";
+export type HttpMethod = "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
 
 /** Fields shared by every request, regardless of method. */
 interface HttpRequestOptionsBase {
@@ -65,6 +72,25 @@ export interface HttpPatchRequestOptions<TBody = unknown> extends HttpRequestOpt
 }
 
 /**
+ * Options for a `PUT` request — a full replacement (`webhooks.replace()`). Never retried, like
+ * every write (SDK-SPEC.md §8).
+ */
+export interface HttpPutRequestOptions<TBody = unknown> extends HttpRequestOptionsBase {
+  method: "PUT";
+  /** JSON-serializable request body — the complete new representation. */
+  body?: TBody;
+}
+
+/**
+ * Options for a `DELETE` request (`webhooks.delete()`). Carries no body. Never retried, like
+ * every write (SDK-SPEC.md §8) — the API answers `204` with an empty body, which
+ * {@link HttpClient.request} resolves as `undefined`.
+ */
+export interface HttpDeleteRequestOptions extends HttpRequestOptionsBase {
+  method: "DELETE";
+}
+
+/**
  * Options accepted by {@link HttpClient.request}. `HttpClient` itself is internal (not exported
  * from `src/index.ts`); the SDK's actual typed, consumer-facing contract lives one layer up, in
  * each resource method's own public signature.
@@ -72,7 +98,9 @@ export interface HttpPatchRequestOptions<TBody = unknown> extends HttpRequestOpt
 export type HttpRequestOptions<TBody = unknown> =
   | HttpGetRequestOptions
   | HttpPostRequestOptions<TBody>
-  | HttpPatchRequestOptions<TBody>;
+  | HttpPatchRequestOptions<TBody>
+  | HttpPutRequestOptions<TBody>
+  | HttpDeleteRequestOptions;
 
 /** `RequestInit` extended with undici's non-standard `dispatcher` option (Node's built-in `fetch`, addendum §2). */
 interface FetchInit extends RequestInit {
@@ -158,8 +186,11 @@ export class HttpClient {
     // field at all): a caller that bypasses TypeScript (a raw JS call, or an `as` cast) fails
     // loudly here instead of either crashing deep inside fetch (the original bug) or — worse —
     // silently dropping the body with no error at all, which would be even harder to debug.
-    if (options.method === "GET" && (options as { body?: unknown }).body !== undefined) {
-      throw new TypeError("HttpClient.request: a GET request cannot carry a body.");
+    if (
+      (options.method === "GET" || options.method === "DELETE") &&
+      (options as { body?: unknown }).body !== undefined
+    ) {
+      throw new TypeError(`HttpClient.request: a ${options.method} request cannot carry a body.`);
     }
 
     // Both steps below wrapped in one try/catch, found in review: a malformed `path` (an
@@ -212,7 +243,11 @@ export class HttpClient {
         // Honored on any status, not just 429 (found in review) — a retried 5xx (isRetryableFailure
         // covers 500-599 too) can carry the same header, e.g. a 503 during a maintenance window, and
         // ignoring it there means retrying on our own backoff instead of the wait the server asked for.
-        const retryAfter = parseRetryAfterMs(response.headers.get("Retry-After"));
+        // The header wins when present; the API's own rate limit names its wait only inside a
+        // 429's `detail`, so that is the fallback.
+        const retryAfter =
+          parseRetryAfterMs(response.headers.get("Retry-After")) ??
+          (response.status === 429 ? parseRetryAfterDetailMs(body) : undefined);
 
         if (
           !isLastAttempt &&
@@ -300,11 +335,11 @@ export class HttpClient {
       headers["Content-Type"] = "application/json";
     }
 
-    // `body` only exists on the write (POST/PATCH) branches of the HttpRequestOptions union — a
-    // GET can't carry one even at the type level (found in review: a GET-with-body used to be
+    // `body` only exists on the POST/PATCH/PUT branches of the HttpRequestOptions union — GET and
+    // DELETE can't carry one even at the type level (found in review: a GET-with-body used to be
     // constructible, reach fetch, throw there, and get silently retried/masked as a generic
-    // NetworkError). Checked as "not GET" rather than "is POST" so a PATCH body isn't dropped.
-    const body = options.method !== "GET" ? options.body : undefined;
+    // NetworkError). Checked per method rather than "is POST" so a PATCH/PUT body isn't dropped.
+    const body = "body" in options ? options.body : undefined;
 
     const { signal, cleanup } = combineSignals([AbortSignal.timeout(timeoutMs), options.signal]);
     try {

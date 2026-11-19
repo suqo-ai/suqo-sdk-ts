@@ -3,6 +3,7 @@ import {
   backoffDelayMs,
   isRetryableFailure,
   isRetryableMethod,
+  parseRetryAfterDetailMs,
   parseRetryAfterMs,
 } from "../../src/http/retry.js";
 
@@ -17,6 +18,10 @@ describe("isRetryableMethod", () => {
 
   it("PATCH (writes: customers.update) is never retryable", () => {
     expect(isRetryableMethod("PATCH")).toBe(false);
+  });
+
+  it.each(["PUT", "DELETE"])("%s (writes: webhooks.replace/delete) is never retryable", (method) => {
+    expect(isRetryableMethod(method)).toBe(false);
   });
 });
 
@@ -119,4 +124,26 @@ describe("parseRetryAfterMs", () => {
   it("returns undefined for a whitespace-only value too", () => {
     expect(parseRetryAfterMs("   ")).toBeUndefined();
   });
+});
+
+describe("parseRetryAfterDetailMs", () => {
+  it("reads the wait the API writes into a 429's detail", () => {
+    expect(parseRetryAfterDetailMs({ detail: "Request was throttled. Expected available in 41 seconds." })).toBe(41_000);
+  });
+
+  it("accepts the singular and a fractional value", () => {
+    expect(parseRetryAfterDetailMs({ detail: "Expected available in 1 second." })).toBe(1000);
+    expect(parseRetryAfterDetailMs({ detail: "Expected available in 2.5 seconds." })).toBe(2500);
+  });
+
+  it("caps the wait at 60s, like the header", () => {
+    expect(parseRetryAfterDetailMs({ detail: "Expected available in 3600 seconds." })).toBe(60_000);
+  });
+
+  it.each([undefined, null, "text", ["a"], {}, { detail: 41 }, { detail: "Request was throttled." }])(
+    "returns undefined for %j rather than guessing",
+    (body) => {
+      expect(parseRetryAfterDetailMs(body)).toBeUndefined();
+    },
+  );
 });

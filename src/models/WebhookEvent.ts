@@ -1,9 +1,10 @@
 import type { SubscriptionStatus } from "./Subscription.js";
+import type { IntervalType, VatType } from "./wireEnums.js";
 
 /**
- * The confirmed webhook event payload shapes: the original three (Ticket 0 item 2) plus four
- * `api_key.*` events added 2026-09-03, each confirmed against a real delivery or a backend-
- * confirmed sample — not the event catalog's names alone.
+ * The confirmed webhook event payload shapes, re-checked on 2026-11-19 against delivery samples
+ * captured and shared by the backend team for every event (checkout, renewal, status change and
+ * all four `api_key.*` events).
  *
  * Deliberately **snake_case**, unlike every other model in this SDK — `webhooks.verify()`
  * (Ticket 5) only checks the signature and returns a `boolean`; it never parses the body itself
@@ -16,34 +17,59 @@ import type { SubscriptionStatus } from "./Subscription.js";
  */
 
 /**
- * Fields shared by every *subscription-related* webhook event (2026-08-25).
- * Deliberately named for **subscription** events specifically, not a generic `BaseWebhookEvent` —
- * `subscription_id` is common to these three because all three happen to be about a subscription,
- * not because every webhook event SUQO will ever send is guaranteed to carry one. A future event
- * about a different resource (e.g. a customer- or payout-level event) would need its own base, not
- * be forced through this one. SDK Naming Map v1.1 has no coverage of this at all — same gap as the
- * event fields themselves.
+ * One line item on a `checkout.*` event. A catalogue item has a `pbp_id` and `image_urls`; a
+ * partner-priced (inline) item has `pbp_id: null` and `plan_name`. Internal alias — the Naming Map
+ * registers no public name for it.
  */
-interface SubscriptionWebhookEventBase {
-  subscription_id: string;
+interface CheckoutEventLineItem {
+  name: string;
+  /** Decimal string. Never coerced to a number — SDK-SPEC.md §9. */
+  amount: string;
+  /** The billing period charged; `null` for a partner-priced item. */
+  pbp_id: string | null;
+  currency: string;
+  vat_type: VatType | null;
+  /** Decimal string, or `null` when no VAT applies. */
+  vat_percentage: string | null;
+  /** Decimal string, or `null` when there is no discount. */
+  discount_amount: string | null;
+  interval_type: IntervalType;
+  interval_count: number;
+  /** Catalogue items only. */
+  image_urls?: string[];
+  /** Partner-priced items only. */
+  plan_name?: string | null;
+  /** Only on a payment opened by `subscriptions.renew()`: the subscription being renewed. */
+  subscription_id?: string;
+}
+
+/**
+ * Fields shared by both checkout events. **Changed in 2.0.0:** one delivery per checkout
+ * session, keyed by `session_id`, carrying `line_items` — not one per subscription keyed by a
+ * top-level `subscription_id`. Payments taken through the legacy `subscriptions.create()` report
+ * through this same payload.
+ */
+interface CheckoutWebhookEventBase {
+  /** The `cks_…` returned as `publicId` when the session was opened — match deliveries back on this. */
+  session_id: string;
+  /** The session total. Decimal string. Never coerced to a number — SDK-SPEC.md §9. */
+  amount: string;
+  /** What the session charged, one entry per item. */
+  line_items: CheckoutEventLineItem[];
 }
 
 /** A successful checkout. `status` is always `"succeeded"` on this event — never anything else. */
-export interface CheckoutSucceededEvent extends SubscriptionWebhookEventBase {
+export interface CheckoutSucceededEvent extends CheckoutWebhookEventBase {
   event: "checkout.succeeded";
-  /** Decimal string. Never coerced to a number — SDK-SPEC.md §9. */
-  amount: string;
   status: "succeeded";
 }
 
 /**
- * A failed checkout. `status` is always `"failed"` — the platform deliberately omits the specific
- * failure reason from this payload.
+ * A failed checkout — final, after SUQO's own retries. `status` is always `"failed"`; the specific
+ * failure reason is deliberately not in the payload.
  */
-export interface CheckoutFailedEvent extends SubscriptionWebhookEventBase {
+export interface CheckoutFailedEvent extends CheckoutWebhookEventBase {
   event: "checkout.failed";
-  /** Decimal string. Never coerced to a number — SDK-SPEC.md §9. */
-  amount: string;
   status: "failed";
 }
 
@@ -53,8 +79,9 @@ export interface CheckoutFailedEvent extends SubscriptionWebhookEventBase {
  * §9's prose still says `subscription.status.change`; that's the doc that's stale, not this type
  * (docs/implementation-plan.md Ticket 0 item 2).
  */
-export interface SubscriptionStatusChangedEvent extends SubscriptionWebhookEventBase {
+export interface SubscriptionStatusChangedEvent {
   event: "subscription.status_changed";
+  subscription_id: string;
   previous_status: SubscriptionStatus;
   current_status: SubscriptionStatus;
   /** ISO 8601 timestamp. */
@@ -68,8 +95,11 @@ interface ApiKeyWebhookEventBase {
   name: string;
   /** Never the real key — always pre-masked by the backend (e.g. `"su_key_ca9...bf9e"`). */
   masked_key: string;
-  /** `YYYY-MM-DD`, date-only — no time component, unlike `created_at`/`deleted_at`. */
-  expires_at: string;
+  /**
+   * `YYYY-MM-DD`, date-only — no time component, unlike `created_at`/`deleted_at`. `null` for a key
+   * created without an expiry.
+   */
+  expires_at: string | null;
   /** ISO 8601 timestamp. */
   created_at: string;
 }

@@ -1,7 +1,7 @@
 import type { HttpClient } from "../http/HttpClient.js";
 import { bridgeAutoPaging, deserializePage, toPageQuery, type Page, type PageParams } from "../pagination.js";
 import type { CreateCustomerParams, Customer, UpdateCustomerParams } from "../models/index.js";
-import { SuqoConfigError } from "../errors/SuqoError.js";
+import { assertPathId } from "../utils/index.js";
 
 /** `GET /api/v1/customers/` — no trailing slash here; `HttpClient`/`buildUrl` guarantees it (Ticket 2). */
 const CUSTOMERS_PATH = "/api/v1/customers";
@@ -67,18 +67,6 @@ function serializeCustomerFields(params: UpdateCustomerParams): Record<string, u
 }
 
 /**
- * Rejects an id that would resolve to a different endpoint than the one intended. `""` collapses
- * onto the collection URL (`encodeURIComponent("")` is `""`); `"."` and `".."` do too, or climb
- * above it, because `encodeURIComponent` leaves dots alone and URL parsing then resolves them as
- * dot segments (found in review: `retrieve(".")` hit `list()`'s URL, same as `retrieve("")` did).
- */
-function assertCustomerId(id: string, method: string): void {
-  if (!id || id === "." || id === "..") {
-    throw new SuqoConfigError(`customers.${method}() requires a non-empty id other than "." or ".."`);
-  }
-}
-
-/**
  * `client.customers` (SDK-SPEC.md §5, §6; `openapi.yaml` `listCustomers`/`retrieveCustomer`/
  * `createCustomer`/`updateCustomer`). No delete exists on this resource.
  */
@@ -127,7 +115,7 @@ export class CustomersResource {
     // string` makes an empty id ordinary reachable input (`retrieve(req.params.id)`,
     // `retrieve(user.customerId ?? "")`) in a way `id: number` never could (no number stringifies
     // to "").
-    assertCustomerId(id, "retrieve");
+    assertPathId(id, "customers.retrieve");
 
     // encodeURIComponent — same path-corruption risk as subscriptions.cancel()/resume(), now that
     // id is a real caller-supplied string rather than a number.
@@ -139,20 +127,24 @@ export class CustomersResource {
   }
 
   /**
-   * Records a customer on the seller's account without opening a subscription. `phone` identifies
-   * the buyer; the name, email and address are the seller's own copy and aren't shared with other
-   * sellers.
+   * Records a customer on the seller's account without opening a subscription. `email` identifies
+   * the buyer and is required; `phone` is optional. The name and address are the seller's own copy
+   * and aren't shared with other sellers. Pass the returned `id` to `checkoutSessions.create()` as
+   * `customerId` to send the buyer straight to payment.
    *
-   * A phone the seller already holds updates that existing customer instead of creating a second
-   * one (the API answers `200` rather than `201`; both resolve to the `Customer` here). That makes
-   * this call safe for the caller to retry — but, like every write, the SDK never retries it
-   * automatically (SDK-SPEC.md §8, §12).
+   * An email or phone the seller already holds updates that existing customer instead of creating
+   * a second one (the API answers `200` rather than `201`; both resolve to the `Customer` here).
+   * That makes this call safe for the caller to retry — but, like every write, the SDK never
+   * retries it automatically (SDK-SPEC.md §8, §12).
    */
   async create(params: CreateCustomerParams): Promise<Customer> {
     const wire = await this.#http.request<WireCustomer, unknown>({
       method: "POST",
       path: CUSTOMERS_PATH,
-      body: { phone: params.phone, ...serializeCustomerFields(params) },
+      body: {
+        ...serializeCustomerFields(params),
+        ...(params.phone !== undefined ? { phone: params.phone } : {}),
+      },
     });
     return deserializeCustomer(wire);
   }
@@ -166,7 +158,7 @@ export class CustomersResource {
   async update(id: string, params: UpdateCustomerParams): Promise<Customer> {
     // Same guard as retrieve(): a bad id would send the PATCH to the wrong endpoint rather than
     // failing on the intended one.
-    assertCustomerId(id, "update");
+    assertPathId(id, "customers.update");
 
     const wire = await this.#http.request<WireCustomer, unknown>({
       method: "PATCH",

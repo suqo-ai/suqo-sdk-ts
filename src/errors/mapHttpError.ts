@@ -2,6 +2,7 @@ import {
   AuthenticationError,
   KycRequiredError,
   NotFoundError,
+  PermissionDeniedError,
   RateLimitError,
   ServerError,
   SuqoError,
@@ -34,6 +35,15 @@ export interface HttpErrorInput {
    * only ever surfaced on the thrown error itself for `RateLimitError` (429) below.
    */
   retryAfter?: number;
+}
+
+/**
+ * True when `body` is a bare list of messages (`["msg", …]`) — what the API sends for a 400 on an
+ * endpoint with no request body to key a field on (cancel, resume, renew), and for the
+ * duplicate-subscription error on create.
+ */
+function isMessageList(body: unknown): body is string[] {
+  return Array.isArray(body) && body.length > 0 && body.every((item) => typeof item === "string");
 }
 
 /** True when `body` is the `DetailError` shape (`{ detail: "msg" }`) rather than field-keyed. */
@@ -124,13 +134,22 @@ export function mapHttpError(input: HttpErrorInput): SuqoError {
     case 401:
       return new AuthenticationError(messageFrom(body, fallbackMessage), base);
     case 403: {
-      const kycStatus = isRecord(body) && typeof body.status_code === "string" ? body.status_code : undefined;
-      const message = messageFrom(body, "KYC verification needed to perform this action.");
-      return new KycRequiredError(message, { ...base, ...(kycStatus !== undefined ? { kycStatus } : {}) });
+      // Two 403 shapes, told apart by the body, never the status alone: KYC carries
+      // `status_code` + `message` and no `detail`; any other refusal carries `detail` alone.
+      if (isRecord(body) && typeof body.status_code === "string") {
+        const message = messageFrom(body, "KYC verification needed to perform this action.");
+        return new KycRequiredError(message, { ...base, kycStatus: body.status_code });
+      }
+      return new PermissionDeniedError(messageFrom(body, "You do not have permission to perform this action."), base);
     }
     case 400: {
       if (isDetailShaped(body)) {
         return new ValidationError(body.detail, base);
+      }
+      // A bare list carries no field to key on: surface its messages as the error message,
+      // with an empty `fieldErrors` — same as a `detail`-shaped 400 (Naming Map §7).
+      if (isMessageList(body)) {
+        return new ValidationError(body.join(" "), { ...base, fieldErrors: {} });
       }
       return new ValidationError("Validation failed.", { ...base, fieldErrors: fieldErrorsFrom(body) });
     }

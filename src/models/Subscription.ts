@@ -44,17 +44,21 @@ export const SubscriptionStatus = {
 // eslint-disable-next-line @typescript-eslint/ban-types
 export type SubscriptionStatus = (typeof SubscriptionStatus)[keyof typeof SubscriptionStatus] | (string & {});
 
-/** The product summary embedded on a {@link Subscription} (`openapi.yaml` `SubscriptionProduct`) — a summary, not the full {@link import("./Product.js").Product} record. */
+/**
+ * The product summary embedded on a {@link Subscription} (`openapi.yaml` `SubscriptionProduct`) — a
+ * summary, not the full {@link import("./Product.js").Product} record. The API may send `null` for
+ * any field, and an omitted field also comes back `null`.
+ */
 export interface SubscriptionProduct {
-  productId: string;
-  name: string;
-  planName: string;
+  productId: string | null;
+  name: string | null;
+  planName: string | null;
   /** Pass this to `subscriptions.create({ pbpId, ... })`. */
-  pbpId: string;
-  label: string;
+  pbpId: string | null;
+  label: string | null;
   /** Decimal string. Never coerced to a number — SDK-SPEC.md §5. */
-  price: string;
-  currency: string;
+  price: string | null;
+  currency: string | null;
 }
 
 /** A seller's subscription (`openapi.yaml` `Subscription`). */

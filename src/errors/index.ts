@@ -3,6 +3,7 @@ export {
   SuqoConfigError,
   AuthenticationError,
   KycRequiredError,
+  PermissionDeniedError,
   ValidationError,
   NotFoundError,
   RateLimitError,

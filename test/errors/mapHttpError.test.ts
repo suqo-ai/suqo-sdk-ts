@@ -4,6 +4,7 @@ import {
   AuthenticationError,
   KycRequiredError,
   NotFoundError,
+  PermissionDeniedError,
   RateLimitError,
   ServerError,
   SuqoError,
@@ -28,10 +29,31 @@ describe("mapHttpError", () => {
     expect(err.message).toBe("KYC verification needed to perform this action.");
   });
 
-  it("403 without a status_code leaves kycStatus undefined rather than guessing", () => {
-    const err = mapHttpError({ status: 403, body: {} }) as KycRequiredError;
-    expect(err).toBeInstanceOf(KycRequiredError);
-    expect(err.kycStatus).toBeUndefined();
+  it("a detail-only 403 is PermissionDeniedError, not KycRequiredError — the body decides, not the status", () => {
+    const err = mapHttpError({ status: 403, body: { detail: "You do not have permission to perform this action." } });
+    expect(err).toBeInstanceOf(PermissionDeniedError);
+    expect(err).not.toBeInstanceOf(KycRequiredError);
+    expect(err).toBeInstanceOf(SuqoError);
+    expect(err.message).toBe("You do not have permission to perform this action.");
+    expect(err.status).toBe(403);
+  });
+
+  it("a 403 with no recognisable body is PermissionDeniedError — KYC is only reported when status_code says so", () => {
+    expect(mapHttpError({ status: 403, body: {} })).toBeInstanceOf(PermissionDeniedError);
+    expect(mapHttpError({ status: 403 })).toBeInstanceOf(PermissionDeniedError);
+  });
+
+  it("maps a bare-list 400 (cancel/resume/renew, duplicate subscription) to ValidationError with the messages, not 'Validation failed.'", () => {
+    const err = mapHttpError({ status: 400, body: ["This is a one-time purchase, so there is nothing to cancel."] }) as ValidationError;
+    expect(err).toBeInstanceOf(ValidationError);
+    expect(err.message).toBe("This is a one-time purchase, so there is nothing to cancel.");
+    expect(err.fieldErrors).toEqual({});
+    expect(err.rawBody).toEqual(["This is a one-time purchase, so there is nothing to cancel."]);
+  });
+
+  it("joins a multi-message bare-list 400 into one message", () => {
+    const err = mapHttpError({ status: 400, body: ["First.", "Second."] }) as ValidationError;
+    expect(err.message).toBe("First. Second.");
   });
 
   it("maps a field-keyed 400 to ValidationError.fieldErrors, normalizing string values to arrays", () => {
@@ -119,7 +141,7 @@ describe("mapHttpError", () => {
     expect(err.message).toBe("Not found.");
   });
 
-  it("maps 429 to RateLimitError, carrying retryAfter when given (reserved — SDK-SPEC.md §10)", () => {
+  it("maps 429 to RateLimitError, carrying retryAfter when given (SDK-SPEC.md §10)", () => {
     const err = mapHttpError({ status: 429, retryAfter: 5000 }) as RateLimitError;
     expect(err).toBeInstanceOf(RateLimitError);
     expect(err.retryAfter).toBe(5000);

@@ -31,12 +31,13 @@ See [`authentication.md`](docs/user/authentication.md) for how the API key deter
 | Examples                  | [`examples/`](examples/) — runnable scripts against your own sandbox |
 | Authentication            | [`authentication.md`](docs/user/authentication.md)                   |
 | Products                  | [`products.md`](docs/user/products.md)                               |
+| Checkout sessions         | [`checkout-sessions.md`](docs/user/checkout-sessions.md)             |
 | Subscriptions             | [`subscriptions.md`](docs/user/subscriptions.md)                     |
 | Customers                 | [`customers.md`](docs/user/customers.md)                             |
 | Webhooks                  | [`webhooks.md`](docs/user/webhooks.md)                               |
 | Pagination                | [`pagination.md`](docs/user/pagination.md)                           |
 | Errors                    | [`errors.md`](docs/user/errors.md)                                   |
-| Rate limiting _(planned)_ | [`rate-limiting.md`](docs/user/rate-limiting.md)                     |
+| Rate limiting             | [`rate-limiting.md`](docs/user/rate-limiting.md)                     |
 | Idempotency _(planned)_   | [`idempotency.md`](docs/user/idempotency.md)                         |
 
 Every exported class and method also carries inline TSDoc — your editor will show it on hover without needing to open these files.
