@@ -103,6 +103,11 @@ export interface CheckoutLineItem {
   imageUrls?: string[];
   /** Partner-priced items only. */
   planName?: string | null;
+  /**
+   * Renewals only: the subscription this line renews, when the session was opened by
+   * `subscriptions.renew()`. Absent on a new purchase.
+   */
+  subscriptionId?: string;
 }
 
 /** The seller shown on a {@link CheckoutSession} (`openapi.yaml` `CheckoutSeller`). */

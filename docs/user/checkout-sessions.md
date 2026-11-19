@@ -89,6 +89,7 @@ interface CheckoutLineItem {
   nextPaymentDue: string | null; // YYYY-MM-DD
   imageUrls?: string[];          // catalogue items only
   planName?: string | null;      // partner-priced items only
+  subscriptionId?: string;       // renewals only — the subscription being renewed
 }
 
 interface CheckoutSeller {
@@ -99,7 +100,7 @@ interface CheckoutSeller {
 }
 ```
 
-`imageUrls` appears only on catalogue items and `planName` only on partner-priced ones — each is absent, not `null`, on the other kind. Every other nullable field comes back `null`, never `undefined`.
+`imageUrls` appears only on catalogue items and `planName` only on partner-priced ones — each is absent, not `null`, on the other kind. `subscriptionId` appears only on a renewal's line items (a session opened by `subscriptions.renew()`), naming the subscription it renews; `sessionType` can't tell a renewal from a new purchase, but `subscriptionId` can. Every other nullable field comes back `null`, never `undefined`.
 
 ## Retries
 

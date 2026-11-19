@@ -7,6 +7,13 @@ adheres to [Semantic Versioning](https://semver.org/) per [`specs/versioning.md`
 
 ## [Unreleased]
 
+### Added
+
+- `CheckoutLineItem.subscriptionId?: string` — on a renewal session (opened by
+  `subscriptions.renew()`), `checkoutSessions.retrieve()` now keeps each line item's
+  `subscription_id`, the subscription being renewed. The API always sent it; Swagger didn't list
+  it, so the SDK dropped it. Absent on a new purchase.
+
 ## [2.0.0] - 2026-11-18
 
 **Why a major:** the API changed its wire contract within `/api/v1/` — the checkout webhook
