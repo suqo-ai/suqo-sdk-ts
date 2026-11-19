@@ -6,6 +6,8 @@ import {
   AuthenticationError,
   NetworkError,
   NotFoundError,
+  PermissionDeniedError,
+  KycRequiredError,
   RateLimitError,
   ServerError,
 } from "../../src/errors/SuqoError.js";
@@ -604,5 +606,31 @@ describe("HttpClient", () => {
       .catch((e: unknown) => e);
 
     expect((err as RateLimitError).retryAfter).toBe(7000);
+  });
+
+  // #50: a Cloudflare/WAF block page used to be dropped and reported as a SUQO refusal.
+  it("a non-JSON 403 (Cloudflare 1010 page) is not KYC, has a neutral message, and keeps the text in rawBody", async () => {
+    const html = "<html><body>error code: 1010</body></html>";
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(html, { status: 403, statusText: "Forbidden", headers: { "content-type": "text/html" } }),
+    );
+    const err = await client()
+      .request({ method: "GET", path: "/api/v1/products" })
+      .catch((e: unknown) => e);
+
+    expect(err).not.toBeInstanceOf(KycRequiredError);
+    expect(err).toBeInstanceOf(PermissionDeniedError);
+    expect((err as Error).message).toBe("Request failed with status 403 (Forbidden)");
+    expect((err as PermissionDeniedError).rawBody).toBe(html);
+  });
+
+  it("a non-JSON 5xx keeps its text in rawBody", async () => {
+    vi.mocked(fetch).mockResolvedValue(new Response("Bad Gateway", { status: 502 }));
+    const err = await client({ maxRetries: 0 })
+      .request({ method: "GET", path: "/api/v1/products" })
+      .catch((e: unknown) => e);
+
+    expect(err).toBeInstanceOf(ServerError);
+    expect((err as ServerError).rawBody).toBe("Bad Gateway");
   });
 });

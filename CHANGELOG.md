@@ -14,6 +14,13 @@ adheres to [Semantic Versioning](https://semver.org/) per [`specs/versioning.md`
   `subscription_id`, the subscription being renewed. The API always sent it; Swagger didn't list
   it, so the SDK dropped it. Absent on a new purchase.
 
+### Fixed
+
+- A non-JSON error response (e.g. a Cloudflare/WAF block page, `error code: 1010`) is no longer
+  dropped: its text is kept in the error's `rawBody`, and the message is the neutral
+  `Request failed with status N` instead of a SUQO-specific one like "You do not have permission
+  to perform this action."
+
 ## [2.0.0] - 2026-11-18
 
 **Why a major:** the API changed its wire contract within `/api/v1/` — the checkout webhook

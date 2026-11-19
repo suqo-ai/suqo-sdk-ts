@@ -33,7 +33,7 @@ Every subclass carries whatever the base class does:
 ```ts
 interface SuqoErrorOptions {
   status?: number;      // HTTP status, if there was a response
-  rawBody?: unknown;     // the raw parsed response body, if any
+  rawBody?: unknown;     // the response body: parsed JSON, or raw text if it wasn't JSON
   requestId?: string;    // SUQO's request id for this call, if the response included one
 }
 ```
@@ -44,6 +44,8 @@ A `403` is told apart by its body, never the status alone:
 
 - **KYC not cleared** — `{ "status_code": "KYC_VERIFICATION_PENDING", "message": "…" }` → `KycRequiredError`. Resolved in the seller dashboard, not through the API.
 - **Anything else** — `{ "detail": "You do not have permission to perform this action." }` → `PermissionDeniedError`.
+
+A `403` that isn't JSON at all didn't come from SUQO — usually a firewall in front of the API (e.g. Cloudflare's `error code: 1010`, which blocks some HTTP clients by their `User-Agent`). It's still a `PermissionDeniedError`, but its message is just `Request failed with status 403`; read `err.rawBody` (the page's text) for the real cause.
 
 **Changed in 2.0.0:** in 1.x every `403` was a `KycRequiredError`. If you catch `KycRequiredError` to prompt the seller to finish KYC, that's still right — it just no longer fires for permission problems that KYC wouldn't fix.
 

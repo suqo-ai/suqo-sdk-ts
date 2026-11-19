@@ -11,7 +11,7 @@
 export interface SuqoErrorOptions {
   /** HTTP status code this error was mapped from, if any (absent for `SuqoConfigError`/`NetworkError` — there was no response). */
   status?: number;
-  /** The raw, parsed response body this error was mapped from, if any. */
+  /** The response body this error was mapped from, if any: parsed JSON, or the raw text when it wasn't JSON. */
   rawBody?: unknown;
   /**
    * The backend's request id for this call, if the response included one — ties a failure to a
@@ -42,7 +42,7 @@ export interface SuqoErrorOptions {
 export class SuqoError extends Error {
   /** HTTP status code this error was mapped from, if any. */
   readonly status?: number;
-  /** The raw, parsed response body this error was mapped from, if any. */
+  /** The response body this error was mapped from, if any: parsed JSON, or the raw text when it wasn't JSON. */
   readonly rawBody?: unknown;
   /** The backend's request id for this call, if one was returned. See {@link SuqoErrorOptions.requestId}. */
   readonly requestId?: string;

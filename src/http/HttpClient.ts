@@ -112,16 +112,18 @@ function defaultSleep(ms: number): Promise<void> {
 }
 
 /**
- * Best-effort JSON parse of a response body. Never throws — an empty or non-JSON body just yields
- * `undefined`, matching `mapHttpError`'s own best-effort philosophy (Ticket 1).
+ * Best-effort JSON parse of a response body. Never throws — an empty body yields `undefined`. A
+ * non-JSON body yields `undefined` too, unless `keepText` is set: the error path sets it so a
+ * proxy/WAF page (e.g. Cloudflare's "error code: 1010") reaches the error's `rawBody` as text
+ * instead of being dropped. A 2xx keeps the old `undefined`.
  */
-async function parseJsonBody(response: Response): Promise<unknown> {
+async function parseJsonBody(response: Response, keepText = false): Promise<unknown> {
   const text = await response.text();
   if (text.length === 0) return undefined;
   try {
     return JSON.parse(text);
   } catch {
-    return undefined;
+    return keepText ? text : undefined;
   }
 }
 
@@ -239,7 +241,7 @@ export class HttpClient {
         // already arrived fine) — that failure needs the exact same retry-or-network-error
         // treatment as `#doFetch` itself failing, not an unmapped rejection escaping `request()`.
         // Wrapping both in the same try/catch below (found in review) is what makes that happen.
-        const body = await parseJsonBody(response);
+        const body = await parseJsonBody(response, true);
         // Honored on any status, not just 429 (found in review) — a retried 5xx (isRetryableFailure
         // covers 500-599 too) can carry the same header, e.g. a 503 during a maintenance window, and
         // ignoring it there means retrying on our own backoff instead of the wait the server asked for.

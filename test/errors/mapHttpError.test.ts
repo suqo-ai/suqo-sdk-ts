@@ -43,6 +43,15 @@ describe("mapHttpError", () => {
     expect(mapHttpError({ status: 403 })).toBeInstanceOf(PermissionDeniedError);
   });
 
+  it("a text 400/401/403/404 body gets the neutral status message, never a SUQO-specific fallback", () => {
+    for (const status of [400, 401, 403, 404]) {
+      const err = mapHttpError({ status, statusText: "X", body: "error code: 1010" });
+      expect(err.message).toBe(`Request failed with status ${status} (X)`);
+      expect(err.rawBody).toBe("error code: 1010");
+      expect(err).not.toBeInstanceOf(KycRequiredError);
+    }
+  });
+
   it("maps a bare-list 400 (cancel/resume/renew, duplicate subscription) to ValidationError with the messages, not 'Validation failed.'", () => {
     const err = mapHttpError({ status: 400, body: ["This is a one-time purchase, so there is nothing to cancel."] }) as ValidationError;
     expect(err).toBeInstanceOf(ValidationError);
