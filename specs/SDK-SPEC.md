@@ -272,12 +272,20 @@ it to exercise payload parsing.
 
 **Checkout events (changed in 2.0.0).** `checkout.succeeded` and
 `checkout.failed` are sent once per checkout session, not once per
-subscription: `{ event, session_id, amount, status, items }`. `session_id` is
-the `cks_…` returned as `publicId` when the session was opened; `amount` is the
-session total; each entry in `items` echoes what was sent — `{ pbp_id }` for a
-catalogue item, `{ name, amount, interval_type, interval_count }` for a
-partner-priced one. They no longer carry `subscription_id`. Payments taken
-through the legacy `subscriptions.create` report through the same payload.
+subscription: `{ event, session_id, amount, status, line_items }`. `session_id`
+is the `cks_…` returned as `publicId` when the session was opened; `amount` is
+the session total. Each entry in `line_items` carries `name`, `amount`,
+`pbp_id` (`null` for a partner-priced item), `currency`, `vat_type`,
+`vat_percentage`, `discount_amount`, `interval_type` and `interval_count`; a
+catalogue item adds `image_urls`, a partner-priced one `plan_name`. There is no
+top-level `subscription_id`; a renewal (`subscriptions.renew`) puts the renewed
+subscription's `subscription_id` on each line item. Payments taken through the
+legacy `subscriptions.create` report through the same payload.
+
+**API key events.** `expires_at` is a `YYYY-MM-DD` date, or `null` for a key
+created without an expiry.
+
+Confirmed against delivery samples captured by the backend team on 2026-11-19.
 
 Registrations are managed over HTTP by the `webhooks` resource (§5): one
 webhook per event per account, `https` endpoints resolving only to public

@@ -58,10 +58,10 @@ The event shapes:
 
 | Event | Fields |
 |---|---|
-| `checkout.succeeded` | `session_id`, `amount` (decimal string), `status: "succeeded"`, `items` |
-| `checkout.failed` | `session_id`, `amount` (decimal string), `status: "failed"`, `items` |
+| `checkout.succeeded` | `session_id`, `amount` (decimal string), `status: "succeeded"`, `line_items` |
+| `checkout.failed` | `session_id`, `amount` (decimal string), `status: "failed"`, `line_items` |
 | `subscription.status_changed` | `subscription_id`, `previous_status`, `current_status`, `changed_at` |
-| `api_key.created` / `api_key.expired` / `api_key.expiring_soon` | `api_key_id`, `name`, `masked_key`, `expires_at`, `created_at` |
+| `api_key.created` / `api_key.expired` / `api_key.expiring_soon` | `api_key_id`, `name`, `masked_key`, `expires_at` (`null` if the key never expires), `created_at` |
 | `api_key.deleted` | The same, plus `deleted_at` |
 
 ### Checkout events — changed in 2.0.0
@@ -74,18 +74,29 @@ The event shapes:
   "session_id": "cks_3n9k2xQ7m",
   "amount": "5000.00",
   "status": "succeeded",
-  "items": [
-    { "pbp_id": "pbp_3n9k2x" },
-    { "name": "Onboarding setup", "amount": "2500.00", "interval_type": "one_time", "interval_count": 0 }
+  "line_items": [
+    {
+      "name": "Capture Pro",
+      "amount": "1000.00",
+      "pbp_id": "pbp_dd4876956363ad3",
+      "currency": "NPR",
+      "vat_type": null,
+      "vat_percentage": null,
+      "discount_amount": null,
+      "interval_type": "month",
+      "interval_count": 1,
+      "image_urls": []
+    }
   ]
 }
 ```
 
-- **`amount`** is the session total; each partner-priced item's `amount` is that item's price. Both are decimal strings.
-- **`items`** echoes what the session carries, in the shape it was sent: `{ pbp_id }` for a catalogue item, `{ name, amount, interval_type, interval_count }` for a partner-priced one.
+- **`amount`** is the session total; each line item's `amount` is that item's price. All amounts are decimal strings.
+- **`line_items`** has one entry per item charged, each with `name`, `amount`, `pbp_id`, `currency`, `vat_type`, `vat_percentage`, `discount_amount`, `interval_type` and `interval_count`. A catalogue item also has `image_urls`. A partner-priced item has `pbp_id: null` and a `plan_name`.
+- **Renewals:** when the session was opened by [`subscriptions.renew()`](subscriptions.md), each line item also carries `subscription_id`, the subscription being renewed.
 - **`checkout.failed`** is final — SUQO retries pending or transient failures internally and only sends it once the outcome is settled. The specific cause isn't in the payload.
 
-These shapes are built from the API docs and Swagger; they haven't yet been checked against a captured delivery.
+These shapes match delivery samples captured by the backend team on 2026-11-19.
 
 **These stay snake_case on purpose** — unlike every other model in this SDK. `verify()` only checks the signature; it never parses or transforms the body. Whatever `JSON.parse(rawBody)` gives you is exactly what's on the wire, snake_case included. Typing these as camelCase would describe a shape that doesn't actually exist at runtime.
 

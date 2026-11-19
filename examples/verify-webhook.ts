@@ -34,7 +34,20 @@ const rawBody = JSON.stringify({
   session_id: "cks_3n9k2xQ7m",
   amount: "500.00", // decimal string — never a number, even in the raw wire payload
   status: "succeeded",
-  items: [{ pbp_id: "pbp_3n9k2x" }],
+  line_items: [
+    {
+      name: "Pro plan",
+      amount: "500.00",
+      pbp_id: "pbp_3n9k2x",
+      currency: "NPR",
+      vat_type: null,
+      vat_percentage: null,
+      discount_amount: null,
+      interval_type: "month",
+      interval_count: 1,
+      image_urls: [],
+    },
+  ],
 });
 const timestamp = String(Math.floor(Date.now() / 1000));
 

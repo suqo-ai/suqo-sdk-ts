@@ -165,19 +165,22 @@ network call and never reads the key — the checklist below still holds for it.
 ### Checkout event payload (Step A, changed)
 
 `checkout.succeeded`/`checkout.failed` are now one delivery **per checkout session**, keyed by
-`session_id`, carrying `items` — not one per subscription keyed by `subscription_id`. Payments taken
-through the legacy `subscriptions.create()` report through the same payload.
-`SubscriptionWebhookEventBase` is gone: `subscription.status_changed` now declares `subscription_id`
-itself, and the two checkout events share a `CheckoutWebhookEventBase`. The `items` element type is
-an internal alias (no registered public name). Built from the API docs and Swagger; not yet checked
-against a captured delivery. `api_key.*` events are unchanged.
+`session_id`, carrying `line_items` — not one per subscription keyed by a top-level
+`subscription_id`. Payments taken through the legacy `subscriptions.create()` report through the
+same payload. `SubscriptionWebhookEventBase` is gone: `subscription.status_changed` now declares
+`subscription_id` itself, and the two checkout events share a `CheckoutWebhookEventBase`. The line
+item type is an internal alias (no registered public name).
+
+**Corrected 2026-11-19** against delivery samples captured by the backend team. The first 2.0.0
+draft followed the public docs (`items[]` echoing only what was sent); the real key is `line_items`,
+each entry a full line item. The same samples showed `api_key.*` `expires_at` can be `null`.
 
 | Field | Type | Notes |
 |---|---|---|
 | `session_id` | `string` | `cks_…` — the `publicId` returned by `checkoutSessions.create()` |
 | `amount` | `string` | Session total, decimal string |
 | `status` | `"succeeded"` / `"failed"` | Fixed per event |
-| `items` | array | `{ pbp_id }` or `{ name, amount, interval_type, interval_count }` |
+| `line_items` | array | `name`, `amount`, `pbp_id` (`null` if partner-priced), `currency`, `vat_type`, `vat_percentage`, `discount_amount`, `interval_type`, `interval_count`; `image_urls` (catalogue only), `plan_name` (partner-priced only), `subscription_id` (renewals only) |
 
 ### Management methods (new)
 
@@ -203,7 +206,7 @@ webhooks.testDelivery(id: string) -> void                               // 202
 
 ### Conformance checklist — 2.0.0
 
-- [ ] A `checkout.succeeded` fixture with `session_id` + `items` type-checks as `CheckoutSucceededEvent`; one with `subscription_id` instead does not.
+- [x] The backend's captured `checkout.*`, renewal, `subscription.status_changed` and `api_key.*` samples each type-check as their event type; a checkout body with `items` instead of `line_items` does not (`test/models/WebhookEvent.test.ts`).
 - [ ] Each management method hits its documented method and path, trailing slash included (`/api/v1/webhooks/secret/`, `/api/v1/webhooks/{id}/test-delivery/`).
 - [ ] `update(id, { isActive: false })` sends `{ is_active: false }` alone.
 - [ ] `delete()` sends no body and resolves to `undefined` on a `204`.

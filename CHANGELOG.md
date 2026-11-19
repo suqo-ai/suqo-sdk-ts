@@ -17,10 +17,13 @@ subscription retrieve/renew and webhook management.
 ### Changed
 
 - **Breaking:** `CheckoutSucceededEvent` / `CheckoutFailedEvent` match the API's new payload: one
-  delivery per checkout session, `{ event, session_id, amount, status, items }`, with no
-  `subscription_id`. Payments taken through `subscriptions.create()` report the same way.
-  _Upgrading:_ match deliveries on `session_id` (the `publicId` a session was opened with), not
-  `subscription_id`.
+  delivery per checkout session, `{ event, session_id, amount, status, line_items }`, with no
+  top-level `subscription_id`. Each line item carries `name`, `amount`, `pbp_id`, `currency`, VAT
+  and discount fields and its interval; a renewal's line items also carry `subscription_id`.
+  Payments taken through `subscriptions.create()` report the same way. _Upgrading:_ match
+  deliveries on `session_id` (the `publicId` a session was opened with), not `subscription_id`.
+- **Breaking:** `expires_at` on the `api_key.*` webhook events is `string | null` — a key created
+  without an expiry sends `null`. _Upgrading:_ handle `null` where you read it as a date.
 - **Breaking:** `customers.create()` requires `email`, which now identifies the buyer; `phone` is
   optional. An email or phone you already hold updates that customer. _Upgrading:_ pass `email` on
   every `customers.create()` call.
@@ -67,8 +70,10 @@ subscription retrieve/renew and webhook management.
 ### Docs
 
 - `SDK-SPEC.md` §1, §5, §7–§11 and §13, `specs/versioning.md` and `specs/openapi.yaml` updated to
-  the API as of 2026-10-02, then re-checked against Swagger on 2026-11-18. `subscriptions.retrieve()` and the new checkout webhook payload are
-  built from the API docs and Swagger and not yet checked against captured responses.
+  the API as of 2026-10-02, then re-checked against Swagger on 2026-11-18. Every webhook event type
+  was checked against delivery samples captured by the backend team on 2026-11-19.
+  `subscriptions.retrieve()` is built from the API docs and Swagger and not yet checked against a
+  captured response.
 
 ## [1.1.0] - 2026-09-24
 

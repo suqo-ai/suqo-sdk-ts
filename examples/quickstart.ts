@@ -41,13 +41,27 @@ console.log(`Opened ${session.publicId} — redirect the buyer to ${session.chec
 // like end to end.
 const secret = "whsec_example_only_do_not_reuse";
 const timestamp = String(Math.floor(Date.now() / 1000));
-const rawBody = JSON.stringify({
+const sampleDelivery: CheckoutSucceededEvent = {
   event: "checkout.succeeded",
   session_id: session.publicId,
   amount: billingPeriod.price,
   status: "succeeded",
-  items: [{ pbp_id: billingPeriod.pbpId }],
-});
+  line_items: [
+    {
+      name: products.results[0]?.name ?? billingPeriod.label,
+      amount: billingPeriod.price,
+      pbp_id: billingPeriod.pbpId,
+      currency: billingPeriod.currency,
+      vat_type: null,
+      vat_percentage: null,
+      discount_amount: null,
+      interval_type: billingPeriod.intervalType,
+      interval_count: billingPeriod.intervalCount,
+      image_urls: [],
+    },
+  ],
+};
+const rawBody = JSON.stringify(sampleDelivery);
 const signature = `sha256=${createHmac("sha256", secret).update(`${timestamp}.`).update(rawBody).digest("hex")}`;
 
 const verified = suqo.webhooks.verify({ rawBody, signature, timestamp, secret });
