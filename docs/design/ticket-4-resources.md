@@ -321,6 +321,46 @@ classDiagram
 
 ---
 
+## 2.2.0 — BYOP (2026-11-20)
+
+A new resource, `ByopResource` (`src/resources/byop.ts`), on `suqo.byop`: an account that Suqo has
+switched to BYOP collects payments on its own gateway accounts. Additive, so a minor. Shapes follow
+`specs/openapi.yaml` (`listByopPaymentMethods`, `saveByopCredentials`, `updateByopFee`).
+
+### New signatures
+
+```
+byop.listPaymentMethods() -> PaymentMethod[]                                        // unpaginated
+byop.saveCredentials(paymentMethodId: string, credentials: ByopCredentials) -> void  // throws SuqoConfigError on "", ".", "..", or a credential set that fails the gateway check
+byop.updateProcessingFee(paymentMethodId: string, params: UpdateByopFeeParams) -> ByopFee     // throws SuqoConfigError on "", ".", "..", or processingFee undefined
+```
+
+```mermaid
+classDiagram
+  class PaymentMethod { +companyId +paymentTypeId +paymentType +alias +logo +order +isActive +fee +isConfigured +isVerified }
+  class ByopCredentials { <<union by paymentType>> +paymentType }
+  class UpdateByopFeeParams { +processingFee: string | null }
+  class ByopFee { +processingFee: string | null }
+```
+
+| Rule | Detail |
+|---|---|
+| `saveCredentials`, not `update` | The call replaces the whole stored set, and `update` means a partial change on every resource (Naming Map 1.4). Resolves `void`: the API never returns credentials, and its `{ detail }` body carries nothing to act on (same as `webhooks.testDelivery`). |
+| Credentials checked per gateway | `ByopCredentials` is a union keyed on `paymentType` (the list's value), one member per gateway with every field required — checkboxes typed `true`. `serializeCredentials` re-checks at runtime against `CREDENTIAL_FIELDS` (backend-confirmed 2026-11-20: all fields required and non-empty, checkboxes `true`, extras refused) and throws `SuqoConfigError` before any request, never quoting a value. `paymentType` is not sent. Only listed camelCase keys pass, so a snake_case key or two keys colliding on one wire key can't reach the API. A new gateway needs an entry here and a union member. `fieldErrors` keys stay snake_case, as everywhere else. |
+| Fee is a string or `null` | `processingFee` is a decimal string (never `number`); `null` clears it. `undefined` throws, so a misspelled key can't send `{}` and read back as "cleared". The API stores two decimals (`"1.5"` → `"1.50"`). |
+| `PaymentMethod` from a captured response | `alias`, `logo`, `fee` and `isVerified` degrade to `null` when omitted. `paymentType` is a plain string. Fonepay is `fonepay-checkout`; Swagger's `fonepay` is an internal name (backend-confirmed). |
+| BYOP gate on writes only | A non-BYOP account gets `403` `detail: "Your own payment account isn't enabled."` → `PermissionDeniedError` on `saveCredentials`/`updateProcessingFee`; `listPaymentMethods` is not gated. |
+| Writes never auto-retry | `saveCredentials` and `updateProcessingFee` — SDK-SPEC.md §8, §12. Both are rate-limited; `RateLimitError.retryAfter` falls back to the wait in the 429's `detail`. |
+
+### Conformance checklist — 2.2.0
+
+- [ ] `byop.listPaymentMethods()` GETs `/api/v1/byop/payment-methods/` and maps the plain array to camelCase `PaymentMethod`s; omitted nullable keys come back `null`, never `undefined`.
+- [ ] `byop.saveCredentials(id, credentials)` PATCHes `/api/v1/byop/credentials/{id}/` with snake_case keys (no `payment_type`) and resolves `undefined`; an unknown `paymentType`, a missing/empty field, a checkbox not `true`, a key the gateway doesn't take, or an id of `""`/`"."`/`".."`, throws `SuqoConfigError` before any request; a 400 or 429 is thrown after exactly one request.
+- [ ] `byop.updateProcessingFee(id, { processingFee })` PATCHes `/api/v1/byop/fees/{id}/` with `{ processing_fee }` (a string, or `null` to clear) and returns `{ processingFee }` as a string; an undefined `processingFee` or a bad id throws `SuqoConfigError` before any request; an out-of-range fee is a `ValidationError` keyed on `processing_fee`.
+- [ ] `suqo.byop` is a `ByopResource`, and the class is not exported from `src/index.ts`.
+
+---
+
 ## Design decisions & rationale
 
 1. **Wire-shape interfaces are private and per-file, not centralized.** A single giant

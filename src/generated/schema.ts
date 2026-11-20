@@ -297,6 +297,69 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/byop/payment-methods/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List payment methods
+         * @description The account's payment methods, hidden ones included (`is_active=false`). Not paginated. A method's `payment_type_id` is the id the credentials and fee routes take. Show, hide and reorder stay on the dashboard. Not gated on BYOP: an account not on BYOP still gets its list (captured 2026-11-20 on test-dev; only the credentials and fee writes answer `ByopForbidden`).
+         */
+        get: operations["listByopPaymentMethods"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/byop/credentials/{payment_method_id}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Save BYOP credentials
+         * @description Saves your own gateway credentials for one payment method. Send the full set every time; it replaces what is stored. Every field listed for the gateway is required and non-empty; unknown keys are refused; a checkbox that is false or missing fails with "Please confirm this before saving." (backend-confirmed 2026-11-20). Text and secret values are capped at 500 characters; files are base64 strings under 2.5 MB; a checkbox field must be `true`. Credentials are never returned: each save is checked in the background, read `is_verified` on the payment-method list. Replacing saved credentials emails the company address. Swagger's operationId is `byop_credentials_partial_update`; registered as `saveCredentials` in the SDK because it replaces the full set, and `update` means a partial change on every resource (Naming Map 1.4).
+         *     Fields per gateway: esewa / esewa_intent `product_code`, `merchant_secret`; khalti `merchant_secret`; nps `merchant_id`, `merchant_name`, `api_username`, `api_password`, `merchant_secret`, `is_webhooks_url_set` (checkbox); connectips `merchant_id`, `app_id`, `app_name`, `app_password`, `pfx` (base64 file), `pfx_password`, `is_response_url_confirmation` (checkbox); fonepay-checkout `username`, `password`, `private_key` (base64 file), `terminal_id`.
+         *     NOTE (write op): not auto-retryable until idempotency ships.
+         */
+        patch: operations["saveByopCredentials"];
+        trace?: never;
+    };
+    "/api/v1/byop/fees/{payment_method_id}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Set BYOP processing fee
+         * @description Sets the percent your own gateway takes from each payment on this method, used as the gateway fee when a BYOP payment settles (`0` when unset). Khalti and NPS report their own fee per payment, so a fee can't be set for them.
+         *     NOTE (write op): not auto-retryable until idempotency ships.
+         */
+        patch: operations["updateByopFee"];
+        trace?: never;
+    };
     "/api/v1/customers/": {
         parameters: {
             query?: never;
@@ -725,6 +788,52 @@ export interface components {
             /** @description `whsec_…` */
             signing_secret?: string;
         };
+        PaymentMethod: {
+            /** @description A UUID in the captured response. */
+            company_id: string;
+            /**
+             * Format: uuid
+             * @description The id the BYOP credentials and fee routes take.
+             */
+            payment_type_id: string;
+            /** @description Gateway, e.g. "esewa", "esewa_intent", "khalti", "nps", "connectips", "fonepay-checkout" (captured 2026-11-20; Swagger's credential list says "fonepay", an internal name — backend confirmed "fonepay-checkout" is correct). */
+            payment_type: string;
+            alias?: string | null;
+            logo?: string | null;
+            order: number;
+            /** @description false when hidden. */
+            is_active: boolean;
+            /** @description Gateway commission in percent (decimal string). On BYOP, your own `processing_fee` ("0.00" when unset); null for Khalti/NPS and cash, and may be null off BYOP (captured for Suqo's own `suqo_uat`). */
+            fee?: string | null;
+            /** @description True once credentials are saved. */
+            is_configured: boolean;
+            /** @description Background credential check — true accepted, false refused, null not run yet. */
+            is_verified?: boolean | null;
+        };
+        /**
+         * @description The gateway's credential fields, listed on `saveByopCredentials`.
+         * @example {
+         *       "product_code": "EPAYTEST",
+         *       "merchant_secret": "8gBm/:&EnhH.1/q"
+         *     }
+         */
+        ByopCredentials: {
+            [key: string]: string | boolean;
+        };
+        UpdateByopFeeRequest: {
+            /**
+             * Format: decimal
+             * @description Percent, 0 to 100 with two decimals. null clears it.
+             */
+            processing_fee: string | null;
+        };
+        ByopFee: {
+            /**
+             * Format: decimal
+             * @description As stored, two decimals ("1.5" reads back "1.50").
+             */
+            processing_fee?: string | null;
+        };
         /** @description General errors (auth, not-found). */
         DetailError: {
             detail?: string;
@@ -801,6 +910,20 @@ export interface components {
                 "application/json": components["schemas"]["DetailError"];
             };
         };
+        /** @description As `Forbidden`, plus `detail: "Your own payment account isn't enabled."` when the account is not on BYOP (SDK: PermissionDeniedError). Suqo switches an account to BYOP; the API can't. */
+        ByopForbidden: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                /**
+                 * @example {
+                 *       "detail": "Your own payment account isn't enabled."
+                 *     }
+                 */
+                "application/json": components["schemas"]["KycError"] | components["schemas"]["DetailError"];
+            };
+        };
         /** @description Rejected, on an endpoint with no body to key a field on — a bare list of messages, not a field-keyed object. */
         MessageListError: {
             headers: {
@@ -835,6 +958,8 @@ export interface components {
         Page: number;
         /** @description Results per page (max 100). */
         PageSize: number;
+        /** @description A payment method's `payment_type_id` from the BYOP payment-method list. */
+        PaymentMethodId: string;
     };
     requestBodies: never;
     headers: never;
@@ -1413,6 +1538,127 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["PermissionDenied"];
             404: components["responses"]["NotFound"];
+        };
+    };
+    listByopPaymentMethods: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Every payment method. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentMethod"][];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    saveByopCredentials: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description A payment method's `payment_type_id` from the BYOP payment-method list. */
+                payment_method_id: components["parameters"]["PaymentMethodId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ByopCredentials"];
+            };
+        };
+        responses: {
+            /** @description Saved. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "Credentials saved successfully."
+                     *     }
+                     */
+                    "application/json": components["schemas"]["DetailError"];
+                };
+            };
+            /** @description A field failed validation, keyed by its dotted name and never echoing the value. `detail` with `code: "byop_payment_pending"` while a payment on this gateway is still processing. `payment_method` when the method can't be BYOP. `detail` alone when the body is too large. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "merchant_secret": [
+                     *         "This field is required."
+                     *       ]
+                     *     }
+                     */
+                    "application/json": components["schemas"]["FieldError"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["ByopForbidden"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    updateByopFee: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description A payment method's `payment_type_id` from the BYOP payment-method list. */
+                payment_method_id: components["parameters"]["PaymentMethodId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateByopFeeRequest"];
+            };
+        };
+        responses: {
+            /** @description Saved. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ByopFee"];
+                };
+            };
+            /** @description `processing_fee` out of range, or refused for Khalti/NPS. `payment_method` when the method can't be BYOP. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "processing_fee": [
+                     *         "This gateway reports its own fee on each payment."
+                     *       ]
+                     *     }
+                     */
+                    "application/json": components["schemas"]["FieldError"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["ByopForbidden"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
         };
     };
     listCustomers: {

@@ -6,7 +6,7 @@
  */
 
 /** SDK version, stamped into request headers (keep in sync with package.json). */
-export const VERSION = "2.0.0";
+export const VERSION = "2.2.0";
 
 export {
   SuqoError,
@@ -74,6 +74,10 @@ export {
   type ReplaceWebhookParams,
   type UpdateWebhookParams,
   type WebhookSecret,
+  type PaymentMethod,
+  type ByopCredentials,
+  type UpdateByopFeeParams,
+  type ByopFee,
   type CreateSubscriptionParams,
   type CreateSubscriptionResponse,
   type UpdateBillingCycleParams,

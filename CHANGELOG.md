@@ -7,6 +7,37 @@ adheres to [Semantic Versioning](https://semver.org/) per [`specs/versioning.md`
 
 ## [Unreleased]
 
+## [2.2.0] - 2026-11-20
+
+Additive only (new `byop` resource), so a minor: no type was removed or narrowed.
+
+### Added
+
+- `suqo.byop` — bring your own payment gateway (API as of 2026-11-20):
+  - `byop.listPaymentMethods()` → `PaymentMethod[]` — every method, hidden ones included, with
+    `paymentTypeId`, `fee`, `isConfigured` and `isVerified`. Not paginated.
+  - `byop.saveCredentials(paymentMethodId, credentials)` — saves your own gateway credentials
+    (`PATCH /byop/credentials/{id}/`). Replaces the full set; camelCase keys are sent snake_case.
+    Takes the gateway as `paymentType` (not sent) and throws `SuqoConfigError` before sending
+    when a required field is missing or empty, a checkbox isn't `true`, or a key is unknown.
+    Resolves `void`; credentials are never returned.
+  - `byop.updateProcessingFee(paymentMethodId, { processingFee })` → `{ processingFee }` — decimal string,
+    `null` clears. Refused for Khalti and NPS.
+  - Both writes are never retried and are rate-limited (`RateLimitError`). An account not on BYOP
+    gets `PermissionDeniedError`.
+  - The payment-method list, the fee response and the fee 400 were checked against captured
+    responses (2026-11-20). The saved-credentials `200` body is from Swagger only (the SDK
+    resolves `void`, so it isn't read).
+
+### Docs
+
+- New user guide `docs/user/byop.md` and runnable `examples/byop.ts`. `rate-limiting.md` now lists
+  the two BYOP writes alongside `checkoutSessions.create()`.
+
+## [2.1.0] - 2026-11-20
+
+Additive only, so a minor: no type was removed or narrowed.
+
 ### Added
 
 - `CheckoutLineItem.subscriptionId?: string` — `checkoutSessions.retrieve()` now keeps each line
@@ -22,7 +53,9 @@ adheres to [Semantic Versioning](https://semver.org/) per [`specs/versioning.md`
 - A non-JSON error response (e.g. a Cloudflare/WAF block page, `error code: 1010`) is no longer
   dropped: its text is kept in the error's `rawBody`, and the message is the neutral
   `Request failed with status N` instead of a SUQO-specific one like "You do not have permission
-  to perform this action."
+  to perform this action." A non-JSON `403` is still `PermissionDeniedError`, never
+  `KycRequiredError`; an empty body keeps the usual message. _Upgrading:_ `rawBody` can now be a
+  string, so check `typeof err.rawBody === "string"` before reading it as an object.
 
 ## [2.0.0] - 2026-11-18
 
@@ -186,7 +219,9 @@ changes noted under each item.
   retried `5xx` carrying the header (e.g. a `503` during a maintenance window) was previously
   retried on computed backoff instead of the server's requested wait.
 
-[Unreleased]: https://github.com/suqo-ai/suqo-sdk-ts/compare/v2.0.0...HEAD
+[Unreleased]: https://github.com/suqo-ai/suqo-sdk-ts/compare/v2.2.0...HEAD
+[2.2.0]: https://github.com/suqo-ai/suqo-sdk-ts/compare/v2.1.0...v2.2.0
+[2.1.0]: https://github.com/suqo-ai/suqo-sdk-ts/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/suqo-ai/suqo-sdk-ts/compare/v1.1.0...v2.0.0
 [1.1.0]: https://github.com/suqo-ai/suqo-sdk-ts/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/suqo-ai/suqo-sdk-ts/tree/v1.0.0

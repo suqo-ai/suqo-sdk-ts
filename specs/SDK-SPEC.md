@@ -26,6 +26,7 @@ The SDK wraps exactly the documented API surface:
 | Subscriptions    | `list`, `retrieve`, `create` (legacy), `cancel`, `resume`, `renew`, `updateBillingCycle`            | Specified       |
 | Customers        | `list`, `retrieve`, `create`, `update`                                                              | Specified (§11) |
 | Webhooks         | `verify` (local, no HTTP); `list`, `create`, `retrieve`, `replace`, `update`, `delete`, `retrieveSecret`, `testDelivery` | Specified       |
+| BYOP             | `listPaymentMethods`, `saveCredentials`, `updateProcessingFee`                                                | Specified       |
 
 The SDK is **server-side only**. The API key is full-access and scoped to a
 seller account; it must never reach a browser. Every language package states
@@ -142,7 +143,31 @@ client.webhooks.update(id, params)    (PATCH — only the given fields)
 client.webhooks.delete(id)            (204, resolves void)
 client.webhooks.retrieveSecret()      -> { signingSecret }
 client.webhooks.testDelivery(id)      (202, resolves void)
+
+client.byop.listPaymentMethods()
+                 -> PaymentMethod[]   (unpaginated; hidden methods included)
+client.byop.saveCredentials(paymentMethodId, credentials)
+                 -> void   (PATCH; replaces the full set; keys sent snake_case;
+                            credentials carry paymentType, checked, never sent;
+                            credentials are never returned — read isVerified on the list)
+client.byop.updateProcessingFee(paymentMethodId, { processingFee })
+                 -> { processingFee }   (PATCH; decimal string, null clears;
+                                         refused for Khalti/NPS)
 ```
+
+- **BYOP needs the account switched on by Suqo.** Until then every `byop`
+  write (`saveCredentials`, `updateProcessingFee`) answers `403` `detail: "Your own
+  payment account isn't enabled."` → `PermissionDeniedError`.
+  `listPaymentMethods` is not gated on BYOP (its 403 is only the usual KYC /
+  key refusal). `saveCredentials` is named for what it does (replace the
+  stored set), not `update`, which means a partial change. Credential keys
+  are camelCase only, like every other method argument.
+- **`saveCredentials` checks the credential set before sending.** The caller
+  names the gateway (`paymentType`, as on the payment-method list). Every
+  field listed for it in `openapi.yaml` is required and non-empty, checkbox
+  fields must be `true`, and any other key is refused (backend-confirmed
+  2026-11-20) — each a `SuqoConfigError` before any request. `paymentType`
+  is not sent. A gateway the API adds later needs an SDK release.
 
 - **Decimal fields are strings.** `price`, `amount`, `total_subscribers`, etc.
   arrive as strings to avoid float rounding. The SDK MUST NOT coerce them to
@@ -206,7 +231,7 @@ Normalized hierarchy (same names, idiomatic casing per language):
 | `PermissionDeniedError` | `403` any other body (`detail` alone)           | not `PermissionError` — a Python builtin (Naming Map R2) |
 | `ValidationError`     | `400`                                             | exposes `fieldErrors: Record<string,string[]>`     |
 | `NotFoundError`       | `404`                                             |                                                    |
-| `RateLimitError`      | `429`                                             | live on `checkoutSessions.create` (§10); exposes `retryAfter` |
+| `RateLimitError`      | `429`                                             | live on `checkoutSessions.create`, `byop.saveCredentials`, `byop.updateProcessingFee` (§10); exposes `retryAfter` |
 | `ServerError`         | `5xx`                                             |                                                    |
 | `NetworkError`        | transport failure / timeout                       |                                                    |
 
@@ -232,7 +257,7 @@ misdirect a request — analogous to a syntax error in the integration.
     exponential backoff + jitter, bounded attempts.
   - **Writes** (every `POST`, `PATCH`, `PUT` and `DELETE` — `create`, `cancel`,
     `resume`, `renew`, `updateBillingCycle`, `update`, `replace`, `delete`,
-    `testDelivery`) are **NOT retried** automatically. The API does not yet
+    `testDelivery`, `saveCredentials`, `updateProcessingFee`) are **NOT retried** automatically. The API does not yet
     support idempotency keys, so a retried write could double-act (a retried
     `subscriptions.create` opens a second subscription and checkout). See §12
     (backlog). This restriction is a single, clearly-marked switch in the retry
@@ -304,9 +329,11 @@ host application.
 
 ## 10. Rate limiting
 
-Rate limiting is enforced on **one** endpoint: `POST /checkout-sessions/`
-(`checkoutSessions.create`), 20 sessions a minute per account. Every other
-endpoint is unlimited.
+Rate limiting is enforced on `POST /checkout-sessions/`
+(`checkoutSessions.create`), 20 sessions a minute per account, and on the two
+BYOP writes (`byop.saveCredentials`, `byop.updateProcessingFee`; limit not published).
+Every other endpoint is unlimited. All are writes, so the rules below apply
+to each.
 
 - Past the limit the API answers `429` with the wait inside `detail`
   (`"Request was throttled. Expected available in 41 seconds."`) and no

@@ -1,7 +1,8 @@
 # Rate limiting
 
-> **Status: Live, on one endpoint.** As of 2.0.0, the API rate-limits
-> `checkoutSessions.create()` only. Every other call is unlimited. See
+> **Status: Live, on three writes.** The API rate-limits
+> `checkoutSessions.create()` and, as of 2.2.0, `byop.saveCredentials()` and
+> `byop.updateProcessingFee()`. Every other call is unlimited. See
 > [`SDK-SPEC.md` §10](../../specs/SDK-SPEC.md).
 
 ## What's limited
@@ -9,6 +10,7 @@
 | Call | Limit | Over the limit |
 |---|---|---|
 | `checkoutSessions.create()` | 20 sessions a minute, per account | `429` → `RateLimitError` |
+| `byop.saveCredentials()`, `byop.updateProcessingFee()` | Not published | `429` → `RateLimitError` |
 
 Every other endpoint is unlimited today.
 
