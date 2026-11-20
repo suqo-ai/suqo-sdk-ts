@@ -180,7 +180,7 @@ each entry a full line item. The same samples showed `api_key.*` `expires_at` ca
 | `session_id` | `string` | `cks_…` — the `publicId` returned by `checkoutSessions.create()` |
 | `amount` | `string` | Session total, decimal string |
 | `status` | `"succeeded"` / `"failed"` | Fixed per event |
-| `line_items` | array | `name`, `amount`, `pbp_id` (`null` if partner-priced), `currency`, `vat_type`, `vat_percentage`, `discount_amount`, `interval_type`, `interval_count`; `image_urls` (catalogue only), `plan_name` (partner-priced only), `subscription_id` (renewals only) |
+| `line_items` | array | `name`, `amount`, `pbp_id` (`null` if partner-priced), `currency`, `vat_type`, `vat_percentage`, `discount_amount`, `interval_type`, `interval_count`; `image_urls` (catalogue only), `plan_name` (partner-priced only), `subscription_id` (every item; absent only on payments made before the API added it) |
 
 ### Management methods (new)
 

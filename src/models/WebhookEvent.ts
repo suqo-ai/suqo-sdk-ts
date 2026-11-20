@@ -39,7 +39,12 @@ interface CheckoutEventLineItem {
   image_urls?: string[];
   /** Partner-priced items only. */
   plan_name?: string | null;
-  /** Only on a payment opened by `subscriptions.renew()`: the subscription being renewed. */
+  /**
+   * The subscription this item pays for. Every item in a checkout session carries its own —
+   * catalogue or partner-priced, Test or Live. Grant access by this, not a top-level field.
+   * On `checkout.failed` it is a placeholder subscription that never activates (usually reused
+   * if the buyer retries). Optional because payments made before the API added it lack it.
+   */
   subscription_id?: string;
 }
 

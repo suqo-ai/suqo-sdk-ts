@@ -85,7 +85,8 @@ The event shapes:
       "discount_amount": null,
       "interval_type": "month",
       "interval_count": 1,
-      "image_urls": []
+      "image_urls": [],
+      "subscription_id": "e403e090-6bfb-4739-a6d7-0d4bd2ac69f5"
     }
   ]
 }
@@ -93,7 +94,7 @@ The event shapes:
 
 - **`amount`** is the session total; each line item's `amount` is that item's price. All amounts are decimal strings.
 - **`line_items`** has one entry per item charged, each with `name`, `amount`, `pbp_id`, `currency`, `vat_type`, `vat_percentage`, `discount_amount`, `interval_type` and `interval_count`. A catalogue item also has `image_urls`. A partner-priced item has `pbp_id: null` and a `plan_name`.
-- **Renewals:** when the session was opened by [`subscriptions.renew()`](subscriptions.md), each line item also carries `subscription_id`, the subscription being renewed.
+- **`subscription_id`:** every line item carries its own — catalogue or partner-priced, new purchase or renewal, one per item in a multi-item checkout. Grant access by it. On `checkout.failed` it points to a placeholder subscription that never activates (usually reused if the buyer retries). Payments made before the API added the field don't have it.
 - **`checkout.failed`** is final — SUQO retries pending or transient failures internally and only sends it once the outcome is settled. The specific cause isn't in the payload.
 
 These shapes match delivery samples captured by the backend team on 2026-11-19.
