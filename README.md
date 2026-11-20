@@ -35,6 +35,7 @@ See [`authentication.md`](docs/user/authentication.md) for how the API key deter
 | Subscriptions             | [`subscriptions.md`](docs/user/subscriptions.md)                     |
 | Customers                 | [`customers.md`](docs/user/customers.md)                             |
 | Webhooks                  | [`webhooks.md`](docs/user/webhooks.md)                               |
+| BYOP (own payment gateway) | [`byop.md`](docs/user/byop.md)                                      |
 | Pagination                | [`pagination.md`](docs/user/pagination.md)                           |
 | Errors                    | [`errors.md`](docs/user/errors.md)                                   |
 | Rate limiting             | [`rate-limiting.md`](docs/user/rate-limiting.md)                     |
