@@ -1,6 +1,6 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { SuqoClient } from "../../src/client.js";
-import { resetCapturedRequests, server } from "./support.js";
+import { mockPaymentMethod, resetCapturedRequests, server } from "./support.js";
 
 /**
  * Contract tests: response decoding (SDK-SPEC.md §15, addendum §11 must-cover list) — a real
@@ -172,6 +172,18 @@ describe("contract: response decoding", () => {
     await expect(client().webhooks.retrieveSecret()).resolves.toEqual({ signingSecret: "whsec_contract_test" });
     await expect(client().webhooks.delete("whk_contract01")).resolves.toBeUndefined();
     await expect(client().webhooks.testDelivery("whk_contract01")).resolves.toBeUndefined();
+  });
+
+  it("byop.listPaymentMethods()/updateProcessingFee() decode camelCase; saveCredentials() resolves to undefined", async () => {
+    const [pm] = await client().byop.listPaymentMethods();
+    expect(pm).toMatchObject({ paymentTypeId: mockPaymentMethod.payment_type_id, fee: "0.00", isVerified: null });
+    expect(pm).not.toHaveProperty("payment_type_id");
+    await expect(
+      client().byop.updateProcessingFee(mockPaymentMethod.payment_type_id, { processingFee: "1.50" }),
+    ).resolves.toEqual({ processingFee: "1.50" });
+    await expect(
+      client().byop.saveCredentials(mockPaymentMethod.payment_type_id, { paymentType: "khalti", merchantSecret: "s" }),
+    ).resolves.toBeUndefined();
   });
 
   it("decimal-shaped fields (price, total_subscribers) stay strings end to end, never coerced to number", async () => {
