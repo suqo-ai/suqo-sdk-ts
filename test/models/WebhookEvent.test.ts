@@ -11,6 +11,7 @@ import type {
 // Delivery samples captured and shared by the backend team on 2026-11-19, copied key for key.
 // Each is assigned to its SDK type, so `npm run typecheck` fails if a type drifts from the wire.
 
+// Predates the API adding subscription_id to line items, so it has none — still valid, the field is optional.
 const catalogueSucceeded: CheckoutSucceededEvent = {
   event: "checkout.succeeded",
   session_id: "cks_fLVp0nhm2",
@@ -30,6 +31,12 @@ const catalogueSucceeded: CheckoutSucceededEvent = {
       discount_amount: null,
     },
   ],
+};
+
+// Issue #52 capture (Test mode, 2026-11-17): a new purchase carries subscription_id too.
+const newPurchaseSucceeded: CheckoutSucceededEvent = {
+  ...catalogueSucceeded,
+  line_items: [{ ...catalogueSucceeded.line_items[0]!, subscription_id: "sub-uuid" }],
 };
 
 const renewalSucceeded: CheckoutSucceededEvent = {
@@ -118,9 +125,9 @@ describe("WebhookEvent types match the backend's captured deliveries", () => {
     expect(oldShape.event).toBe("checkout.succeeded");
   });
 
-  it("a renewal's line item carries the subscription being renewed; a first payment's does not", () => {
+  it("a line item carries its subscription_id", () => {
+    expect(newPurchaseSucceeded.line_items[0]?.subscription_id).toBeDefined();
     expect(renewalSucceeded.line_items[0]?.subscription_id).toBe("e403e090-6bfb-4739-a6d7-0d4bd2ac69f5");
-    expect(catalogueSucceeded.line_items[0]).not.toHaveProperty("subscription_id");
   });
 
   it("amounts stay decimal strings", () => {

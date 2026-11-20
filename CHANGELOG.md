@@ -9,13 +9,16 @@ adheres to [Semantic Versioning](https://semver.org/) per [`specs/versioning.md`
 
 ### Added
 
-- `CheckoutLineItem.subscriptionId?: string` — on a renewal session (opened by
-  `subscriptions.renew()`), `checkoutSessions.retrieve()` now keeps each line item's
-  `subscription_id`, the subscription being renewed. The API always sent it; Swagger didn't list
-  it, so the SDK dropped it. Absent on a new purchase.
+- `CheckoutLineItem.subscriptionId?: string` — `checkoutSessions.retrieve()` now keeps each line
+  item's `subscription_id`, the subscription that item pays for. The API sends it on every item;
+  Swagger didn't list it, so the SDK dropped it.
 
 ### Fixed
 
+- Docs: every `checkout.*` line item carries `subscription_id` — new purchases, partner-priced
+  items and `checkout.failed` too, not only renewals (#52). Confirmed by the backend team.
+  Types unchanged. The 1.1.0 types had a top-level `subscription_id` that the API never sent;
+  2.0.0 fixed the shape — upgrade if you are on 1.1.0.
 - A non-JSON error response (e.g. a Cloudflare/WAF block page, `error code: 1010`) is no longer
   dropped: its text is kept in the error's `rawBody`, and the message is the neutral
   `Request failed with status N` instead of a SUQO-specific one like "You do not have permission

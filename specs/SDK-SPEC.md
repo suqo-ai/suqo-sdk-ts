@@ -281,8 +281,11 @@ the session total. Each entry in `line_items` carries `name`, `amount`,
 `pbp_id` (`null` for a partner-priced item), `currency`, `vat_type`,
 `vat_percentage`, `discount_amount`, `interval_type` and `interval_count`; a
 catalogue item adds `image_urls`, a partner-priced one `plan_name`. There is no
-top-level `subscription_id`; a renewal (`subscriptions.renew`) puts the renewed
-subscription's `subscription_id` on each line item. Payments taken through the
+top-level `subscription_id`. Every line item — catalogue or partner-priced, new
+purchase or renewal, on `checkout.succeeded` and `checkout.failed` — carries its
+own `subscription_id`; grant access by it. On `checkout.failed` it is a placeholder
+subscription that never activates. Payments made before the API added the field
+lack it. Payments taken through the
 legacy `subscriptions.create` report through the same payload.
 
 **API key events.** `expires_at` is a `YYYY-MM-DD` date, or `null` for a key

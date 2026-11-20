@@ -649,7 +649,7 @@ export interface components {
             completed_at?: string | null;
             is_expired?: boolean;
             /**
-             * @description Seen as `subscription` in captured GET responses (2026-11-19), on both a new purchase and a renewal, so it does not tell the two apart. A renewal is marked by `subscription_id` on its line items.
+             * @description Seen as `subscription` in captured GET responses (2026-11-19), on both a new purchase and a renewal, so it does not tell the two apart. Nothing in the response marks a renewal.
              * @enum {string}
              */
             session_type?: "subscription" | "billing";
@@ -679,7 +679,7 @@ export interface components {
             plan_name?: string | null;
             /**
              * Format: uuid
-             * @description Renewals only — the subscription a `POST /subscription/renew/` session renews. Missing from Swagger; confirmed by backend and in a captured GET response (2026-11-19).
+             * @description The subscription this line pays for, on every item (new purchase or renewal). Missing from Swagger; confirmed by backend (2026-11-20).
              */
             subscription_id?: string;
         };

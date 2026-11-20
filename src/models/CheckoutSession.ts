@@ -104,8 +104,8 @@ export interface CheckoutLineItem {
   /** Partner-priced items only. */
   planName?: string | null;
   /**
-   * Renewals only: the subscription this line renews, when the session was opened by
-   * `subscriptions.renew()`. Absent on a new purchase.
+   * The subscription this line pays for — on every item, new purchase or renewal. Absent only on
+   * sessions created before the API added it.
    */
   subscriptionId?: string;
 }
