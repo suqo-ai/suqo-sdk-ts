@@ -7,6 +7,15 @@ adheres to [Semantic Versioning](https://semver.org/) per [`specs/versioning.md`
 
 ## [Unreleased]
 
+### Added
+
+- `suqo.payouts.create()`, `.list()`, `.autoPaging()` and `.retrieve(payoutId)` — request a payout
+  of your due transactions and track whether it is `PENDING` or `COMPLETED`. New `Payout` type;
+  amounts are decimal strings. `create()` takes no arguments and needs a verified bank account (the
+  SDK doesn't wrap bank-account management yet; use the dashboard for now); a refusal is a
+  `ValidationError` with the reason in `rawBody.code`. It is never auto-retried. See
+  [`docs/user/payouts.md`](docs/user/payouts.md).
+
 ## [2.1.0] - 2026-11-20
 
 Additive only, so a minor: no type was removed or narrowed.

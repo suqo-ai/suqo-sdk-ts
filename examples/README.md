@@ -59,6 +59,7 @@ SUQO_TEST_PHONE=9000000000 SUQO_TEST_EMAIL=you@example.com npx tsx examples/subs
 | [`list-products.ts`](list-products.ts)       | Browsing the catalog — works pre-KYC.                                                     |
 | [`subscriptions.ts`](subscriptions.ts)       | `create` (legacy)/`cancel`/`updateBillingCycle`/`resume`.                                 |
 | [`list-customers.ts`](list-customers.ts)     | `list`/`retrieve` — read-only (doesn't exercise `create`/`update`).                       |
+| [`list-payouts.ts`](list-payouts.ts)         | `list`/`retrieve` — read-only.                                                            |
 | [`verify-webhook.ts`](verify-webhook.ts)     | Signature verification, including a tampered and a stale delivery. Makes no network call. |
 
 ## What this doesn't cover
