@@ -148,7 +148,7 @@ client.byop.listPaymentMethods()
                  -> PaymentMethod[]   (unpaginated; hidden methods included)
 client.byop.saveCredentials(paymentMethodId, credentials)
                  -> void   (PATCH; replaces the full set; keys sent snake_case;
-                            credentials carry paymentType, checked, never sent;
+                            credentials carry paymentType, never sent;
                             credentials are never returned — read isVerified on the list)
 client.byop.updateProcessingFee(paymentMethodId, { processingFee })
                  -> { processingFee }   (PATCH; decimal string, null clears;
@@ -162,12 +162,14 @@ client.byop.updateProcessingFee(paymentMethodId, { processingFee })
   key refusal). `saveCredentials` is named for what it does (replace the
   stored set), not `update`, which means a partial change. Credential keys
   are camelCase only, like every other method argument.
-- **`saveCredentials` checks the credential set before sending.** The caller
-  names the gateway (`paymentType`, as on the payment-method list). Every
-  field listed for it in `openapi.yaml` is required and non-empty, checkbox
-  fields must be `true`, and any other key is refused (backend-confirmed
-  2026-11-20) — each a `SuqoConfigError` before any request. `paymentType`
-  is not sent. A gateway the API adds later needs an SDK release.
+- **The API validates the credential set, not the SDK.** The caller names the
+  gateway (`paymentType`, as on the payment-method list) so the
+  `ByopCredentials` union can type-check its fields at compile time;
+  `paymentType` is not sent. At runtime the SDK only snake_cases the keys
+  (a snake_case key is a `SuqoConfigError`, §7: two keys could land on one
+  wire key). A missing, empty or unknown field is the API's `400` →
+  `ValidationError`, and an unknown `paymentType` is sent as is, so a
+  gateway the API adds later works without an SDK release.
 
 - **Decimal fields are strings.** `price`, `amount`, `total_subscribers`, etc.
   arrive as strings to avoid float rounding. The SDK MUST NOT coerce them to

@@ -15,14 +15,14 @@ Each `PaymentMethod` carries `paymentTypeId` (the id the two calls below take), 
 
 ```ts
 await suqo.byop.saveCredentials(esewa.paymentTypeId, {
-  paymentType: 'esewa', // the method's paymentType — tells the SDK which fields to check; not sent
+  paymentType: 'esewa', // the method's paymentType — lets TypeScript check the fields; not sent
   productCode: 'EPAYTEST',
   merchantSecret: process.env.ESEWA_SECRET!,
 });
 ```
 
-- **Send the full set every time** — it replaces what is stored. Write keys in camelCase (`merchantSecret`); the SDK sends them snake_case (`merchant_secret`).
-- **Every field below is required for its gateway, and none can be empty.** The SDK checks before sending and throws `SuqoConfigError` for an unknown `paymentType`, a missing or empty field, a checkbox that isn't `true`, or a key the gateway doesn't take (snake_case keys included). TypeScript flags most of these at compile time.
+- **Send the full set every time** — it replaces what is stored. Write keys in camelCase (`merchantSecret`); the SDK sends them snake_case (`merchant_secret`), and a snake_case key throws `SuqoConfigError`.
+- **Every field below is required for its gateway, and none can be empty.** TypeScript flags a missing or misspelled field at compile time; at runtime the API checks the set and a refused one is a `ValidationError`. A gateway not listed here is sent as is.
 - Fields per gateway:
 
   | Gateway (`paymentType`)       | Fields                                                                                              |

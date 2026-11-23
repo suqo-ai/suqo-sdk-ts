@@ -216,38 +216,38 @@ describe("ByopResource", () => {
     expect(fetch).not.toHaveBeenCalled();
   });
 
-  // Backend-confirmed 2026-11-20: every listed field is required and non-empty, checkboxes must be
-  // true, other keys are refused. Each case below must throw before any request.
-  it.each<[string, Record<string, unknown>]>([
-    ["no paymentType", { merchantSecret: "s" }],
-    ["unknown paymentType", { paymentType: "fonepay", merchantSecret: "s" }],
-    ["a missing field", { paymentType: "esewa", merchantSecret: "s" }],
-    ["an empty field", { paymentType: "esewa", productCode: "  ", merchantSecret: "s" }],
-    ["a non-string field", { paymentType: "khalti", merchantSecret: 123 }],
-    // Review finding: an inherited key matched Object.prototype and threw a plain TypeError.
-    ["an inherited-key paymentType", { paymentType: "toString" }],
-    ["a constructor paymentType", { paymentType: "constructor", merchantSecret: "s" }],
-    ["a checkbox left out", { ...NPS, isWebhooksUrlSet: undefined }],
-    ["a checkbox set false", { ...NPS, isWebhooksUrlSet: false }],
-    ["another gateway's field", { ...KHALTI, productCode: "EPAYTEST" }],
-    // Review finding: two keys colliding on one wire key used to save a stale secret.
-    ["a snake_case key", { ...KHALTI, merchant_secret: "old" }],
-  ])("saveCredentials() refuses %s before any request", async (_name, credentials) => {
+  // Review finding: two keys colliding on one wire key used to save a stale secret.
+  it("saveCredentials() refuses a snake_case key before any request", async () => {
     await expect(
-      byop().saveCredentials(PM_ID, credentials as unknown as ByopCredentials),
+      byop().saveCredentials(PM_ID, {
+        ...KHALTI,
+        merchant_secret: "old",
+      } as unknown as ByopCredentials),
     ).rejects.toBeInstanceOf(SuqoConfigError);
     expect(fetch).not.toHaveBeenCalled();
   });
 
-  it("saveCredentials() never puts a credential value in its error message", async () => {
+  // Design review: the API validates the set, so a gateway added after this release still works.
+  it("saveCredentials() sends an unknown paymentType's keys snake_cased", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      jsonResponse({ detail: "Credentials saved successfully." }),
+    );
+    await byop().saveCredentials(PM_ID, {
+      paymentType: "newpay",
+      shopToken: "t",
+    } as unknown as ByopCredentials);
+    expect(lastCall().body).toEqual({ shop_token: "t" });
+  });
+
+  it("saveCredentials() leaves a missing field to the API, surfaced as ValidationError", async () => {
+    const body = { product_code: ["This field is required."] };
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse(body, 400));
     const err = await byop()
-      .saveCredentials(PM_ID, {
-        ...NPS,
-        apiPassword: "",
-        isWebhooksUrlSet: false,
-      } as unknown as ByopCredentials)
+      .saveCredentials(PM_ID, { paymentType: "esewa", merchantSecret: "s" } as ByopCredentials)
       .catch((e: unknown) => e);
-    expect(String((err as Error).message)).not.toMatch(/Shop|m1/);
+    expect(err).toBeInstanceOf(ValidationError);
+    expect((err as ValidationError).fieldErrors).toEqual(body);
+    expect(fetch).toHaveBeenCalledTimes(1);
   });
 
   it.each<ByopCredentials>([

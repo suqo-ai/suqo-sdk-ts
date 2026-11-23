@@ -6,6 +6,8 @@
  * @packageDocumentation
  */
 
+import type { PaymentType } from "./wireEnums.js";
+
 /** One of the account's payment methods (`openapi.yaml` `PaymentMethod`), hidden ones included. */
 export interface PaymentMethod {
   companyId: string;
@@ -13,9 +15,9 @@ export interface PaymentMethod {
   paymentTypeId: string;
   /**
    * The gateway, e.g. `"esewa"`, `"esewa_intent"`, `"khalti"`, `"nps"`, `"connectips"`,
-   * `"fonepay-checkout"`. A plain string: the API may add gateways.
+   * `"fonepay-checkout"`, or any other string: a gateway the API adds later still decodes.
    */
-  paymentType: string;
+  paymentType: PaymentType;
   alias: string | null;
   logo: string | null;
   order: number;
@@ -37,10 +39,11 @@ export interface PaymentMethod {
  * What `byop.saveCredentials(id, credentials)` accepts: `paymentType` (the method's
  * `PaymentMethod.paymentType`) plus every credential field that gateway needs. All fields are
  * required and none may be empty; checkboxes are confirmations and must be `true`; any other key
- * is refused. The SDK checks this before sending (`SuqoConfigError`) and never sends
- * `paymentType`. Keys are sent snake_case (`merchantSecret` → `merchant_secret`); a rejected field
- * comes back in `ValidationError.fieldErrors` under that wire name. Text/secret values are capped
- * at 500 characters; files (`pfx`, `privateKey`) are base64 strings under 2.5 MB.
+ * is refused. TypeScript checks this at compile time; at runtime the API does, and a refused set
+ * is a `ValidationError` whose `fieldErrors` use the snake_case wire names. Keys are camelCase
+ * (a snake_case key throws `SuqoConfigError`) and are sent snake_case (`merchantSecret` →
+ * `merchant_secret`); `paymentType` is never sent. Text/secret values are capped at 500
+ * characters; files (`pfx`, `privateKey`) are base64 strings under 2.5 MB.
  */
 export type ByopCredentials =
   | { paymentType: "esewa" | "esewa_intent"; productCode: string; merchantSecret: string }

@@ -16,8 +16,8 @@ Additive only (new `byop` resource): no type was removed or narrowed.
     `paymentTypeId`, `fee`, `isConfigured` and `isVerified`. Not paginated.
   - `byop.saveCredentials(paymentMethodId, credentials)` — saves your own gateway credentials
     (`PATCH /byop/credentials/{id}/`). Replaces the full set; camelCase keys are sent snake_case.
-    Takes the gateway as `paymentType` (not sent) and throws `SuqoConfigError` before sending
-    when a required field is missing or empty, a checkbox isn't `true`, or a key is unknown.
+    Takes the gateway as `paymentType` (typed per gateway, not sent); the API validates the set
+    (`ValidationError`), so a gateway it adds later works without an SDK update.
     Resolves `void`; credentials are never returned.
   - `byop.updateProcessingFee(paymentMethodId, { processingFee })` → `{ processingFee }` — decimal string,
     `null` clears. Refused for Khalti and NPS.

@@ -331,7 +331,7 @@ switched to BYOP collects payments on its own gateway accounts. Additive, so a m
 
 ```
 byop.listPaymentMethods() -> PaymentMethod[]                                        // unpaginated
-byop.saveCredentials(paymentMethodId: string, credentials: ByopCredentials) -> void  // throws SuqoConfigError on "", ".", "..", or a credential set that fails the gateway check
+byop.saveCredentials(paymentMethodId: string, credentials: ByopCredentials) -> void  // throws SuqoConfigError on "", ".", "..", or a snake_case key
 byop.updateProcessingFee(paymentMethodId: string, params: UpdateByopFeeParams) -> ByopFee     // throws SuqoConfigError on "", ".", "..", or processingFee undefined
 ```
 
@@ -346,7 +346,7 @@ classDiagram
 | Rule | Detail |
 |---|---|
 | `saveCredentials`, not `update` | The call replaces the whole stored set, and `update` means a partial change on every resource (Naming Map 1.4). Resolves `void`: the API never returns credentials, and its `{ detail }` body carries nothing to act on (same as `webhooks.testDelivery`). |
-| Credentials checked per gateway | `ByopCredentials` is a union keyed on `paymentType` (the list's value), one member per gateway with every field required — checkboxes typed `true`. `serializeCredentials` re-checks at runtime against `CREDENTIAL_FIELDS` (backend-confirmed 2026-11-20: all fields required and non-empty, checkboxes `true`, extras refused) and throws `SuqoConfigError` before any request, never quoting a value. `paymentType` is not sent. Only listed camelCase keys pass, so a snake_case key or two keys colliding on one wire key can't reach the API. A new gateway needs an entry here and a union member. `fieldErrors` keys stay snake_case, as everywhere else. |
+| API validates credentials | `ByopCredentials` is a union keyed on `paymentType` (the list's value), one member per gateway with every field required — checkboxes typed `true` — so TypeScript catches mistakes at compile time. At runtime `serializeCredentials` only drops `paymentType` and snake_cases the keys; the API validates the set (400 → `ValidationError`), so an unknown `paymentType` is sent as is and a new gateway needs no SDK release (design review: `SuqoConfigError` is for silent misdirects, §7, and a bad set isn't one). A snake_case key is still refused: it could collide with its camelCase twin on one wire key and save the stale value. `fieldErrors` keys stay snake_case, as everywhere else. |
 | Fee is a string or `null` | `processingFee` is a decimal string (never `number`); `null` clears it. `undefined` throws, so a misspelled key can't send `{}` and read back as "cleared". The API stores two decimals (`"1.5"` → `"1.50"`). |
 | `PaymentMethod` from a captured response | `alias`, `logo`, `fee` and `isVerified` degrade to `null` when omitted. `paymentType` is a plain string. Fonepay is `fonepay-checkout`; Swagger's `fonepay` is an internal name (backend-confirmed). |
 | BYOP gate on writes only | A non-BYOP account gets `403` `detail: "Your own payment account isn't enabled."` → `PermissionDeniedError` on `saveCredentials`/`updateProcessingFee`; `listPaymentMethods` is not gated. |
@@ -355,7 +355,7 @@ classDiagram
 ### Conformance checklist — BYOP
 
 - [ ] `byop.listPaymentMethods()` GETs `/api/v1/byop/payment-methods/` and maps the plain array to camelCase `PaymentMethod`s; omitted nullable keys come back `null`, never `undefined`.
-- [ ] `byop.saveCredentials(id, credentials)` PATCHes `/api/v1/byop/credentials/{id}/` with snake_case keys (no `payment_type`) and resolves `undefined`; an unknown `paymentType`, a missing/empty field, a checkbox not `true`, a key the gateway doesn't take, or an id of `""`/`"."`/`".."`, throws `SuqoConfigError` before any request; a 400 or 429 is thrown after exactly one request.
+- [ ] `byop.saveCredentials(id, credentials)` PATCHes `/api/v1/byop/credentials/{id}/` with snake_case keys (no `payment_type`) and resolves `undefined`, an unknown `paymentType` included; a snake_case key or an id of `""`/`"."`/`".."` throws `SuqoConfigError` before any request; a 400 or 429 is thrown after exactly one request.
 - [ ] `byop.updateProcessingFee(id, { processingFee })` PATCHes `/api/v1/byop/fees/{id}/` with `{ processing_fee }` (a string, or `null` to clear) and returns `{ processingFee }` as a string; an undefined `processingFee` or a bad id throws `SuqoConfigError` before any request; an out-of-range fee is a `ValidationError` keyed on `processing_fee`.
 - [ ] `suqo.byop` is a `ByopResource`, and the class is not exported from `src/index.ts`.
 

@@ -48,64 +48,25 @@ export function deserializePaymentMethod(wire: WirePaymentMethod): PaymentMethod
   };
 }
 
-/** `merchantSecret` → `merchant_secret`. Only keys from `CREDENTIAL_FIELDS` reach it. */
+/** `merchantSecret` → `merchant_secret`. */
 function toSnakeCase(key: string): string {
   return key.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`);
 }
 
 /**
- * Every field each gateway needs (backend-confirmed 2026-11-20: all required, none empty, extras
- * refused). Checkboxes must be `true`. A gateway the API adds later needs an entry here.
+ * Drops `paymentType` (never sent) and snake_cases the rest. The API validates the set itself (a
+ * missing, empty or unknown field is a 400 → `ValidationError`), so an unknown gateway still goes
+ * through. Only a snake_case key is refused: `merchant_secret` next to `merchantSecret` would land
+ * on one wire key and silently save the stale value (SDK-SPEC §7).
  */
-const CREDENTIAL_FIELDS: Record<string, { text: readonly string[]; checkbox?: string }> = {
-  esewa: { text: ["productCode", "merchantSecret"] },
-  esewa_intent: { text: ["productCode", "merchantSecret"] },
-  khalti: { text: ["merchantSecret"] },
-  nps: {
-    text: ["merchantId", "merchantName", "apiUsername", "apiPassword", "merchantSecret"],
-    checkbox: "isWebhooksUrlSet",
-  },
-  connectips: {
-    text: ["merchantId", "appId", "appName", "appPassword", "pfx", "pfxPassword"],
-    checkbox: "isResponseUrlConfirmation",
-  },
-  "fonepay-checkout": { text: ["username", "password", "privateKey", "terminalId"] },
-};
-
-/** Checks `credentials` against its gateway's field list and returns the snake_case wire body. */
-function serializeCredentials(credentials: ByopCredentials): Record<string, string | boolean> {
-  const fail: (why: string) => never = (why) => {
-    throw new SuqoConfigError(`byop.saveCredentials(): ${why}`);
-  };
-  const { paymentType, ...fields } = (credentials ?? {}) as { paymentType?: unknown } & Record<
-    string,
-    unknown
-  >;
-  // hasOwn: "toString"/"constructor" would otherwise match inherited Object.prototype members.
-  const spec =
-    typeof paymentType === "string" && Object.hasOwn(CREDENTIAL_FIELDS, paymentType)
-      ? CREDENTIAL_FIELDS[paymentType]
-      : undefined;
-  if (!spec) {
-    fail(
-      `unknown paymentType ${JSON.stringify(paymentType)} — expected one of ${Object.keys(CREDENTIAL_FIELDS).join(", ")}`,
-    );
-  }
-  const allowed = spec.checkbox ? [...spec.text, spec.checkbox] : spec.text;
-  const body: Record<string, string | boolean> = {};
+function serializeCredentials(credentials: ByopCredentials): Record<string, unknown> {
+  const { paymentType, ...fields } = (credentials ?? {}) as Record<string, unknown>;
+  void paymentType;
+  const body: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(fields)) {
-    if (!allowed.includes(key))
-      fail(`"${key}" isn't a ${paymentType} field — expected ${allowed.join(", ")}`);
-    body[toSnakeCase(key)] = value as string | boolean;
-  }
-  for (const key of spec.text) {
-    const value = fields[key];
-    // The value itself is never put in the message — these are secrets.
-    if (typeof value !== "string" || value.trim() === "")
-      fail(`${key} is required and can't be empty`);
-  }
-  if (spec.checkbox && fields[spec.checkbox] !== true) {
-    fail(`${spec.checkbox} must be true — confirm it's set up on your gateway account`);
+    if (key.includes("_"))
+      throw new SuqoConfigError(`byop.saveCredentials(): use camelCase keys ("${key}")`);
+    body[toSnakeCase(key)] = value;
   }
   return body;
 }
