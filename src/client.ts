@@ -7,6 +7,7 @@ import {
   CustomersResource,
   CheckoutSessionsResource,
   WebhooksResource,
+  PayoutsResource,
 } from "./resources/index.js";
 
 /** Options accepted by {@link SuqoClient}'s constructor (SDK-SPEC.md §2, §4; addendum §5). */
@@ -61,6 +62,8 @@ export class SuqoClient {
    * makes no network call; the management methods do.
    */
   readonly webhooks: WebhooksResource;
+  /** Request, list and retrieve your account's payouts (SDK-SPEC.md §5, §6). */
+  readonly payouts: PayoutsResource;
 
   constructor(options: SuqoClientOptions) {
     this.#config = new SdkConfig(options);
@@ -70,6 +73,7 @@ export class SuqoClient {
     this.customers = new CustomersResource(http);
     this.checkoutSessions = new CheckoutSessionsResource(http);
     this.webhooks = new WebhooksResource(http);
+    this.payouts = new PayoutsResource(http);
   }
 
   /** `"sandbox" | "live"` — inferred from the key prefix, never selected explicitly (SDK-SPEC.md §2). */

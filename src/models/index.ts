@@ -45,6 +45,7 @@ export type {
   UpdateWebhookParams,
   WebhookSecret,
 } from "./Webhook.js";
+export type { Payout } from "./Payout.js";
 export type { MessageResponse } from "./MessageResponse.js";
 export type {
   CheckoutSucceededEvent,

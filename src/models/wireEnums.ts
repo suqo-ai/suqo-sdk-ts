@@ -24,3 +24,6 @@ export type ProductType = "simple" | "tiered" | Loose;
 
 /** What a checkout session was opened for. */
 export type CheckoutSessionType = "subscription" | "billing" | Loose;
+
+/** A payout's state. Upper-case on the wire, unlike every other enum here. */
+export type PayoutStatus = "PENDING" | "COMPLETED" | Loose;

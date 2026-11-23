@@ -74,6 +74,7 @@ export {
   type ReplaceWebhookParams,
   type UpdateWebhookParams,
   type WebhookSecret,
+  type Payout,
   type CreateSubscriptionParams,
   type CreateSubscriptionResponse,
   type UpdateBillingCycleParams,
