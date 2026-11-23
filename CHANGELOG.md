@@ -17,7 +17,8 @@ Additive only (new `byop` resource): no type was removed or narrowed.
   - `byop.replaceCredentials(paymentMethodId, credentials)` — replaces your own gateway credentials
     (`PATCH /byop/credentials/{id}/`). Replaces the full set; camelCase keys are sent snake_case.
     Takes the gateway as `paymentType` (typed per gateway, not sent); the API validates the set
-    (`ValidationError`), so a gateway it adds later works without an SDK update.
+    (`ValidationError`). A gateway added later is sent as is at runtime; TypeScript needs a cast
+    until the union is updated.
     Resolves `void`; credentials are never returned.
   - `byop.updateProcessingFee(paymentMethodId, { processingFee })` → `{ processingFee }` — decimal string,
     `null` clears. Refused for Khalti and NPS.

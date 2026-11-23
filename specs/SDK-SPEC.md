@@ -168,8 +168,8 @@ client.byop.updateProcessingFee(paymentMethodId, { processingFee })
   `paymentType` is not sent. At runtime the SDK only snake_cases the keys
   (a snake_case key is a `SuqoConfigError`, §7: two keys could land on one
   wire key). A missing, empty or unknown field is the API's `400` →
-  `ValidationError`, and an unknown `paymentType` is sent as is, so a
-  gateway the API adds later works without an SDK release.
+  `ValidationError`. An unknown `paymentType` is sent as is at runtime;
+  TypeScript needs a cast until the `ByopCredentials` union is updated.
 
 - **Decimal fields are strings.** `price`, `amount`, `total_subscribers`, etc.
   arrive as strings to avoid float rounding. The SDK MUST NOT coerce them to

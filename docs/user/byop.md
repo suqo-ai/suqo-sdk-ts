@@ -22,7 +22,7 @@ await suqo.byop.replaceCredentials(esewa.paymentTypeId, {
 ```
 
 - **Send the full set every time** — it replaces what is stored. Write keys in camelCase (`merchantSecret`); the SDK sends them snake_case (`merchant_secret`), and a snake_case key throws `SuqoConfigError`.
-- **Every field below is required for its gateway, and none can be empty.** TypeScript flags a missing or misspelled field at compile time; at runtime the API checks the set and a refused one is a `ValidationError`. A gateway not listed here is sent as is.
+- **Every field below is required for its gateway, and none can be empty.** TypeScript flags a missing or misspelled field at compile time; at runtime the API checks the set and a refused one is a `ValidationError`. A gateway not listed here is sent as is at runtime; TypeScript needs a cast (`as unknown as ByopCredentials`) until the SDK adds it.
 - Fields per gateway:
 
   | Gateway (`paymentType`)       | Fields                                                                                              |
