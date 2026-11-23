@@ -174,7 +174,7 @@ describe("contract: response decoding", () => {
     await expect(client().webhooks.testDelivery("whk_contract01")).resolves.toBeUndefined();
   });
 
-  it("byop.listPaymentMethods()/updateProcessingFee() decode camelCase; saveCredentials() resolves to undefined", async () => {
+  it("byop.listPaymentMethods()/updateProcessingFee() decode camelCase; replaceCredentials() resolves to undefined", async () => {
     const [pm] = await client().byop.listPaymentMethods();
     expect(pm).toMatchObject({ paymentTypeId: mockPaymentMethod.payment_type_id, fee: "0.00", isVerified: null });
     expect(pm).not.toHaveProperty("payment_type_id");
@@ -182,7 +182,7 @@ describe("contract: response decoding", () => {
       client().byop.updateProcessingFee(mockPaymentMethod.payment_type_id, { processingFee: "1.50" }),
     ).resolves.toEqual({ processingFee: "1.50" });
     await expect(
-      client().byop.saveCredentials(mockPaymentMethod.payment_type_id, { paymentType: "khalti", merchantSecret: "s" }),
+      client().byop.replaceCredentials(mockPaymentMethod.payment_type_id, { paymentType: "khalti", merchantSecret: "s" }),
     ).resolves.toBeUndefined();
   });
 

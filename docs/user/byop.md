@@ -1,6 +1,6 @@
 # BYOP (bring your own payment)
 
-`suqo.byop` lets an account collect payments on its **own** gateway accounts (eSewa, Khalti, NPS, connectIPS, Fonepay) instead of Suqo's. Suqo switches an account to BYOP — the API can't. Until then `saveCredentials()` and `updateProcessingFee()` throw `PermissionDeniedError` ("Your own payment account isn't enabled."); `listPaymentMethods()` still works.
+`suqo.byop` lets an account collect payments on its **own** gateway accounts (eSewa, Khalti, NPS, connectIPS, Fonepay) instead of Suqo's. Suqo switches an account to BYOP — the API can't. Until then `replaceCredentials()` and `updateProcessingFee()` throw `PermissionDeniedError` ("Your own payment account isn't enabled."); `listPaymentMethods()` still works.
 
 ## List payment methods
 
@@ -11,10 +11,10 @@ const esewa = methods.find((m) => m.paymentType === 'esewa')!;
 
 Each `PaymentMethod` carries `paymentTypeId` (the id the two calls below take), `isActive`, `fee` (a decimal string, or `null` for Khalti/NPS/cash), `isConfigured` and `isVerified`. Showing, hiding and reordering stay on the dashboard.
 
-## Save credentials
+## Replace credentials
 
 ```ts
-await suqo.byop.saveCredentials(esewa.paymentTypeId, {
+await suqo.byop.replaceCredentials(esewa.paymentTypeId, {
   paymentType: 'esewa', // the method's paymentType — lets TypeScript check the fields; not sent
   productCode: 'EPAYTEST',
   merchantSecret: process.env.ESEWA_SECRET!,
@@ -49,4 +49,4 @@ The fee is a string, never a number, so there's no float rounding. It comes back
 
 ## Retries and rate limits
 
-`saveCredentials` and `updateProcessingFee` are writes, so the SDK never retries them. Both are rate-limited: past the limit they throw `RateLimitError` — wait `err.retryAfter` milliseconds and retry yourself. See [rate-limiting.md](rate-limiting.md).
+`replaceCredentials` and `updateProcessingFee` are writes, so the SDK never retries them. Both are rate-limited: past the limit they throw `RateLimitError` — wait `err.retryAfter` milliseconds and retry yourself. See [rate-limiting.md](rate-limiting.md).

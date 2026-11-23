@@ -155,7 +155,7 @@ suqo.webhooks.testDelivery(id)                              // -> void
 suqo.webhooks.verify({ rawBody, signature, timestamp, secret, toleranceSec? }) // -> boolean, no network
 
 suqo.byop.listPaymentMethods()                              // -> PaymentMethod[] (unpaginated)
-suqo.byop.saveCredentials(paymentMethodId, credentials)     // -> void (PATCH, replaces full set)
+suqo.byop.replaceCredentials(paymentMethodId, credentials)     // -> void (PATCH, replaces full set)
 suqo.byop.updateProcessingFee(paymentMethodId, { processingFee })     // -> ByopFee (PATCH, null clears)
 
 // Every paginated list() also has autoPaging(params?) — see §7.

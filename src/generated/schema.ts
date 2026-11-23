@@ -331,12 +331,12 @@ export interface paths {
         options?: never;
         head?: never;
         /**
-         * Save BYOP credentials
-         * @description Saves your own gateway credentials for one payment method. Send the full set every time; it replaces what is stored. Every field listed for the gateway is required and non-empty; unknown keys are refused; a checkbox that is false or missing fails with "Please confirm this before saving." (backend-confirmed 2026-11-20). Text and secret values are capped at 500 characters; files are base64 strings under 2.5 MB; a checkbox field must be `true`. Credentials are never returned: each save is checked in the background, read `is_verified` on the payment-method list. Replacing saved credentials emails the company address. Swagger's operationId is `byop_credentials_partial_update`; registered as `saveCredentials` in the SDK because it replaces the full set, and `update` means a partial change on every resource (Naming Map 1.4).
+         * Replace BYOP credentials
+         * @description Replaces your own gateway credentials for one payment method. Send the full set every time; it replaces what is stored. Every field listed for the gateway is required and non-empty; unknown keys are refused; a checkbox that is false or missing fails with "Please confirm this before saving." (backend-confirmed 2026-11-20). Text and secret values are capped at 500 characters; files are base64 strings under 2.5 MB; a checkbox field must be `true`. Credentials are never returned: each save is checked in the background, read `is_verified` on the payment-method list. Replacing saved credentials emails the company address. Swagger's operationId is `byop_credentials_partial_update`; registered as `replace` in the SDK so `update` means a partial change on every resource (Naming Map 1.4).
          *     Fields per gateway: esewa / esewa_intent `product_code`, `merchant_secret`; khalti `merchant_secret`; nps `merchant_id`, `merchant_name`, `api_username`, `api_password`, `merchant_secret`, `is_webhooks_url_set` (checkbox); connectips `merchant_id`, `app_id`, `app_name`, `app_password`, `pfx` (base64 file), `pfx_password`, `is_response_url_confirmation` (checkbox); fonepay-checkout `username`, `password`, `private_key` (base64 file), `terminal_id`.
          *     NOTE (write op): not auto-retryable until idempotency ships.
          */
-        patch: operations["saveByopCredentials"];
+        patch: operations["replaceByopCredentials"];
         trace?: never;
     };
     "/api/v1/byop/fees/{payment_method_id}/": {
@@ -357,7 +357,7 @@ export interface paths {
          * @description Sets the percent your own gateway takes from each payment on this method, used as the gateway fee when a BYOP payment settles (`0` when unset). Khalti and NPS report their own fee per payment, so a fee can't be set for them.
          *     NOTE (write op): not auto-retryable until idempotency ships.
          */
-        patch: operations["updateByopFee"];
+        patch: operations["updateByopProcessingFee"];
         trace?: never;
     };
     "/api/v1/customers/": {
@@ -811,7 +811,7 @@ export interface components {
             is_verified?: boolean | null;
         };
         /**
-         * @description The gateway's credential fields, listed on `saveByopCredentials`.
+         * @description The gateway's credential fields, listed on `replaceByopCredentials`.
          * @example {
          *       "product_code": "EPAYTEST",
          *       "merchant_secret": "8gBm/:&EnhH.1/q"
@@ -1562,7 +1562,7 @@ export interface operations {
             403: components["responses"]["Forbidden"];
         };
     };
-    saveByopCredentials: {
+    replaceByopCredentials: {
         parameters: {
             query?: never;
             header?: never;
@@ -1614,7 +1614,7 @@ export interface operations {
             429: components["responses"]["RateLimited"];
         };
     };
-    updateByopFee: {
+    updateByopProcessingFee: {
         parameters: {
             query?: never;
             header?: never;

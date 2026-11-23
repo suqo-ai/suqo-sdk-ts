@@ -11,7 +11,7 @@ import type { PaymentType } from "./wireEnums.js";
 /** One of the account's payment methods (`openapi.yaml` `PaymentMethod`), hidden ones included. */
 export interface PaymentMethod {
   companyId: string;
-  /** The id `byop.saveCredentials()` and `byop.updateProcessingFee()` take. A UUID. */
+  /** The id `byop.replaceCredentials()` and `byop.updateProcessingFee()` take. A UUID. */
   paymentTypeId: string;
   /**
    * The gateway, e.g. `"esewa"`, `"esewa_intent"`, `"khalti"`, `"nps"`, `"connectips"`,
@@ -36,7 +36,7 @@ export interface PaymentMethod {
 }
 
 /**
- * What `byop.saveCredentials(id, credentials)` accepts: `paymentType` (the method's
+ * What `byop.replaceCredentials(id, credentials)` accepts: `paymentType` (the method's
  * `PaymentMethod.paymentType`) plus every credential field that gateway needs. All fields are
  * required and none may be empty; checkboxes are confirmations and must be `true`; any other key
  * is refused. TypeScript checks this at compile time; at runtime the API does, and a refused set

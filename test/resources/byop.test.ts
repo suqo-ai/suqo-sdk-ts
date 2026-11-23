@@ -103,11 +103,11 @@ describe("ByopResource", () => {
     expect(lastCall()).toMatchObject({ url: `${BASE}/payment-methods/`, method: "GET" });
   });
 
-  it("saveCredentials() PATCHes the full set with snake_case keys, without paymentType, and resolves void", async () => {
+  it("replaceCredentials() PATCHes the full set with snake_case keys, without paymentType, and resolves void", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(
       jsonResponse({ detail: "Credentials saved successfully." }),
     );
-    await expect(byop().saveCredentials(PM_ID, NPS)).resolves.toBeUndefined();
+    await expect(byop().replaceCredentials(PM_ID, NPS)).resolves.toBeUndefined();
     expect(lastCall()).toEqual({
       url: `${BASE}/credentials/${PM_ID}/`,
       method: "PATCH",
@@ -122,11 +122,11 @@ describe("ByopResource", () => {
     });
   });
 
-  it("saveCredentials() surfaces byop_payment_pending as ValidationError, and never retries", async () => {
+  it("replaceCredentials() surfaces byop_payment_pending as ValidationError, and never retries", async () => {
     const body = { detail: "A payment is still being processed.", code: "byop_payment_pending" };
     vi.mocked(fetch).mockResolvedValue(jsonResponse(body, 400));
     const err = await byop()
-      .saveCredentials(PM_ID, KHALTI)
+      .replaceCredentials(PM_ID, KHALTI)
       .catch((e: unknown) => e);
     expect(err).toBeInstanceOf(ValidationError);
     expect((err as ValidationError).message).toBe(body.detail);
@@ -148,7 +148,7 @@ describe("ByopResource", () => {
       jsonResponse({ detail: "Request was throttled. Expected available in 41 seconds." }, 429),
     );
     const err = await byop()
-      .saveCredentials(PM_ID, KHALTI)
+      .replaceCredentials(PM_ID, KHALTI)
       .catch((e: unknown) => e);
     expect(err).toBeInstanceOf(RateLimitError);
     expect((err as RateLimitError).retryAfter).toBe(41_000);
@@ -209,7 +209,7 @@ describe("ByopResource", () => {
   });
 
   it.each(["", ".", ".."])("rejects path id %j before any request", async (id) => {
-    await expect(byop().saveCredentials(id, KHALTI)).rejects.toBeInstanceOf(SuqoConfigError);
+    await expect(byop().replaceCredentials(id, KHALTI)).rejects.toBeInstanceOf(SuqoConfigError);
     await expect(byop().updateProcessingFee(id, { processingFee: null })).rejects.toBeInstanceOf(
       SuqoConfigError,
     );
@@ -217,9 +217,9 @@ describe("ByopResource", () => {
   });
 
   // Review finding: two keys colliding on one wire key used to save a stale secret.
-  it("saveCredentials() refuses a snake_case key before any request", async () => {
+  it("replaceCredentials() refuses a snake_case key before any request", async () => {
     await expect(
-      byop().saveCredentials(PM_ID, {
+      byop().replaceCredentials(PM_ID, {
         ...KHALTI,
         merchant_secret: "old",
       } as unknown as ByopCredentials),
@@ -228,22 +228,22 @@ describe("ByopResource", () => {
   });
 
   // Design review: the API validates the set, so a gateway added after this release still works.
-  it("saveCredentials() sends an unknown paymentType's keys snake_cased", async () => {
+  it("replaceCredentials() sends an unknown paymentType's keys snake_cased", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(
       jsonResponse({ detail: "Credentials saved successfully." }),
     );
-    await byop().saveCredentials(PM_ID, {
+    await byop().replaceCredentials(PM_ID, {
       paymentType: "newpay",
       shopToken: "t",
     } as unknown as ByopCredentials);
     expect(lastCall().body).toEqual({ shop_token: "t" });
   });
 
-  it("saveCredentials() leaves a missing field to the API, surfaced as ValidationError", async () => {
+  it("replaceCredentials() leaves a missing field to the API, surfaced as ValidationError", async () => {
     const body = { product_code: ["This field is required."] };
     vi.mocked(fetch).mockResolvedValueOnce(jsonResponse(body, 400));
     const err = await byop()
-      .saveCredentials(PM_ID, { paymentType: "esewa", merchantSecret: "s" } as ByopCredentials)
+      .replaceCredentials(PM_ID, { paymentType: "esewa", merchantSecret: "s" } as ByopCredentials)
       .catch((e: unknown) => e);
     expect(err).toBeInstanceOf(ValidationError);
     expect((err as ValidationError).fieldErrors).toEqual(body);
@@ -269,11 +269,11 @@ describe("ByopResource", () => {
       privateKey: "TUlJ",
       terminalId: "t",
     },
-  ])("saveCredentials() accepts a full $paymentType set", async (credentials) => {
+  ])("replaceCredentials() accepts a full $paymentType set", async (credentials) => {
     vi.mocked(fetch).mockResolvedValueOnce(
       jsonResponse({ detail: "Credentials saved successfully." }),
     );
-    await expect(byop().saveCredentials(PM_ID, credentials)).resolves.toBeUndefined();
+    await expect(byop().replaceCredentials(PM_ID, credentials)).resolves.toBeUndefined();
     expect(lastCall().body).not.toHaveProperty("payment_type");
   });
 

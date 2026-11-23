@@ -65,7 +65,7 @@ function serializeCredentials(credentials: ByopCredentials): Record<string, unkn
   const body: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(fields)) {
     if (key.includes("_"))
-      throw new SuqoConfigError(`byop.saveCredentials(): use camelCase keys ("${key}")`);
+      throw new SuqoConfigError(`byop.replaceCredentials(): use camelCase keys ("${key}")`);
     body[toSnakeCase(key)] = value;
   }
   return body;
@@ -80,7 +80,7 @@ export class ByopResource {
 
   /**
    * Every payment method on your account, hidden ones included. Not paginated. Use a method's
-   * `paymentTypeId` with {@link ByopResource.saveCredentials} and {@link ByopResource.updateProcessingFee}.
+   * `paymentTypeId` with {@link ByopResource.replaceCredentials} and {@link ByopResource.updateProcessingFee}.
    */
   async listPaymentMethods(): Promise<PaymentMethod[]> {
     const wire = await this.#http.request<WirePaymentMethod[]>({
@@ -91,7 +91,7 @@ export class ByopResource {
   }
 
   /**
-   * Saves your own gateway credentials for one payment method. Send the full set every time — it
+   * Replaces your own gateway credentials for one payment method. Send the full set every time — it
    * replaces what is stored. Credentials are never returned; the API checks them in the
    * background, so read `isVerified` from {@link ByopResource.listPaymentMethods} afterwards.
    * Replacing saved credentials emails your company address. A `ValidationError` keyed on a field
@@ -99,8 +99,8 @@ export class ByopResource {
    * "byop_payment_pending"`) means a payment on this gateway is still processing — retry once it
    * finishes. Rate-limited (`RateLimitError`). Not auto-retryable (SDK-SPEC.md §8, §12).
    */
-  async saveCredentials(paymentMethodId: string, credentials: ByopCredentials): Promise<void> {
-    assertPathId(paymentMethodId, "byop.saveCredentials");
+  async replaceCredentials(paymentMethodId: string, credentials: ByopCredentials): Promise<void> {
+    assertPathId(paymentMethodId, "byop.replaceCredentials");
     const body = serializeCredentials(credentials);
     await this.#http.request<unknown, unknown>({
       method: "PATCH",

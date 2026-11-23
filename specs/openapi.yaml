@@ -61,7 +61,7 @@ tags:
   - name: Webhooks
     description: Manage which endpoint receives which event. Verifying deliveries is local (SDK-SPEC.md §9).
   - name: Byop
-    description: Bring your own payment — list payment methods, save your own gateway credentials and fee.
+    description: Bring your own payment — list payment methods, set your own gateway credentials and fee.
 
 paths:
   /api/v1/products/:
@@ -600,11 +600,11 @@ paths:
 
   /api/v1/byop/credentials/{payment_method_id}/:
     patch:
-      operationId: saveByopCredentials
+      operationId: replaceByopCredentials
       tags: [Byop]
-      summary: Save BYOP credentials
+      summary: Replace BYOP credentials
       description: >
-        Saves your own gateway credentials for one payment method. Send the full
+        Replaces your own gateway credentials for one payment method. Send the full
         set every time; it replaces what is stored. Every field listed for the
         gateway is required and non-empty; unknown keys are refused; a checkbox
         that is false or missing fails with "Please confirm this before saving."
@@ -614,9 +614,8 @@ paths:
         never returned: each save is checked in the background, read
         `is_verified` on the payment-method list. Replacing saved credentials
         emails the company address. Swagger's operationId is
-        `byop_credentials_partial_update`; registered as `saveCredentials` in
-        the SDK because it replaces the full set, and `update` means a partial
-        change on every resource (Naming Map 1.4).
+        `byop_credentials_partial_update`; registered as `replace` in the SDK so `update`
+        means a partial change on every resource (Naming Map 1.4).
 
         Fields per gateway: esewa / esewa_intent `product_code`,
         `merchant_secret`; khalti `merchant_secret`; nps `merchant_id`,
@@ -659,7 +658,7 @@ paths:
 
   /api/v1/byop/fees/{payment_method_id}/:
     patch:
-      operationId: updateByopFee
+      operationId: updateByopProcessingFee
       tags: [Byop]
       summary: Set BYOP processing fee
       description: >
@@ -1444,7 +1443,7 @@ components:
 
     ByopCredentials:
       type: object
-      description: The gateway's credential fields, listed on `saveByopCredentials`.
+      description: The gateway's credential fields, listed on `replaceByopCredentials`.
       additionalProperties:
         oneOf:
           - type: string

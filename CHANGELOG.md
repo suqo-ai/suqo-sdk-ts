@@ -14,7 +14,7 @@ Additive only (new `byop` resource): no type was removed or narrowed.
 - `suqo.byop` — bring your own payment gateway (API as of 2026-11-20):
   - `byop.listPaymentMethods()` → `PaymentMethod[]` — every method, hidden ones included, with
     `paymentTypeId`, `fee`, `isConfigured` and `isVerified`. Not paginated.
-  - `byop.saveCredentials(paymentMethodId, credentials)` — saves your own gateway credentials
+  - `byop.replaceCredentials(paymentMethodId, credentials)` — replaces your own gateway credentials
     (`PATCH /byop/credentials/{id}/`). Replaces the full set; camelCase keys are sent snake_case.
     Takes the gateway as `paymentType` (typed per gateway, not sent); the API validates the set
     (`ValidationError`), so a gateway it adds later works without an SDK update.
