@@ -347,6 +347,51 @@ export interface paths {
         patch: operations["updateCustomer"];
         trace?: never;
     };
+    "/api/v1/payouts/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List payouts
+         * @description Paginated payouts of your account, newest first. Swagger operationId `payouts_list`.
+         */
+        get: operations["listPayouts"];
+        put?: never;
+        /**
+         * Request a payout
+         * @description Requests a payout of all your due transactions to your verified bank account. Takes no body. Gateway fees, the platform fee and unbilled SMS usage are deducted, and the net amount must reach the minimum payout amount. Only one payout can be pending at a time, so a repeat after success answers 400 instead of paying twice. The bank account is added and verified through `bank-accounts/` (not yet in this spec). Swagger operationId `payouts_create`.
+         *     NOTE (write op): not auto-retried by the SDK.
+         */
+        post: operations["createPayout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/payouts/{public_id}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Retrieve a payout
+         * @description One of your payouts by its `payout_id`, to track whether it is still `PENDING` or `COMPLETED`. Swagger operationId `payouts_read`.
+         */
+        get: operations["retrievePayout"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -724,6 +769,55 @@ export interface components {
         WebhookSecret: {
             /** @description `whsec_…` */
             signing_secret?: string;
+        };
+        /**
+         * @description PENDING = requested, not paid yet; COMPLETED = Suqo has paid it out. Only one payout can be PENDING at a time.
+         * @enum {string}
+         */
+        PayoutStatus: "PENDING" | "COMPLETED";
+        Payout: {
+            /** @description `PYT-…`, e.g. `PYT-MF4G9W-CTEP55`. */
+            payout_id: string;
+            status: components["schemas"]["PayoutStatus"];
+            /**
+             * Format: decimal
+             * @description Gross total of the transactions in this payout. Decimal string.
+             */
+            amount: string;
+            /**
+             * Format: decimal
+             * @description Payment gateway fees.
+             */
+            provider_charge: string;
+            /**
+             * Format: decimal
+             * @description Suqo platform fee.
+             */
+            suqo_platform_fee: string;
+            /**
+             * Format: decimal
+             * @description SMS usage billed into this payout.
+             */
+            sms_charge: string;
+            /**
+             * Format: decimal
+             * @description What is paid to your bank account, after fees.
+             */
+            net_amount: string;
+            /** Format: date-time */
+            requested_date: string;
+            /** Format: date-time */
+            paid_date?: string | null;
+            /**
+             * Format: uri
+             * @description Payment receipt, once uploaded after payment.
+             */
+            receipt_url?: string | null;
+        };
+        PayoutError: {
+            detail?: string;
+            /** @enum {string} */
+            code?: "pending_payout_request_exists" | "bank_account_not_found" | "bank_account_not_verified" | "no_transactions_due" | "payout_below_minimum";
         };
         /** @description General errors (auth, not-found). */
         DetailError: {
@@ -1546,6 +1640,98 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["FieldError"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listPayouts: {
+        parameters: {
+            query?: {
+                /** @description Page number (1-indexed). */
+                page?: components["parameters"]["Page"];
+                /** @description Results per page (max 100). */
+                page_size?: components["parameters"]["PageSize"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Paginated payouts of your account. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginationEnvelope"] & {
+                        results?: components["schemas"]["Payout"][];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    createPayout: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The new payout, `PENDING`. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Payout"];
+                };
+            };
+            /** @description The payout could not be requested. `code` names the reason. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "You already have a pending payout request.",
+                     *       "code": "pending_payout_request_exists"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["PayoutError"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    retrievePayout: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The payout's `payout_id` (`PYT-…`), from list. */
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The payout. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Payout"];
                 };
             };
             401: components["responses"]["Unauthorized"];

@@ -59,6 +59,10 @@ tags:
     description: List, retrieve, create and update customers. No delete.
   - name: Webhooks
     description: Manage which endpoint receives which event. Verifying deliveries is local (SDK-SPEC.md §9).
+  - name: Payouts
+    description: >
+      Request, list and retrieve payouts of your account. Requesting one needs a verified bank
+      account (API `bank-accounts/`, not yet in this spec).
 
 paths:
   /api/v1/products/:
@@ -695,6 +699,87 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
 
+  /api/v1/payouts/:
+    get:
+      operationId: listPayouts
+      tags: [Payouts]
+      summary: List payouts
+      description: >
+        Paginated payouts of your account, newest first. Swagger operationId
+        `payouts_list`.
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: Paginated payouts of your account.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PaginationEnvelope'
+                  - type: object
+                    properties:
+                      results:
+                        type: array
+                        items: { $ref: '#/components/schemas/Payout' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      operationId: createPayout
+      tags: [Payouts]
+      summary: Request a payout
+      description: >
+        Requests a payout of all your due transactions to your verified bank
+        account. Takes no body. Gateway fees, the platform fee and unbilled SMS
+        usage are deducted, and the net amount must reach the minimum payout
+        amount. Only one payout can be pending at a time, so a repeat after
+        success answers 400 instead of paying twice. The bank account is added
+        and verified through `bank-accounts/` (not yet in this spec). Swagger
+        operationId `payouts_create`.
+
+        NOTE (write op): not auto-retried by the SDK.
+      responses:
+        '201':
+          description: The new payout, `PENDING`.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Payout' }
+        '400':
+          description: The payout could not be requested. `code` names the reason.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PayoutError' }
+              example:
+                detail: "You already have a pending payout request."
+                code: pending_payout_request_exists
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /api/v1/payouts/{public_id}/:
+    get:
+      operationId: retrievePayout
+      tags: [Payouts]
+      summary: Retrieve a payout
+      description: >
+        One of your payouts by its `payout_id`, to track whether it is still
+        `PENDING` or `COMPLETED`. Swagger operationId `payouts_read`.
+      parameters:
+        - name: public_id
+          in: path
+          required: true
+          schema: { type: string }
+          description: The payout's `payout_id` (`PYT-…`), from list.
+      responses:
+        '200':
+          description: The payout.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Payout' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
 components:
   securitySchemes:
     bearerApiKey:
@@ -1269,6 +1354,58 @@ components:
       type: object
       properties:
         signing_secret: { type: string, description: "`whsec_…`" }
+
+    PayoutStatus:
+      type: string
+      description: >
+        PENDING = requested, not paid yet; COMPLETED = Suqo has paid it out.
+        Only one payout can be PENDING at a time.
+      enum: [PENDING, COMPLETED]
+
+    Payout:
+      type: object
+      required:
+        - payout_id
+        - status
+        - amount
+        - provider_charge
+        - suqo_platform_fee
+        - sms_charge
+        - net_amount
+        - requested_date
+      properties:
+        payout_id: { type: string, description: "`PYT-…`, e.g. `PYT-MF4G9W-CTEP55`." }
+        status: { $ref: '#/components/schemas/PayoutStatus' }
+        amount:
+          type: string
+          format: decimal
+          description: Gross total of the transactions in this payout. Decimal string.
+        provider_charge: { type: string, format: decimal, description: Payment gateway fees. }
+        suqo_platform_fee: { type: string, format: decimal, description: Suqo platform fee. }
+        sms_charge: { type: string, format: decimal, description: SMS usage billed into this payout. }
+        net_amount:
+          type: string
+          format: decimal
+          description: What is paid to your bank account, after fees.
+        requested_date: { type: string, format: date-time }
+        paid_date: { type: [string, 'null'], format: date-time }
+        receipt_url:
+          type: [string, 'null']
+          format: uri
+          description: Payment receipt, once uploaded after payment.
+
+    PayoutError:
+      type: object
+      properties:
+        detail: { type: string }
+        code:
+          type: string
+          enum:
+            - pending_payout_request_exists
+            - bank_account_not_found
+            - bank_account_not_verified
+            - no_transactions_due
+            - payout_below_minimum
 
     DetailError:
       type: object

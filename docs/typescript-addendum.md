@@ -154,6 +154,10 @@ suqo.webhooks.retrieveSecret()                              // -> WebhookSecret
 suqo.webhooks.testDelivery(id)                              // -> void
 suqo.webhooks.verify({ rawBody, signature, timestamp, secret, toleranceSec? }) // -> boolean, no network
 
+suqo.payouts.create()                                       // -> Payout (no args)
+suqo.payouts.list({ page?, pageSize? })                     // -> Page<Payout>
+suqo.payouts.retrieve(payoutId)                             // -> Payout
+
 // Every paginated list() also has autoPaging(params?) — see §7.
 ```
 
@@ -163,7 +167,7 @@ suqo.webhooks.verify({ rawBody, signature, timestamp, secret, toleranceSec? }) /
 - Writes (`POST`, `PATCH`, `PUT`, `DELETE`) are never retried automatically;
   reads are (spec §8).
 - Wire enums (`intervalType`, `vatType`, `Product.type`,
-  `CheckoutSession.sessionType`) are typed as their known values **or** any
+  `CheckoutSession.sessionType`, `Payout.status`) are typed as their known values **or** any
   string, so a value the API adds later still decodes. Their aliases stay
   internal (`src/models/wireEnums.ts`), not exported.
 - A nullable or non-required wire field decodes to `null` when the API omits
