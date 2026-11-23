@@ -62,7 +62,7 @@ export class SuqoClient {
    * makes no network call; the management methods do.
    */
   readonly webhooks: WebhooksResource;
-  /** BYOP: list payment methods, save your own gateway credentials and set its fee (SDK-SPEC.md §5). */
+  /** BYOP: list payment methods, replace your own gateway credentials and set the processing fee (SDK-SPEC.md §5). */
   readonly byop: ByopResource;
 
   constructor(options: SuqoClientOptions) {
