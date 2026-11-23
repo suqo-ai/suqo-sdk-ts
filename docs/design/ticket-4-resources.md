@@ -321,7 +321,7 @@ classDiagram
 
 ---
 
-## 2.2.0 — BYOP (2026-11-20)
+## BYOP (unreleased)
 
 A new resource, `ByopResource` (`src/resources/byop.ts`), on `suqo.byop`: an account that Suqo has
 switched to BYOP collects payments on its own gateway accounts. Additive, so a minor. Shapes follow
@@ -352,7 +352,7 @@ classDiagram
 | BYOP gate on writes only | A non-BYOP account gets `403` `detail: "Your own payment account isn't enabled."` → `PermissionDeniedError` on `saveCredentials`/`updateProcessingFee`; `listPaymentMethods` is not gated. |
 | Writes never auto-retry | `saveCredentials` and `updateProcessingFee` — SDK-SPEC.md §8, §12. Both are rate-limited; `RateLimitError.retryAfter` falls back to the wait in the 429's `detail`. |
 
-### Conformance checklist — 2.2.0
+### Conformance checklist — BYOP
 
 - [ ] `byop.listPaymentMethods()` GETs `/api/v1/byop/payment-methods/` and maps the plain array to camelCase `PaymentMethod`s; omitted nullable keys come back `null`, never `undefined`.
 - [ ] `byop.saveCredentials(id, credentials)` PATCHes `/api/v1/byop/credentials/{id}/` with snake_case keys (no `payment_type`) and resolves `undefined`; an unknown `paymentType`, a missing/empty field, a checkbox not `true`, a key the gateway doesn't take, or an id of `""`/`"."`/`".."`, throws `SuqoConfigError` before any request; a 400 or 429 is thrown after exactly one request.

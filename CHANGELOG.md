@@ -7,9 +7,7 @@ adheres to [Semantic Versioning](https://semver.org/) per [`specs/versioning.md`
 
 ## [Unreleased]
 
-## [2.2.0] - 2026-11-20
-
-Additive only (new `byop` resource), so a minor: no type was removed or narrowed.
+Additive only (new `byop` resource): no type was removed or narrowed.
 
 ### Added
 
@@ -219,8 +217,7 @@ changes noted under each item.
   retried `5xx` carrying the header (e.g. a `503` during a maintenance window) was previously
   retried on computed backoff instead of the server's requested wait.
 
-[Unreleased]: https://github.com/suqo-ai/suqo-sdk-ts/compare/v2.2.0...HEAD
-[2.2.0]: https://github.com/suqo-ai/suqo-sdk-ts/compare/v2.1.0...v2.2.0
+[Unreleased]: https://github.com/suqo-ai/suqo-sdk-ts/compare/v2.1.0...HEAD
 [2.1.0]: https://github.com/suqo-ai/suqo-sdk-ts/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/suqo-ai/suqo-sdk-ts/compare/v1.1.0...v2.0.0
 [1.1.0]: https://github.com/suqo-ai/suqo-sdk-ts/compare/v1.0.0...v1.1.0
