@@ -58,6 +58,7 @@ SUQO_TEST_PHONE=9000000000 SUQO_TEST_EMAIL=you@example.com npx tsx examples/subs
 | [`checkout-session.ts`](checkout-session.ts) | `checkoutSessions.create`/`retrieve`, and handling the rate limit.                        |
 | [`list-products.ts`](list-products.ts)       | Browsing the catalog — works pre-KYC.                                                     |
 | [`subscriptions.ts`](subscriptions.ts)       | `create` (legacy)/`cancel`/`updateBillingCycle`/`resume`.                                 |
+| [`byop.ts`](byop.ts)                         | `byop.listPaymentMethods`, and `updateProcessingFee` when `BYOP_PAYMENT_METHOD_ID`/`BYOP_FEE` are set. |
 | [`list-customers.ts`](list-customers.ts)     | `list`/`retrieve` — read-only (doesn't exercise `create`/`update`).                       |
 | [`verify-webhook.ts`](verify-webhook.ts)     | Signature verification, including a tampered and a stale delivery. Makes no network call. |
 

@@ -24,3 +24,13 @@ export type ProductType = "simple" | "tiered" | Loose;
 
 /** What a checkout session was opened for. */
 export type CheckoutSessionType = "subscription" | "billing" | Loose;
+
+/** A BYOP payment method's gateway. The list sends `fonepay-checkout` where Swagger says `fonepay`. */
+export type PaymentType =
+  | "esewa"
+  | "esewa_intent"
+  | "khalti"
+  | "nps"
+  | "connectips"
+  | "fonepay-checkout"
+  | Loose;
