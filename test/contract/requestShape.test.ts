@@ -94,6 +94,25 @@ describe("contract: outgoing request shape", () => {
       expect(getLastRequest()?.url).toBe("https://test-be.suqo.ai/api/v1/customers/cus_1ce18d624/");
     });
 
+    it("payouts.list() with query params", async () => {
+      await client().payouts.list({ page: 1, pageSize: 100 });
+      expect(getLastRequest()?.method).toBe("GET");
+      expect(getLastRequest()?.url).toBe("https://test-be.suqo.ai/api/v1/payouts/?page=1&page_size=100");
+    });
+
+    it("payouts.create() — a POST with no body", async () => {
+      await client().payouts.create();
+      expect(getLastRequest()?.method).toBe("POST");
+      expect(getLastRequest()?.url).toBe("https://test-be.suqo.ai/api/v1/payouts/");
+      expect(getLastRequest()?.body).toBeUndefined();
+    });
+
+    it("payouts.retrieve(id)", async () => {
+      await client().payouts.retrieve("PYT-MF4G9W-CTEP55");
+      expect(getLastRequest()?.method).toBe("GET");
+      expect(getLastRequest()?.url).toBe("https://test-be.suqo.ai/api/v1/payouts/PYT-MF4G9W-CTEP55/");
+    });
+
     it("subscriptions.retrieve(id)", async () => {
       await client().subscriptions.retrieve("30b0af58-c8bc-4f79-9917-51208b73a0ed");
       expect(getLastRequest()?.url).toBe(

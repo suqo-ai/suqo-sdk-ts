@@ -134,6 +134,28 @@ describe("contract: response decoding", () => {
     expect(customer.fullName).toBe("Ram Bahadur");
   });
 
+  it("payouts.list() decodes camelCase Payouts with decimal strings and null dates", async () => {
+    const payout = (await client().payouts.list()).results[0];
+    expect(payout?.payoutId).toBe("PYT-MF4G9W-CTEP55");
+    expect(payout?.netAmount).toBe("11835.00");
+    expect(typeof payout?.amount).toBe("string");
+    expect(payout?.paidDate).toBeNull();
+    expect(payout).not.toHaveProperty("net_amount");
+  });
+
+  it("payouts.create() decodes the 201 Payout", async () => {
+    const payout = await client().payouts.create();
+    expect(payout.payoutId).toBe("PYT-MF4G9W-CTEP55");
+    expect(payout.status).toBe("PENDING");
+  });
+
+  it("payouts.retrieve() decodes a single Payout", async () => {
+    const payout = await client().payouts.retrieve("PYT-ABC");
+    expect(payout.payoutId).toBe("PYT-ABC");
+    expect(payout.status).toBe("PENDING");
+    expect(payout.receiptUrl).toBeNull();
+  });
+
   it("products.list() decodes productImage as camelCase image objects", async () => {
     const page = await client().products.list();
     expect(page.results[0]?.productImage).toEqual([{ image: "https://cdn.example/product.png", imageOrder: 0 }]);

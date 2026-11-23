@@ -203,6 +203,19 @@ const mockWebhook = {
   created_at: "2026-07-03T10:15:00Z",
 };
 
+const mockPayout = {
+  payout_id: "PYT-MF4G9W-CTEP55",
+  status: "PENDING",
+  amount: "12500.00",
+  provider_charge: "250.00",
+  suqo_platform_fee: "375.00",
+  sms_charge: "40.00",
+  net_amount: "11835.00",
+  requested_date: "2026-07-03T10:15:00Z",
+  paid_date: null,
+  receipt_url: null,
+};
+
 /** One `msw` handler per documented operation in `specs/openapi.yaml`. */
 export const handlers: HttpHandler[] = [
   http.get(`${SANDBOX_BASE_URL}/api/v1/products/`, async ({ request }) => {
@@ -361,6 +374,21 @@ export const handlers: HttpHandler[] = [
   http.post(`${SANDBOX_BASE_URL}/api/v1/webhooks/:id/test-delivery/`, async ({ request }) => {
     await capture(request);
     return HttpResponse.json({ detail: "Test webhook enqueued." }, { status: 202 });
+  }),
+
+  http.get(`${SANDBOX_BASE_URL}/api/v1/payouts/`, async ({ request }) => {
+    await capture(request);
+    return HttpResponse.json({ count: 1, next: null, previous: null, results: [mockPayout] });
+  }),
+
+  http.post(`${SANDBOX_BASE_URL}/api/v1/payouts/`, async ({ request }) => {
+    await capture(request);
+    return HttpResponse.json(mockPayout, { status: 201 });
+  }),
+
+  http.get(`${SANDBOX_BASE_URL}/api/v1/payouts/:public_id/`, async ({ request, params }) => {
+    await capture(request);
+    return HttpResponse.json({ ...mockPayout, payout_id: params.public_id });
   }),
 ];
 
