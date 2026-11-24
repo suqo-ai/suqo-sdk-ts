@@ -26,6 +26,8 @@ The SDK wraps exactly the documented API surface:
 | Subscriptions    | `list`, `retrieve`, `create` (legacy), `cancel`, `resume`, `renew`, `updateBillingCycle`            | Specified       |
 | Customers        | `list`, `retrieve`, `create`, `update`                                                              | Specified (§11) |
 | Webhooks         | `verify` (local, no HTTP); `list`, `create`, `retrieve`, `replace`, `update`, `delete`, `retrieveSecret`, `testDelivery` | Specified       |
+| Payouts          | `create`, `list`, `retrieve`                                                                        | Specified       |
+| Bank accounts    | `list`, `create`, `retrieve`, `update`, `delete`, `sendOtp`                                         | Specified       |
 | BYOP             | `listPaymentMethods`, `replaceCredentials`, `updateProcessingFee`                                                | Specified       |
 
 The SDK is **server-side only**. The API key is full-access and scoped to a
@@ -144,6 +146,23 @@ client.webhooks.delete(id)            (204, resolves void)
 client.webhooks.retrieveSecret()      -> { signingSecret }
 client.webhooks.testDelivery(id)      (202, resolves void)
 
+client.payouts.create()
+                 -> Payout   (no arguments; pays due transactions to the verified
+                    bank account; one pending at a time; 400 `code` in rawBody)
+client.payouts.list({ page?, pageSize? })
+                 -> paginated Payout list (newest first)
+client.payouts.retrieve(payoutId)
+                 -> Payout   (payoutId is the `PYT-…` public id)
+client.bankAccounts.list()
+                 -> BankAccount[]   (unpaginated; one per seller today)
+client.bankAccounts.create({ bankName, accountName, accountNumber, branch })
+                 -> BankAccount   (starts unverified)
+client.bankAccounts.retrieve(id)      -> BankAccount   (id is an integer)
+client.bankAccounts.sendOtp(id)       -> void   (emails a 6-digit code, valid 10 min)
+client.bankAccounts.update(id, { code, bankName?, accountName?, accountNumber?, branch? })
+                 -> BankAccount   (PATCH; verifies; every edit needs a fresh code;
+                    `code` is sent as a string, which the API accepts; Swagger says integer)
+client.bankAccounts.delete(id)        (204, resolves void)
 client.byop.listPaymentMethods()
                  -> PaymentMethod[]   (unpaginated; hidden methods included)
 client.byop.replaceCredentials(paymentMethodId, credentials)
@@ -214,6 +233,11 @@ never the status alone:
 
 - Field validation: `{ "field": ["msg"] }` (value may be a string or an array).
 - General: `{ "detail": "msg" }`.
+- Coded general: `{ "detail": "msg", "code": "machine_reason" }` (payouts, bank accounts).
+  `message` comes from `detail`; `code` is kept in `rawBody`. Deferred: a typed
+  `ValidationError.code: string | null` (shared error type, so every port changes).
+  It must read `code` only from this shape (with `detail`): a wrong bank-account OTP
+  answers the field-keyed `{ "code": "msg" }`, which is `fieldErrors.code`.
 - Bare list (400 on endpoints with no body to key on — cancel, resume, renew —
   and the duplicate-subscription error): `["msg", …]`.
 - KYC 403: `{ "status_code": "KYC_INCOMPLETE" | "KYC_VERIFICATION_PENDING", "message": "…" }`, no `detail`.
@@ -237,10 +261,12 @@ Normalized hierarchy (same names, idiomatic casing per language):
 | `ServerError`         | `5xx`                                             |                                                    |
 | `NetworkError`        | transport failure / timeout                       |                                                    |
 
-`ValidationError` normalizes all three 400 shapes: field-keyed bodies populate
-`fieldErrors`; a `detail`-shaped or bare-list 400 (e.g. the duplicate
-subscription case, or cancelling a one-time purchase) populates `message`
-with `fieldErrors` empty. Consumers can rely on the class, not the wire shape.
+`ValidationError` normalizes every 400 shape: field-keyed bodies populate
+`fieldErrors`; a `detail`-shaped (coded or not) or bare-list 400 (e.g. the
+duplicate subscription case, cancelling a one-time purchase, or
+`payout_below_minimum`) populates `message` with `fieldErrors` empty — a
+`code` is never mistaken for a field. Consumers can rely on the class, not
+the wire shape.
 
 `SuqoConfigError` is deliberately distinct from the HTTP errors: it signals a
 programmer/config mistake caught before any request is attempted — whether that's
@@ -257,7 +283,7 @@ misdirect a request — analogous to a syntax error in the integration.
   - **Reads** (every `GET`: `list`, `retrieve`, `retrieveSecret`) are
     naturally idempotent → retry on `NetworkError`, `429` and `5xx`, with
     exponential backoff + jitter, bounded attempts.
-  - **Writes** (every `POST`, `PATCH`, `PUT` and `DELETE` — `create`, `cancel`,
+  - **Writes** (every `POST`, `PATCH`, `PUT` and `DELETE` — `create` (incl. `payouts.create`), `sendOtp`, `cancel`,
     `resume`, `renew`, `updateBillingCycle`, `update`, `replace`, `delete`,
     `testDelivery`, `replaceCredentials`, `updateProcessingFee`) are **NOT retried** automatically. The API does not yet
     support idempotency keys, so a retried write could double-act (a retried

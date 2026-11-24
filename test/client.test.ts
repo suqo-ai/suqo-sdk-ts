@@ -7,6 +7,8 @@ import { CustomersResource } from "../src/resources/customers.js";
 import { WebhooksResource } from "../src/resources/webhooks.js";
 import { ByopResource } from "../src/resources/byop.js";
 import { CheckoutSessionsResource } from "../src/resources/checkoutSessions.js";
+import { PayoutsResource } from "../src/resources/payouts.js";
+import { BankAccountsResource } from "../src/resources/bankAccounts.js";
 
 describe("SuqoClient", () => {
   it("resolves sandbox for a su_test_key_ key and never throws for a well-formed key", () => {
@@ -51,8 +53,10 @@ describe("SuqoClient", () => {
     expect(suqo.maxRetries).toBe(5);
   });
 
-  it("attaches .products/.subscriptions/.customers/.checkoutSessions/.webhooks/.byop", () => {
+  it("attaches .products/.subscriptions/.customers/.checkoutSessions/.webhooks/.payouts/.bankAccounts/.byop", () => {
     const suqo = new SuqoClient({ apiKey: "su_key_abc123" });
+    expect(suqo.payouts).toBeInstanceOf(PayoutsResource);
+    expect(suqo.bankAccounts).toBeInstanceOf(BankAccountsResource);
     expect(suqo.products).toBeInstanceOf(ProductsResource);
     expect(suqo.subscriptions).toBeInstanceOf(SubscriptionsResource);
     expect(suqo.customers).toBeInstanceOf(CustomersResource);

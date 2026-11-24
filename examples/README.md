@@ -60,6 +60,7 @@ SUQO_TEST_PHONE=9000000000 SUQO_TEST_EMAIL=you@example.com npx tsx examples/subs
 | [`subscriptions.ts`](subscriptions.ts)       | `create` (legacy)/`cancel`/`updateBillingCycle`/`resume`.                                 |
 | [`byop.ts`](byop.ts)                         | `byop.listPaymentMethods`, and `updateProcessingFee` when `BYOP_PAYMENT_METHOD_ID`/`BYOP_FEE` are set. |
 | [`list-customers.ts`](list-customers.ts)     | `list`/`retrieve` — read-only (doesn't exercise `create`/`update`).                       |
+| [`list-payouts.ts`](list-payouts.ts)         | `list`/`retrieve` — read-only.                                                            |
 | [`verify-webhook.ts`](verify-webhook.ts)     | Signature verification, including a tampered and a stale delivery. Makes no network call. |
 
 ## What this doesn't cover

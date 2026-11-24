@@ -7,10 +7,25 @@ adheres to [Semantic Versioning](https://semver.org/) per [`specs/versioning.md`
 
 ## [Unreleased]
 
-Additive only (new `byop` resource): no type was removed or narrowed.
+Additive only (new `payouts`, `bankAccounts` and `byop` resources): no type was removed or narrowed.
 
 ### Added
 
+- `suqo.payouts.create()`, `.list()`, `.autoPaging()` and `.retrieve(payoutId)` — request a payout
+  of your due transactions and track whether it is `PENDING` or `COMPLETED`. New `Payout` type;
+  amounts are decimal strings. `create()` takes no arguments and needs a verified bank account; a
+  refusal is a `ValidationError` with the reason in `rawBody.code`. It is never auto-retried. See
+  [`docs/user/payouts.md`](docs/user/payouts.md).
+- `suqo.bankAccounts.list()`, `.create(params)`, `.retrieve(id)`, `.sendOtp(id)`,
+  `.update(id, { code, … })` and `.delete(id)` — add and verify the bank account payouts go to:
+  `create()` → `sendOtp(id)` (emails a 6-digit code) → `update(id, { code })`. New `BankAccount`,
+  `CreateBankAccountParams` and `UpdateBankAccountParams` types; `id` is an integer, `code` a
+  string. A wrong code is a `ValidationError` with `fieldErrors.code`. Writes are never
+  auto-retried; `sendOtp` and `update` are rate-limited.
+  Checked against captured responses (2026-11-24): list, retrieve, send-otp, update (verified
+  with `code` sent as a string, details edited in the same call), the wrong-code body, and the
+  `bank_account_limit_reached` and `bank_account_has_active_payout` refusals. The create 201
+  (including the unmasked number before verification) is from Swagger, not yet verified.
 - `suqo.byop` — bring your own payment gateway (API as of 2026-11-20):
   - `byop.listPaymentMethods()` → `PaymentMethod[]` — every method, hidden ones included, with
     `paymentTypeId`, `fee`, `isConfigured` and `isVerified`. Not paginated.
