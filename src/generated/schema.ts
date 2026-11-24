@@ -988,7 +988,7 @@ export interface components {
             branch: string;
         };
         UpdateBankAccountRequest: {
-            /** @description The 6-digit code emailed by `sendBankAccountOtp`. Single use. Swagger types it `integer`; the SDK sends it as a string. Backend to confirm codes never start with 0. */
+            /** @description The 6-digit code emailed by `sendBankAccountOtp`. Single use. Swagger types it `integer`; the SDK sends it as a string, which the API accepts. */
             code: string;
             bank_name?: string;
             account_name?: string;

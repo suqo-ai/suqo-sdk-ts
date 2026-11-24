@@ -92,7 +92,7 @@ verified.accountNumberMasked; // "****6789"
 
 - `id` is an integer. `code` is sent as a string, exactly as typed from the email.
 - Until verified, `accountNumberMasked` is the full account number; don't log it or show it publicly.
-- Editing details also goes through `update()` and needs a fresh code each time: `update(id, { code, branch: "Lalitpur" })`. The account stays verified.
+- Editing details also goes through `update()` and needs a fresh code each time: `update(id, { code, branch: "Lalitpur" })`. The account stays verified, and each edit re-verifies it, so `verifiedAt` becomes the time of that edit.
 - `list()` returns your accounts as a plain array (not paginated); `retrieve(id)` returns one; `delete(id)` removes it.
 - A second account is refused (`rawBody.code` `bank_account_limit_reached`). `update()` and `delete()` are refused while a payout is pending (`bank_account_has_active_payout`), and `sendOtp()` when you have no verified email (`no_verified_email`).
 - A wrong or expired code throws `ValidationError` with the message in `err.fieldErrors.code`, not `rawBody.code`.

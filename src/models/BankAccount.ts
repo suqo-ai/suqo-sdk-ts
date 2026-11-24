@@ -14,7 +14,7 @@ export interface BankAccount {
   branch: string;
   /** The full number while unverified, so you can check it before verifying; `****4521` once verified. */
   accountNumberMasked: string;
-  /** `null` until verified with the emailed code. */
+  /** When the account was last verified (every edit re-verifies it); `null` until first verified. */
   verifiedAt: string | null;
   createdAt: string;
   updatedAt: string;
@@ -36,8 +36,7 @@ export interface CreateBankAccountParams {
 export interface UpdateBankAccountParams {
   /**
    * The 6-digit code from `bankAccounts.sendOtp()`, as typed from the email. Sent as a string
-   * (Swagger says integer; backend to confirm codes never start with 0). Single use, valid
-   * 10 minutes; every edit needs a fresh one.
+   * (accepted; Swagger says integer). Single use, valid 10 minutes; every edit needs a fresh one.
    */
   code: string;
   bankName?: string;

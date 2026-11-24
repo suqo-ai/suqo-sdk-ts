@@ -1768,8 +1768,8 @@ components:
           pattern: '^[0-9]{6}$'
           description: >
             The 6-digit code emailed by `sendBankAccountOtp`. Single use.
-            Swagger types it `integer`; the SDK sends it as a string. Backend to
-            confirm codes never start with 0.
+            Swagger types it `integer`; the SDK sends it as a string, which the
+            API accepts.
         bank_name: { type: string }
         account_name: { type: string }
         account_number: { type: string, minLength: 7, maxLength: 21 }

@@ -135,11 +135,11 @@ describe("BankAccountsResource", () => {
     });
   });
 
-  it("a wrong OTP ({ code: msg }) is fieldErrors.code, not a coded refusal", async () => {
-    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ code: "Invalid or expired code." }, 400));
+  it("a wrong OTP ({ code: msg }) is fieldErrors.code, not a coded refusal (captured)", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ code: "Invalid verification code." }, 400));
     const err = await bankAccounts().update(42, { code: "000000" }).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(ValidationError);
-    expect((err as ValidationError).fieldErrors).toEqual({ code: ["Invalid or expired code."] });
+    expect((err as ValidationError).fieldErrors).toEqual({ code: ["Invalid verification code."] });
   });
 
   it("update() while a payout is pending is a ValidationError with code in rawBody (captured)", async () => {

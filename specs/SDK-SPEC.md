@@ -161,7 +161,7 @@ client.bankAccounts.retrieve(id)      -> BankAccount   (id is an integer)
 client.bankAccounts.sendOtp(id)       -> void   (emails a 6-digit code, valid 10 min)
 client.bankAccounts.update(id, { code, bankName?, accountName?, accountNumber?, branch? })
                  -> BankAccount   (PATCH; verifies; every edit needs a fresh code;
-                    `code` is sent as a string; Swagger says integer, backend to confirm)
+                    `code` is sent as a string, which the API accepts; Swagger says integer)
 client.bankAccounts.delete(id)        (204, resolves void)
 client.byop.listPaymentMethods()
                  -> PaymentMethod[]   (unpaginated; hidden methods included)

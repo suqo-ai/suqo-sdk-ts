@@ -22,10 +22,10 @@ Additive only (new `payouts`, `bankAccounts` and `byop` resources): no type was 
   `CreateBankAccountParams` and `UpdateBankAccountParams` types; `id` is an integer, `code` a
   string. A wrong code is a `ValidationError` with `fieldErrors.code`. Writes are never
   auto-retried; `sendOtp` and `update` are rate-limited.
-  Checked against captured responses (2026-11-24): list, retrieve, send-otp, and the
+  Checked against captured responses (2026-11-24): list, retrieve, send-otp, update (verified
+  with `code` sent as a string, details edited in the same call), the wrong-code body, and the
   `bank_account_limit_reached` and `bank_account_has_active_payout` refusals. The create 201
-  (including the unmasked number), a successful `update` and the wrong-code body are from
-  Swagger, not yet verified.
+  (including the unmasked number before verification) is from Swagger, not yet verified.
 - `suqo.byop` — bring your own payment gateway (API as of 2026-11-20):
   - `byop.listPaymentMethods()` → `PaymentMethod[]` — every method, hidden ones included, with
     `paymentTypeId`, `fee`, `isConfigured` and `isVerified`. Not paginated.
