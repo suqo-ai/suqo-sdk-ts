@@ -157,6 +157,9 @@ suqo.webhooks.verify({ rawBody, signature, timestamp, secret, toleranceSec? }) /
 suqo.payouts.create()                                       // -> Payout (no args)
 suqo.payouts.list({ page?, pageSize? })                     // -> Page<Payout>
 suqo.payouts.retrieve(payoutId)                             // -> Payout
+suqo.byop.listPaymentMethods()                              // -> PaymentMethod[] (unpaginated)
+suqo.byop.replaceCredentials(paymentMethodId, credentials)     // -> void (PATCH, replaces full set)
+suqo.byop.updateProcessingFee(paymentMethodId, { processingFee })     // -> ByopFee (PATCH, null clears)
 
 // Every paginated list() also has autoPaging(params?) — see §7.
 ```

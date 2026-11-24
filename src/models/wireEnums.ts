@@ -27,3 +27,12 @@ export type CheckoutSessionType = "subscription" | "billing" | Loose;
 
 /** A payout's state. Upper-case on the wire, unlike every other enum here. */
 export type PayoutStatus = "PENDING" | "COMPLETED" | Loose;
+/** A BYOP payment method's gateway. The list sends `fonepay-checkout` where Swagger says `fonepay`. */
+export type PaymentType =
+  | "esewa"
+  | "esewa_intent"
+  | "khalti"
+  | "nps"
+  | "connectips"
+  | "fonepay-checkout"
+  | Loose;

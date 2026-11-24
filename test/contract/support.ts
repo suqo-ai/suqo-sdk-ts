@@ -216,6 +216,20 @@ const mockPayout = {
   receipt_url: null,
 };
 
+// Shape confirmed against a captured GET /api/v1/byop/payment-methods/ (2026-11-20); values invented.
+export const mockPaymentMethod = {
+  company_id: "00000000-0000-0000-0000-000000000001",
+  payment_type_id: "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+  payment_type: "esewa",
+  alias: null,
+  logo: null,
+  order: 1,
+  is_active: true,
+  fee: "0.00",
+  is_configured: false,
+  is_verified: null,
+};
+
 /** One `msw` handler per documented operation in `specs/openapi.yaml`. */
 export const handlers: HttpHandler[] = [
   http.get(`${SANDBOX_BASE_URL}/api/v1/products/`, async ({ request }) => {
@@ -389,6 +403,23 @@ export const handlers: HttpHandler[] = [
   http.get(`${SANDBOX_BASE_URL}/api/v1/payouts/:public_id/`, async ({ request, params }) => {
     await capture(request);
     return HttpResponse.json({ ...mockPayout, payout_id: params.public_id });
+  }),
+  
+  // BYOP — list and fee shapes captured 2026-11-20; credentials 200 body from Swagger.
+  http.get(`${SANDBOX_BASE_URL}/api/v1/byop/payment-methods/`, async ({ request }) => {
+    await capture(request);
+    return HttpResponse.json([mockPaymentMethod]);
+  }),
+
+  http.patch(`${SANDBOX_BASE_URL}/api/v1/byop/credentials/:id/`, async ({ request }) => {
+    await capture(request);
+    return HttpResponse.json({ detail: "Credentials saved successfully." });
+  }),
+
+  http.patch(`${SANDBOX_BASE_URL}/api/v1/byop/fees/:id/`, async ({ request }) => {
+    await capture(request);
+    const body = (await request.clone().json()) as Record<string, unknown>;
+    return HttpResponse.json({ processing_fee: body.processing_fee });
   }),
 ];
 

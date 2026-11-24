@@ -7,7 +7,12 @@ adheres to [Semantic Versioning](https://semver.org/) per [`specs/versioning.md`
 
 ## [Unreleased]
 
+Additive only (new `payouts` and `byop` resources): no type was removed or narrowed.
+
 ### Added
+
+- `suqo.payouts.create()`, `.list()`, `.autoPaging()` and `.retrieve(payoutId)` — request a payout
+  of your due transactions and track whether it is `PENDING` or `COMPLETED`. New `Payout` type;
 
 - `suqo.payouts.create()`, `.list()`, `.autoPaging()` and `.retrieve(payoutId)` — request a payout
   of your due transactions and track whether it is `PENDING` or `COMPLETED`. New `Payout` type;
@@ -15,6 +20,27 @@ adheres to [Semantic Versioning](https://semver.org/) per [`specs/versioning.md`
   SDK doesn't wrap bank-account management yet; use the dashboard for now); a refusal is a
   `ValidationError` with the reason in `rawBody.code`. It is never auto-retried. See
   [`docs/user/payouts.md`](docs/user/payouts.md).
+- `suqo.byop` — bring your own payment gateway (API as of 2026-11-20):
+  - `byop.listPaymentMethods()` → `PaymentMethod[]` — every method, hidden ones included, with
+    `paymentTypeId`, `fee`, `isConfigured` and `isVerified`. Not paginated.
+  - `byop.replaceCredentials(paymentMethodId, credentials)` — replaces your own gateway credentials
+    (`PATCH /byop/credentials/{id}/`). Replaces the full set; camelCase keys are sent snake_case.
+    Takes the gateway as `paymentType` (typed per gateway, not sent); the API validates the set
+    (`ValidationError`). A gateway added later is sent as is at runtime; TypeScript needs a cast
+    until the union is updated.
+    Resolves `void`; credentials are never returned.
+  - `byop.updateProcessingFee(paymentMethodId, { processingFee })` → `{ processingFee }` — decimal string,
+    `null` clears. Refused for Khalti and NPS.
+  - Both writes are never retried and are rate-limited (`RateLimitError`). An account not on BYOP
+    gets `PermissionDeniedError`.
+  - The payment-method list, the fee response and the fee 400 were checked against captured
+    responses (2026-11-20). The saved-credentials `200` body is from Swagger only (the SDK
+    resolves `void`, so it isn't read).
+
+### Docs
+
+- New user guide `docs/user/byop.md` and runnable `examples/byop.ts`. `rate-limiting.md` now lists
+  the two BYOP writes alongside `checkoutSessions.create()`.
 
 ## [2.1.0] - 2026-11-20
 

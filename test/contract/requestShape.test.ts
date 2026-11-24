@@ -146,6 +146,9 @@ describe("contract: outgoing request shape", () => {
       ["webhooks.delete(id)", (c: SuqoClient) => c.webhooks.delete("whk_contract01"), "DELETE", "/api/v1/webhooks/whk_contract01/"],
       ["webhooks.retrieveSecret()", (c: SuqoClient) => c.webhooks.retrieveSecret(), "GET", "/api/v1/webhooks/secret/"],
       ["webhooks.testDelivery(id)", (c: SuqoClient) => c.webhooks.testDelivery("whk_contract01"), "POST", "/api/v1/webhooks/whk_contract01/test-delivery/"],
+      ["byop.listPaymentMethods()", (c: SuqoClient) => c.byop.listPaymentMethods(), "GET", "/api/v1/byop/payment-methods/"],
+      ["byop.replaceCredentials(id)", (c: SuqoClient) => c.byop.replaceCredentials("pm_contract01", { paymentType: "khalti", merchantSecret: "s" }), "PATCH", "/api/v1/byop/credentials/pm_contract01/"],
+      ["byop.updateProcessingFee(id)", (c: SuqoClient) => c.byop.updateProcessingFee("pm_contract01", { processingFee: "1.75" }), "PATCH", "/api/v1/byop/fees/pm_contract01/"],
     ] as const)("%s", async (_name, call, method, path) => {
       await call(client());
       expect(getLastRequest()?.method).toBe(method);

@@ -31,9 +31,10 @@ info:
       `detail` alone. KYC is not enforced on the sandbox, and products and the
       webhook routes never require it.
 
-    - Rate limiting applies to `POST /checkout-sessions/` only: 20 sessions a
-      minute per account, answered with 429 and the wait named inside `detail`
-      ("…available in 41 seconds"). No `Retry-After` header is sent.
+    - Rate limiting applies to `POST /checkout-sessions/` (20 sessions a
+      minute per account) and the two BYOP writes (credentials, fee), answered
+      with 429 and the wait named inside `detail` ("…available in 41
+      seconds"). No `Retry-After` header is sent.
 
     - Idempotency (X-Idempotency-Key) is NOT implemented. It is on the backlog.
       Until it ships, every write (POST, PATCH, PUT, DELETE) is NOT safe to
@@ -63,6 +64,8 @@ tags:
     description: >
       Request, list and retrieve payouts of your account. Requesting one needs a verified bank
       account (API `bank-accounts/`, not yet in this spec).
+  - name: Byop
+    description: Bring your own payment — list payment methods, set your own gateway credentials and fee.
 
 paths:
   /api/v1/products/:
@@ -576,6 +579,125 @@ paths:
         '403': { $ref: '#/components/responses/PermissionDenied' }
         '404': { $ref: '#/components/responses/NotFound' }
 
+  /api/v1/byop/payment-methods/:
+    get:
+      operationId: listByopPaymentMethods
+      tags: [Byop]
+      summary: List payment methods
+      description: >
+        The account's payment methods, hidden ones included (`is_active=false`).
+        Not paginated. A method's `payment_type_id` is the id the credentials
+        and fee routes take. Show, hide and reorder stay on the dashboard.
+        Not gated on BYOP: an account not on BYOP still gets its list (captured
+        2026-11-20 on test-dev; only the credentials and fee writes answer
+        `ByopForbidden`).
+      responses:
+        '200':
+          description: Every payment method.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/PaymentMethod' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /api/v1/byop/credentials/{payment_method_id}/:
+    patch:
+      operationId: replaceByopCredentials
+      tags: [Byop]
+      summary: Replace BYOP credentials
+      description: >
+        Replaces your own gateway credentials for one payment method. Send the full
+        set every time; it replaces what is stored. Every field listed for the
+        gateway is required and non-empty; unknown keys are refused; a checkbox
+        that is false or missing fails with "Please confirm this before saving."
+        (backend-confirmed 2026-11-20).
+        Text and secret values are capped at 500 characters; files are base64
+        strings under 2.5 MB; a checkbox field must be `true`. Credentials are
+        never returned: each save is checked in the background, read
+        `is_verified` on the payment-method list. Replacing saved credentials
+        emails the company address. Swagger's operationId is
+        `byop_credentials_partial_update`; registered as `replace` in the SDK so `update`
+        means a partial change on every resource (Naming Map 1.4).
+
+        Fields per gateway: esewa / esewa_intent `product_code`,
+        `merchant_secret`; khalti `merchant_secret`; nps `merchant_id`,
+        `merchant_name`, `api_username`, `api_password`, `merchant_secret`,
+        `is_webhooks_url_set` (checkbox); connectips `merchant_id`, `app_id`,
+        `app_name`, `app_password`, `pfx` (base64 file), `pfx_password`,
+        `is_response_url_confirmation` (checkbox); fonepay-checkout `username`,
+        `password`, `private_key` (base64 file), `terminal_id`.
+
+        NOTE (write op): not auto-retryable until idempotency ships.
+      parameters:
+        - $ref: '#/components/parameters/PaymentMethodId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ByopCredentials' }
+      responses:
+        '200':
+          description: Saved.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DetailError' }
+              example: { detail: "Credentials saved successfully." }
+        '400':
+          description: >
+            A field failed validation, keyed by its dotted name and never
+            echoing the value. `detail` with `code: "byop_payment_pending"`
+            while a payment on this gateway is still processing.
+            `payment_method` when the method can't be BYOP. `detail` alone when
+            the body is too large.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FieldError' }
+              example: { merchant_secret: ["This field is required."] }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/ByopForbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /api/v1/byop/fees/{payment_method_id}/:
+    patch:
+      operationId: updateByopProcessingFee
+      tags: [Byop]
+      summary: Set BYOP processing fee
+      description: >
+        Sets the percent your own gateway takes from each payment on this
+        method, used as the gateway fee when a BYOP payment settles (`0` when
+        unset). Khalti and NPS report their own fee per payment, so a fee
+        can't be set for them.
+
+        NOTE (write op): not auto-retryable until idempotency ships.
+      parameters:
+        - $ref: '#/components/parameters/PaymentMethodId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateByopFeeRequest' }
+      responses:
+        '200':
+          description: Saved.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ByopFee' }
+        '400':
+          description: >
+            `processing_fee` out of range, or refused for Khalti/NPS.
+            `payment_method` when the method can't be BYOP.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FieldError' }
+              example: { processing_fee: ["This gateway reports its own fee on each payment."] }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/ByopForbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
   /api/v1/customers/:
     get:
       operationId: listCustomers
@@ -803,6 +925,12 @@ components:
       required: false
       schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
       description: Results per page (max 100).
+    PaymentMethodId:
+      name: payment_method_id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+      description: A payment method's `payment_type_id` from the BYOP payment-method list.
 
   responses:
     Unauthorized:
@@ -838,6 +966,18 @@ components:
         application/json:
           schema: { $ref: '#/components/schemas/DetailError' }
           example: { detail: "Request was throttled. Expected available in 41 seconds." }
+    ByopForbidden:
+      description: >
+        As `Forbidden`, plus `detail: "Your own payment account isn't enabled."`
+        when the account is not on BYOP (SDK: PermissionDeniedError). Suqo
+        switches an account to BYOP; the API can't.
+      content:
+        application/json:
+          schema:
+            oneOf:
+              - $ref: '#/components/schemas/KycError'
+              - $ref: '#/components/schemas/DetailError'
+          example: { detail: "Your own payment account isn't enabled." }
     MessageListError:
       description: >
         Rejected, on an endpoint with no body to key a field on — a bare list of
@@ -1406,6 +1546,62 @@ components:
             - bank_account_not_verified
             - no_transactions_due
             - payout_below_minimum
+    PaymentMethod:
+      type: object
+      required: [company_id, payment_type_id, payment_type, order, is_active, is_configured]
+      properties:
+        company_id: { type: string, description: A UUID in the captured response. }
+        payment_type_id:
+          type: string
+          format: uuid
+          description: The id the BYOP credentials and fee routes take.
+        payment_type:
+          type: string
+          description: >
+            Gateway, e.g. "esewa", "esewa_intent", "khalti", "nps",
+            "connectips", "fonepay-checkout" (captured 2026-11-20; Swagger's
+            credential list says "fonepay", an internal name — backend
+            confirmed "fonepay-checkout" is correct).
+        alias: { type: [string, 'null'] }
+        logo: { type: [string, 'null'] }
+        order: { type: integer }
+        is_active: { type: boolean, description: false when hidden. }
+        fee:
+          type: [string, 'null']
+          description: >
+            Gateway commission in percent (decimal string). On BYOP, your own
+            `processing_fee` ("0.00" when unset); null for Khalti/NPS and cash,
+            and may be null off BYOP (captured for Suqo's own `suqo_uat`).
+        is_configured: { type: boolean, description: True once credentials are saved. }
+        is_verified:
+          type: [boolean, 'null']
+          description: Background credential check — true accepted, false refused, null not run yet.
+
+    ByopCredentials:
+      type: object
+      description: The gateway's credential fields, listed on `replaceByopCredentials`.
+      additionalProperties:
+        oneOf:
+          - type: string
+          - type: boolean
+      example: { product_code: "EPAYTEST", merchant_secret: "8gBm/:&EnhH.1/q" }
+
+    UpdateByopFeeRequest:
+      type: object
+      required: [processing_fee]
+      properties:
+        processing_fee:
+          type: [string, 'null']
+          format: decimal
+          description: Percent, 0 to 100 with two decimals. null clears it.
+
+    ByopFee:
+      type: object
+      properties:
+        processing_fee:
+          type: [string, 'null']
+          format: decimal
+          description: As stored, two decimals ("1.5" reads back "1.50").
 
     DetailError:
       type: object

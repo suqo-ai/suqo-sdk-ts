@@ -5,6 +5,7 @@ import { ProductsResource } from "../src/resources/products.js";
 import { SubscriptionsResource } from "../src/resources/subscriptions.js";
 import { CustomersResource } from "../src/resources/customers.js";
 import { WebhooksResource } from "../src/resources/webhooks.js";
+import { ByopResource } from "../src/resources/byop.js";
 import { CheckoutSessionsResource } from "../src/resources/checkoutSessions.js";
 import { PayoutsResource } from "../src/resources/payouts.js";
 
@@ -51,7 +52,7 @@ describe("SuqoClient", () => {
     expect(suqo.maxRetries).toBe(5);
   });
 
-  it("attaches .products/.subscriptions/.customers/.checkoutSessions/.webhooks/.payouts", () => {
+  it("attaches .products/.subscriptions/.customers/.checkoutSessions/.webhooks/.payouts/.byop", () => {
     const suqo = new SuqoClient({ apiKey: "su_key_abc123" });
     expect(suqo.payouts).toBeInstanceOf(PayoutsResource);
     expect(suqo.products).toBeInstanceOf(ProductsResource);
@@ -59,6 +60,7 @@ describe("SuqoClient", () => {
     expect(suqo.customers).toBeInstanceOf(CustomersResource);
     expect(suqo.checkoutSessions).toBeInstanceOf(CheckoutSessionsResource);
     expect(suqo.webhooks).toBeInstanceOf(WebhooksResource);
+    expect(suqo.byop).toBeInstanceOf(ByopResource);
   });
 
   it("a resource attached to the client actually makes requests through it (end-to-end wiring proof)", async () => {
