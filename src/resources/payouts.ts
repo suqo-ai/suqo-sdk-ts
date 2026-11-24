@@ -67,10 +67,9 @@ export class PayoutsResource {
   }
 
   /**
-   * Requests a payout of all your due transactions to your verified bank account. The SDK doesn't
-   * wrap bank-account management yet; add and verify it in the dashboard for now. Takes no
-   * arguments. Fees and unbilled SMS usage are deducted; the payout starts `PENDING` — track it
-   * with {@link PayoutsResource.retrieve}.
+   * Requests a payout of all your due transactions to your verified bank account (add and verify
+   * it with `client.bankAccounts`). Takes no arguments. Fees and unbilled SMS usage are deducted;
+   * the payout starts `PENDING` — track it with {@link PayoutsResource.retrieve}.
    *
    * A refusal is a `ValidationError` whose `message` explains it; the reason is in
    * `err.rawBody.code`: `pending_payout_request_exists` (only one payout can be pending, so a

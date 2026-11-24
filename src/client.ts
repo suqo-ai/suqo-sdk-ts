@@ -8,6 +8,7 @@ import {
   CheckoutSessionsResource,
   WebhooksResource,
   PayoutsResource,
+  BankAccountsResource,
   ByopResource,
 } from "./resources/index.js";
 
@@ -65,6 +66,8 @@ export class SuqoClient {
   readonly webhooks: WebhooksResource;
   /** Request, list and retrieve your account's payouts (SDK-SPEC.md §5, §6). */
   readonly payouts: PayoutsResource;
+  /** Add, verify (emailed code), edit and delete the bank account payouts go to (SDK-SPEC.md §5). */
+  readonly bankAccounts: BankAccountsResource;
   /** BYOP: list payment methods, replace your own gateway credentials and set the processing fee (SDK-SPEC.md §5). */
   readonly byop: ByopResource;
 
@@ -77,6 +80,7 @@ export class SuqoClient {
     this.checkoutSessions = new CheckoutSessionsResource(http);
     this.webhooks = new WebhooksResource(http);
     this.payouts = new PayoutsResource(http);
+    this.bankAccounts = new BankAccountsResource(http);
     this.byop = new ByopResource(http);
   }
 

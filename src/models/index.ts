@@ -46,6 +46,7 @@ export type {
   WebhookSecret,
 } from "./Webhook.js";
 export type { Payout } from "./Payout.js";
+export type { BankAccount, CreateBankAccountParams, UpdateBankAccountParams } from "./BankAccount.js";
 export type { PaymentMethod, ByopCredentials, UpdateByopFeeParams, ByopFee } from "./Byop.js";
 export type { MessageResponse } from "./MessageResponse.js";
 export type {
