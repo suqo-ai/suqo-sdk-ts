@@ -70,4 +70,4 @@ payout.status; // "PENDING" | "COMPLETED"
 | `paidDate`        | `string \| null` | `null` until paid                                   |
 | `receiptUrl`      | `string \| null` | Payment receipt, once uploaded; can still be `null` on a `COMPLETED` payout |
 
-Amounts are decimal strings with three decimals (e.g. `"16016.900"`), never numbers, so nothing is lost to float rounding. Dates carry the server's offset, with or without microseconds (e.g. `"2026-11-05T15:58:47.196194+05:45"`, `"2026-11-23T13:21:48+05:45"`); parse them, don't compare them as strings. `status` may be a value the API adds later. Handle unknown values rather than assuming only the two above.
+Amounts are decimal strings with two decimals (e.g. `"11835.00"`), never numbers, so nothing is lost to float rounding. Dates carry the server's offset, with or without microseconds (e.g. `"2026-11-05T15:58:47.196194+05:45"`, `"2026-11-23T13:21:48+05:45"`); parse them, don't compare them as strings. `status` may be a value the API adds later. Handle unknown values rather than assuming only the two above.

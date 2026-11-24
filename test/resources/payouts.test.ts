@@ -54,27 +54,27 @@ describe("deserializePayout", () => {
     expect(deserializePayout(wirePayout)).toEqual(payout);
   });
 
-  it("decodes a real test-dev-be response untouched: 3-decimal amounts, +05:45 offset with microseconds", () => {
-    const real = {
+  it("decodes a test-dev-be response untouched: 2-decimal amounts, +05:45 offset with microseconds", () => {
+    const wire = {
       payout_id: "PYT-E5X222-LP497U",
       status: "PENDING",
-      amount: "16370.000",
-      provider_charge: "13.950",
-      suqo_platform_fee: "325.740",
-      sms_charge: "13.410",
+      amount: "16370.00",
+      provider_charge: "13.95",
+      suqo_platform_fee: "325.74",
+      sms_charge: "13.41",
       requested_date: "2026-11-05T15:58:47.196194+05:45",
       paid_date: null,
       receipt_url: null,
-      net_amount: "16016.900",
+      net_amount: "16016.90",
     };
-    expect(deserializePayout(real)).toEqual({
+    expect(deserializePayout(wire)).toEqual({
       payoutId: "PYT-E5X222-LP497U",
       status: "PENDING",
-      amount: "16370.000",
-      providerCharge: "13.950",
-      suqoPlatformFee: "325.740",
-      smsCharge: "13.410",
-      netAmount: "16016.900",
+      amount: "16370.00",
+      providerCharge: "13.95",
+      suqoPlatformFee: "325.74",
+      smsCharge: "13.41",
+      netAmount: "16016.90",
       requestedDate: "2026-11-05T15:58:47.196194+05:45",
       paidDate: null,
       receiptUrl: null,
@@ -85,14 +85,14 @@ describe("deserializePayout", () => {
     const result = deserializePayout({
       payout_id: "PYT-E5X222-LP497U",
       status: "COMPLETED",
-      amount: "16370.000",
-      provider_charge: "13.950",
-      suqo_platform_fee: "325.740",
-      sms_charge: "13.410",
+      amount: "16370.00",
+      provider_charge: "13.95",
+      suqo_platform_fee: "325.74",
+      sms_charge: "13.41",
       requested_date: "2026-11-05T15:58:47.196194+05:45",
       paid_date: "2026-11-23T13:21:48+05:45",
       receipt_url: null,
-      net_amount: "16016.900",
+      net_amount: "16016.90",
     });
     expect(result.status).toBe("COMPLETED");
     expect(result.paidDate).toBe("2026-11-23T13:21:48+05:45");
@@ -193,14 +193,14 @@ describe("PayoutsResource", () => {
         {
           payout_id: "PYT-W2JKJC-XGPJJ8",
           status: "PENDING",
-          amount: "8175.000",
-          provider_charge: "92.378",
-          suqo_platform_fee: "23.708",
-          sms_charge: "5.960",
+          amount: "8175.00",
+          provider_charge: "92.38",
+          suqo_platform_fee: "23.71",
+          sms_charge: "5.96",
           requested_date: "2026-11-23T13:28:04.572959+05:45",
           paid_date: null,
           receipt_url: null,
-          net_amount: "8052.954",
+          net_amount: "8052.95",
         },
         201,
       ),
@@ -213,7 +213,7 @@ describe("PayoutsResource", () => {
     expect(init?.method).toBe("POST");
     expect(init?.body).toBeUndefined();
     expect(result.payoutId).toBe("PYT-W2JKJC-XGPJJ8");
-    expect(result.netAmount).toBe("8052.954");
+    expect(result.netAmount).toBe("8052.95");
     expect(result.paidDate).toBeNull();
   });
 

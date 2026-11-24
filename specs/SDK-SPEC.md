@@ -223,7 +223,9 @@ never the status alone:
 - Field validation: `{ "field": ["msg"] }` (value may be a string or an array).
 - General: `{ "detail": "msg" }`.
 - Coded general: `{ "detail": "msg", "code": "machine_reason" }` (payouts, bank accounts).
-  `message` comes from `detail`; `code` is kept in `rawBody`.
+  `message` comes from `detail`; `code` is kept in `rawBody`. Deferred: a typed
+  `ValidationError.code: string | null` (shared error type, so every port changes);
+  decide before bank accounts ship.
 - Bare list (400 on endpoints with no body to key on — cancel, resume, renew —
   and the duplicate-subscription error): `["msg", …]`.
 - KYC 403: `{ "status_code": "KYC_INCOMPLETE" | "KYC_VERIFICATION_PENDING", "message": "…" }`, no `detail`.
