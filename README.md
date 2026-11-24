@@ -34,7 +34,7 @@ See [`authentication.md`](docs/user/authentication.md) for how the API key deter
 | Checkout sessions         | [`checkout-sessions.md`](docs/user/checkout-sessions.md)             |
 | Subscriptions             | [`subscriptions.md`](docs/user/subscriptions.md)                     |
 | Customers                 | [`customers.md`](docs/user/customers.md)                             |
-| Payouts                   | [`payouts.md`](docs/user/payouts.md)                                 |
+| Payouts and bank accounts | [`payouts.md`](docs/user/payouts.md)                                 |
 | Webhooks                  | [`webhooks.md`](docs/user/webhooks.md)                               |
 | BYOP (own payment gateway) | [`byop.md`](docs/user/byop.md)                                      |
 | Pagination                | [`pagination.md`](docs/user/pagination.md)                           |

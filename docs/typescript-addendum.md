@@ -157,6 +157,12 @@ suqo.webhooks.verify({ rawBody, signature, timestamp, secret, toleranceSec? }) /
 suqo.payouts.create()                                       // -> Payout (no args)
 suqo.payouts.list({ page?, pageSize? })                     // -> Page<Payout>
 suqo.payouts.retrieve(payoutId)                             // -> Payout
+suqo.bankAccounts.list()                                    // -> BankAccount[] (unpaginated)
+suqo.bankAccounts.create(params)                            // -> BankAccount (unverified)
+suqo.bankAccounts.retrieve(id)                              // -> BankAccount (id: number)
+suqo.bankAccounts.sendOtp(id)                               // -> void (emails the code)
+suqo.bankAccounts.update(id, { code, ...details })          // -> BankAccount (PATCH, verifies)
+suqo.bankAccounts.delete(id)                                // -> void
 suqo.byop.listPaymentMethods()                              // -> PaymentMethod[] (unpaginated)
 suqo.byop.replaceCredentials(paymentMethodId, credentials)     // -> void (PATCH, replaces full set)
 suqo.byop.updateProcessingFee(paymentMethodId, { processingFee })     // -> ByopFee (PATCH, null clears)
@@ -166,7 +172,8 @@ suqo.byop.updateProcessingFee(paymentMethodId, { processingFee })     // -> Byop
 
 - Every method that puts an id in the path rejects `""`, `"."` and `".."` with
   `SuqoConfigError` before any request; the webhook methods also reject
-  `"secret"`, which would hit the signing-secret route.
+  `"secret"`, which would hit the signing-secret route. `bankAccounts` ids are
+  integers: anything but a positive safe integer throws `SuqoConfigError`.
 - Writes (`POST`, `PATCH`, `PUT`, `DELETE`) are never retried automatically;
   reads are (spec §8).
 - Wire enums (`intervalType`, `vatType`, `Product.type`,
