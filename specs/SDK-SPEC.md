@@ -27,6 +27,7 @@ The SDK wraps exactly the documented API surface:
 | Customers        | `list`, `retrieve`, `create`, `update`                                                              | Specified (§11) |
 | Webhooks         | `verify` (local, no HTTP); `list`, `create`, `retrieve`, `replace`, `update`, `delete`, `retrieveSecret`, `testDelivery` | Specified       |
 | Payouts          | `create`, `list`, `retrieve`                                                                        | Specified       |
+| Bank accounts    | `list`, `create`, `retrieve`, `update`, `delete`, `sendOtp`                                         | Specified       |
 | BYOP             | `listPaymentMethods`, `replaceCredentials`, `updateProcessingFee`                                                | Specified       |
 
 The SDK is **server-side only**. The API key is full-access and scoped to a
@@ -152,6 +153,16 @@ client.payouts.list({ page?, pageSize? })
                  -> paginated Payout list (newest first)
 client.payouts.retrieve(payoutId)
                  -> Payout   (payoutId is the `PYT-…` public id)
+client.bankAccounts.list()
+                 -> BankAccount[]   (unpaginated; one per seller today)
+client.bankAccounts.create({ bankName, accountName, accountNumber, branch })
+                 -> BankAccount   (starts unverified)
+client.bankAccounts.retrieve(id)      -> BankAccount   (id is an integer)
+client.bankAccounts.sendOtp(id)       -> void   (emails a 6-digit code, valid 10 min)
+client.bankAccounts.update(id, { code, bankName?, accountName?, accountNumber?, branch? })
+                 -> BankAccount   (PATCH; verifies; every edit needs a fresh code;
+                    `code` is sent as a string; Swagger says integer, backend to confirm)
+client.bankAccounts.delete(id)        (204, resolves void)
 client.byop.listPaymentMethods()
                  -> PaymentMethod[]   (unpaginated; hidden methods included)
 client.byop.replaceCredentials(paymentMethodId, credentials)
@@ -224,8 +235,9 @@ never the status alone:
 - General: `{ "detail": "msg" }`.
 - Coded general: `{ "detail": "msg", "code": "machine_reason" }` (payouts, bank accounts).
   `message` comes from `detail`; `code` is kept in `rawBody`. Deferred: a typed
-  `ValidationError.code: string | null` (shared error type, so every port changes);
-  decide before bank accounts ship.
+  `ValidationError.code: string | null` (shared error type, so every port changes).
+  It must read `code` only from this shape (with `detail`): a wrong bank-account OTP
+  answers the field-keyed `{ "code": "msg" }`, which is `fieldErrors.code`.
 - Bare list (400 on endpoints with no body to key on — cancel, resume, renew —
   and the duplicate-subscription error): `["msg", …]`.
 - KYC 403: `{ "status_code": "KYC_INCOMPLETE" | "KYC_VERIFICATION_PENDING", "message": "…" }`, no `detail`.
@@ -271,7 +283,7 @@ misdirect a request — analogous to a syntax error in the integration.
   - **Reads** (every `GET`: `list`, `retrieve`, `retrieveSecret`) are
     naturally idempotent → retry on `NetworkError`, `429` and `5xx`, with
     exponential backoff + jitter, bounded attempts.
-  - **Writes** (every `POST`, `PATCH`, `PUT` and `DELETE` — `create` (incl. `payouts.create`), `cancel`,
+  - **Writes** (every `POST`, `PATCH`, `PUT` and `DELETE` — `create` (incl. `payouts.create`), `sendOtp`, `cancel`,
     `resume`, `renew`, `updateBillingCycle`, `update`, `replace`, `delete`,
     `testDelivery`, `replaceCredentials`, `updateProcessingFee`) are **NOT retried** automatically. The API does not yet
     support idempotency keys, so a retried write could double-act (a retried

@@ -425,7 +425,7 @@ export interface paths {
         put?: never;
         /**
          * Request a payout
-         * @description Requests a payout of all your due transactions to your verified bank account. Takes no body. Gateway fees, the platform fee and unbilled SMS usage are deducted, and the net amount must reach the minimum payout amount. Only one payout can be pending at a time, so a repeat after success answers 400 instead of paying twice. The bank account is added and verified through `bank-accounts/` (not yet in this spec). Swagger operationId `payouts_create`.
+         * @description Requests a payout of all your due transactions to your verified bank account. Takes no body. Gateway fees, the platform fee and unbilled SMS usage are deducted, and the net amount must reach the minimum payout amount. Only one payout can be pending at a time, so a repeat after success answers 400 instead of paying twice. The bank account is added and verified through `createBankAccount`, `sendBankAccountOtp` and `updateBankAccount`. Swagger operationId `payouts_create`.
          *     NOTE (write op): not auto-retried by the SDK.
          */
         post: operations["createPayout"];
@@ -449,6 +449,88 @@ export interface paths {
         get: operations["retrievePayout"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/bank-accounts/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List bank accounts
+         * @description Every active bank account of your account (one per seller today). Not paginated: a bare array. Swagger operationId `bank-accounts_list`.
+         */
+        get: operations["listBankAccounts"];
+        put?: never;
+        /**
+         * Add a bank account
+         * @description Saves the bank account payouts go to. It starts unverified: call `sendBankAccountOtp`, then `updateBankAccount` with the emailed `code`, before requesting a payout. One account per seller. Swagger operationId `bank-accounts_create`.
+         *     NOTE (write op): not auto-retried by the SDK.
+         */
+        post: operations["createBankAccount"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/bank-accounts/{id}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The bank account's `id`. */
+                id: components["parameters"]["BankAccountId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Retrieve a bank account
+         * @description One active bank account of your account. Swagger operationId `bank-accounts_read`.
+         */
+        get: operations["retrieveBankAccount"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete a bank account
+         * @description Removes the account. Refused while a payout to it is pending. Swagger operationId `bank-accounts_delete`.
+         *     NOTE (write op): not auto-retried by the SDK.
+         */
+        delete: operations["deleteBankAccount"];
+        options?: never;
+        head?: never;
+        /**
+         * Verify or edit a bank account
+         * @description Verifies the account with the `code` from `sendBankAccountOtp`, optionally changing its details in the same call. Every edit needs a fresh code and leaves the account verified. A wrong or expired code changes nothing and answers the field-keyed `{"code": "<message>"}` (not the coded `{detail, code}` shape). Refused while a payout to this account is pending. On success the seller is emailed a confirmation. Rate-limited. Swagger operationId `bank-accounts_partial_update`.
+         *     NOTE (write op): not auto-retried by the SDK.
+         */
+        patch: operations["updateBankAccount"];
+        trace?: never;
+    };
+    "/api/v1/bank-accounts/{id}/send-otp/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The bank account's `id`. */
+                id: components["parameters"]["BankAccountId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send a verification code
+         * @description Emails a 6-digit code, valid for 10 minutes, to the seller's verified company email or login email, not to the caller. Pass it as `code` to `updateBankAccount`. Sending again replaces the previous code. Takes no body. Rate-limited. Swagger operationId `bank-accounts_send_otp`.
+         *     NOTE (write op): not auto-retried by the SDK.
+         */
+        post: operations["sendBankAccountOtp"];
         delete?: never;
         options?: never;
         head?: never;
@@ -882,6 +964,42 @@ export interface components {
             /** @enum {string} */
             code?: "pending_payout_request_exists" | "bank_account_not_found" | "bank_account_not_verified" | "no_transactions_due" | "payout_below_minimum";
         };
+        BankAccount: {
+            id: number;
+            bank_name: string;
+            account_name: string;
+            branch: string;
+            /** @description The full account number while unverified, so it can be checked before verifying; masked (`****4521`) once verified. */
+            account_number_masked: string;
+            /**
+             * Format: date-time
+             * @description null until verified.
+             */
+            verified_at?: string | null;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+        };
+        CreateBankAccountRequest: {
+            bank_name: string;
+            account_name: string;
+            account_number: string;
+            branch: string;
+        };
+        UpdateBankAccountRequest: {
+            /** @description The 6-digit code emailed by `sendBankAccountOtp`. Single use. Swagger types it `integer`; the SDK sends it as a string. Backend to confirm codes never start with 0. */
+            code: string;
+            bank_name?: string;
+            account_name?: string;
+            account_number?: string;
+            branch?: string;
+        };
+        BankAccountError: {
+            detail?: string;
+            /** @enum {string} */
+            code?: "bank_account_limit_reached" | "bank_account_has_active_payout" | "no_verified_email";
+        };
         PaymentMethod: {
             /** @description A UUID in the captured response. */
             company_id: string;
@@ -1054,6 +1172,8 @@ export interface components {
         PageSize: number;
         /** @description A payment method's `payment_type_id` from the BYOP payment-method list. */
         PaymentMethodId: string;
+        /** @description The bank account's `id`. */
+        BankAccountId: number;
     };
     requestBodies: never;
     headers: never;
@@ -1983,6 +2103,227 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+        };
+    };
+    listBankAccounts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Your active bank accounts. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BankAccount"][];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["PermissionDenied"];
+        };
+    };
+    createBankAccount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateBankAccountRequest"];
+            };
+        };
+        responses: {
+            /** @description The new bank account, unverified. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BankAccount"];
+                };
+            };
+            /** @description Invalid fields (field-keyed, `FieldError`), or the account limit is reached (`BankAccountError`, `code` names the reason). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "You have reached the maximum number of bank accounts allowed.",
+                     *       "code": "bank_account_limit_reached"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["BankAccountError"] | components["schemas"]["FieldError"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["PermissionDenied"];
+        };
+    };
+    retrieveBankAccount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The bank account's `id`. */
+                id: components["parameters"]["BankAccountId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The bank account. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BankAccount"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    deleteBankAccount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The bank account's `id`. */
+                id: components["parameters"]["BankAccountId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted. No body. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description A payout to this account is pending. `code` names the reason. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "This bank account has a pending payout request and cannot be modified.",
+                     *       "code": "bank_account_has_active_payout"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["BankAccountError"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateBankAccount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The bank account's `id`. */
+                id: components["parameters"]["BankAccountId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateBankAccountRequest"];
+            };
+        };
+        responses: {
+            /** @description The bank account, verified. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BankAccount"];
+                };
+            };
+            /** @description Missing, wrong or expired code, or invalid fields (field-keyed, `FieldError`, e.g. `{"code": "<message>"}`); or a pending payout (`BankAccountError`). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "This bank account has a pending payout request and cannot be modified.",
+                     *       "code": "bank_account_has_active_payout"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["BankAccountError"] | components["schemas"]["FieldError"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    sendBankAccountOtp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The bank account's `id`. */
+                id: components["parameters"]["BankAccountId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Code sent. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "Verification code sent."
+                     *     }
+                     */
+                    "application/json": components["schemas"]["DetailError"];
+                };
+            };
+            /** @description The seller has no email to send the code to. `code` names the reason. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "Verify your business email before verifying a bank account.",
+                     *       "code": "no_verified_email"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["BankAccountError"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
         };
     };
 }
