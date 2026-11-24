@@ -203,6 +203,17 @@ const mockWebhook = {
   created_at: "2026-07-03T10:15:00Z",
 };
 
+const mockBankAccount = {
+  id: 42,
+  bank_name: "Nabil Bank",
+  account_name: "Himalayan Tea Pvt. Ltd.",
+  branch: "Kathmandu",
+  account_number_masked: "****4521",
+  verified_at: "2026-07-03T10:15:00Z",
+  created_at: "2026-07-03T10:05:00Z",
+  updated_at: "2026-07-03T10:15:00Z",
+};
+
 const mockPayout = {
   payout_id: "PYT-MF4G9W-CTEP55",
   status: "PENDING",
@@ -403,6 +414,40 @@ export const handlers: HttpHandler[] = [
   http.get(`${SANDBOX_BASE_URL}/api/v1/payouts/:public_id/`, async ({ request, params }) => {
     await capture(request);
     return HttpResponse.json({ ...mockPayout, payout_id: params.public_id });
+  }),
+
+  http.get(`${SANDBOX_BASE_URL}/api/v1/bank-accounts/`, async ({ request }) => {
+    await capture(request);
+    return HttpResponse.json([mockBankAccount]);
+  }),
+
+  http.post(`${SANDBOX_BASE_URL}/api/v1/bank-accounts/`, async ({ request }) => {
+    await capture(request);
+    // Unverified: the API returns the full number, unmasked.
+    return HttpResponse.json(
+      { ...mockBankAccount, verified_at: null, account_number_masked: "0123456789" },
+      { status: 201 },
+    );
+  }),
+
+  http.get(`${SANDBOX_BASE_URL}/api/v1/bank-accounts/:id/`, async ({ request, params }) => {
+    await capture(request);
+    return HttpResponse.json({ ...mockBankAccount, id: Number(params.id) });
+  }),
+
+  http.patch(`${SANDBOX_BASE_URL}/api/v1/bank-accounts/:id/`, async ({ request, params }) => {
+    await capture(request);
+    return HttpResponse.json({ ...mockBankAccount, id: Number(params.id) });
+  }),
+
+  http.delete(`${SANDBOX_BASE_URL}/api/v1/bank-accounts/:id/`, async ({ request }) => {
+    await capture(request);
+    return new HttpResponse(null, { status: 204 });
+  }),
+
+  http.post(`${SANDBOX_BASE_URL}/api/v1/bank-accounts/:id/send-otp/`, async ({ request }) => {
+    await capture(request);
+    return HttpResponse.json({ detail: "Verification code sent." });
   }),
   
   // BYOP — list and fee shapes captured 2026-11-20; credentials 200 body from Swagger.
