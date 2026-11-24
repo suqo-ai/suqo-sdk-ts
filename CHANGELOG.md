@@ -13,9 +13,6 @@ Additive only (new `payouts` and `byop` resources): no type was removed or narro
 
 - `suqo.payouts.create()`, `.list()`, `.autoPaging()` and `.retrieve(payoutId)` — request a payout
   of your due transactions and track whether it is `PENDING` or `COMPLETED`. New `Payout` type;
-
-- `suqo.payouts.create()`, `.list()`, `.autoPaging()` and `.retrieve(payoutId)` — request a payout
-  of your due transactions and track whether it is `PENDING` or `COMPLETED`. New `Payout` type;
   amounts are decimal strings. `create()` takes no arguments and needs a verified bank account (the
   SDK doesn't wrap bank-account management yet; use the dashboard for now); a refusal is a
   `ValidationError` with the reason in `rawBody.code`. It is never auto-retried. See
