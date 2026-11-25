@@ -7,6 +7,12 @@ adheres to [Semantic Versioning](https://semver.org/) per [`specs/versioning.md`
 
 ## [Unreleased]
 
+### Fixed
+
+- `PaymentMethod`, `ByopCredentials`, `UpdateByopFeeParams` and `ByopFee` are now exported from
+  `@suqo/sdk`. 2.2.0 shipped `suqo.byop` without them, so `import type { ByopCredentials } from
+  "@suqo/sdk"` failed. A test now type-checks every new model type from the package root.
+
 ## [2.2.0] - 2026-11-25
 
 Additive only (new `payouts`, `bankAccounts` and `byop` resources), so a minor: no type was
