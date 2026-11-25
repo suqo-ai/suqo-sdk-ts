@@ -94,6 +94,62 @@ describe("contract: outgoing request shape", () => {
       expect(getLastRequest()?.url).toBe("https://test-be.suqo.ai/api/v1/customers/cus_1ce18d624/");
     });
 
+    it("payouts.list() with query params", async () => {
+      await client().payouts.list({ page: 1, pageSize: 100 });
+      expect(getLastRequest()?.method).toBe("GET");
+      expect(getLastRequest()?.url).toBe("https://test-be.suqo.ai/api/v1/payouts/?page=1&page_size=100");
+    });
+
+    it("payouts.create() — a POST with no body", async () => {
+      await client().payouts.create();
+      expect(getLastRequest()?.method).toBe("POST");
+      expect(getLastRequest()?.url).toBe("https://test-be.suqo.ai/api/v1/payouts/");
+      expect(getLastRequest()?.body).toBeUndefined();
+    });
+
+    it("payouts.retrieve(id)", async () => {
+      await client().payouts.retrieve("PYT-MF4G9W-CTEP55");
+      expect(getLastRequest()?.method).toBe("GET");
+      expect(getLastRequest()?.url).toBe("https://test-be.suqo.ai/api/v1/payouts/PYT-MF4G9W-CTEP55/");
+    });
+
+    it("bankAccounts.list() / retrieve(id) / delete(id) / sendOtp(id)", async () => {
+      const suqo = client();
+      await suqo.bankAccounts.list();
+      expect(getLastRequest()?.method).toBe("GET");
+      expect(getLastRequest()?.url).toBe("https://test-be.suqo.ai/api/v1/bank-accounts/");
+      await suqo.bankAccounts.retrieve(42);
+      expect(getLastRequest()?.url).toBe("https://test-be.suqo.ai/api/v1/bank-accounts/42/");
+      await suqo.bankAccounts.delete(42);
+      expect(getLastRequest()?.method).toBe("DELETE");
+      expect(getLastRequest()?.url).toBe("https://test-be.suqo.ai/api/v1/bank-accounts/42/");
+      await suqo.bankAccounts.sendOtp(42);
+      expect(getLastRequest()?.method).toBe("POST");
+      expect(getLastRequest()?.url).toBe("https://test-be.suqo.ai/api/v1/bank-accounts/42/send-otp/");
+      expect(getLastRequest()?.body).toBeUndefined();
+    });
+
+    it("bankAccounts.create(params) / update(id, params) send snake_case bodies", async () => {
+      const suqo = client();
+      await suqo.bankAccounts.create({
+        bankName: "Nabil Bank",
+        accountName: "Himalayan Tea Pvt. Ltd.",
+        accountNumber: "0123456789",
+        branch: "Kathmandu",
+      });
+      expect(getLastRequest()?.method).toBe("POST");
+      expect(getLastRequest()?.body).toEqual({
+        bank_name: "Nabil Bank",
+        account_name: "Himalayan Tea Pvt. Ltd.",
+        account_number: "0123456789",
+        branch: "Kathmandu",
+      });
+      await suqo.bankAccounts.update(42, { code: "012345", accountName: "New Name" });
+      expect(getLastRequest()?.method).toBe("PATCH");
+      expect(getLastRequest()?.url).toBe("https://test-be.suqo.ai/api/v1/bank-accounts/42/");
+      expect(getLastRequest()?.body).toEqual({ code: "012345", account_name: "New Name" });
+    });
+
     it("subscriptions.retrieve(id)", async () => {
       await client().subscriptions.retrieve("30b0af58-c8bc-4f79-9917-51208b73a0ed");
       expect(getLastRequest()?.url).toBe(
@@ -127,6 +183,9 @@ describe("contract: outgoing request shape", () => {
       ["webhooks.delete(id)", (c: SuqoClient) => c.webhooks.delete("whk_contract01"), "DELETE", "/api/v1/webhooks/whk_contract01/"],
       ["webhooks.retrieveSecret()", (c: SuqoClient) => c.webhooks.retrieveSecret(), "GET", "/api/v1/webhooks/secret/"],
       ["webhooks.testDelivery(id)", (c: SuqoClient) => c.webhooks.testDelivery("whk_contract01"), "POST", "/api/v1/webhooks/whk_contract01/test-delivery/"],
+      ["byop.listPaymentMethods()", (c: SuqoClient) => c.byop.listPaymentMethods(), "GET", "/api/v1/byop/payment-methods/"],
+      ["byop.replaceCredentials(id)", (c: SuqoClient) => c.byop.replaceCredentials("pm_contract01", { paymentType: "khalti", merchantSecret: "s" }), "PATCH", "/api/v1/byop/credentials/pm_contract01/"],
+      ["byop.updateProcessingFee(id)", (c: SuqoClient) => c.byop.updateProcessingFee("pm_contract01", { processingFee: "1.75" }), "PATCH", "/api/v1/byop/fees/pm_contract01/"],
     ] as const)("%s", async (_name, call, method, path) => {
       await call(client());
       expect(getLastRequest()?.method).toBe(method);

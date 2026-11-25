@@ -14,3 +14,6 @@ export { SubscriptionsResource } from "./subscriptions.js";
 export { CustomersResource } from "./customers.js";
 export { CheckoutSessionsResource } from "./checkoutSessions.js";
 export { WebhooksResource } from "./webhooks.js";
+export { PayoutsResource } from "./payouts.js";
+export { BankAccountsResource } from "./bankAccounts.js";
+export { ByopResource } from "./byop.js";

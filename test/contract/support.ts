@@ -203,6 +203,44 @@ const mockWebhook = {
   created_at: "2026-07-03T10:15:00Z",
 };
 
+const mockBankAccount = {
+  id: 42,
+  bank_name: "Nabil Bank",
+  account_name: "Himalayan Tea Pvt. Ltd.",
+  branch: "Kathmandu",
+  account_number_masked: "****4521",
+  verified_at: "2026-07-03T10:15:00Z",
+  created_at: "2026-07-03T10:05:00Z",
+  updated_at: "2026-07-03T10:15:00Z",
+};
+
+const mockPayout = {
+  payout_id: "PYT-MF4G9W-CTEP55",
+  status: "PENDING",
+  amount: "12500.00",
+  provider_charge: "250.00",
+  suqo_platform_fee: "375.00",
+  sms_charge: "40.00",
+  net_amount: "11835.00",
+  requested_date: "2026-07-03T10:15:00Z",
+  paid_date: null,
+  receipt_url: null,
+};
+
+// Shape confirmed against a captured GET /api/v1/byop/payment-methods/ (2026-11-20); values invented.
+export const mockPaymentMethod = {
+  company_id: "00000000-0000-0000-0000-000000000001",
+  payment_type_id: "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+  payment_type: "esewa",
+  alias: null,
+  logo: null,
+  order: 1,
+  is_active: true,
+  fee: "0.00",
+  is_configured: false,
+  is_verified: null,
+};
+
 /** One `msw` handler per documented operation in `specs/openapi.yaml`. */
 export const handlers: HttpHandler[] = [
   http.get(`${SANDBOX_BASE_URL}/api/v1/products/`, async ({ request }) => {
@@ -361,6 +399,72 @@ export const handlers: HttpHandler[] = [
   http.post(`${SANDBOX_BASE_URL}/api/v1/webhooks/:id/test-delivery/`, async ({ request }) => {
     await capture(request);
     return HttpResponse.json({ detail: "Test webhook enqueued." }, { status: 202 });
+  }),
+
+  http.get(`${SANDBOX_BASE_URL}/api/v1/payouts/`, async ({ request }) => {
+    await capture(request);
+    return HttpResponse.json({ count: 1, next: null, previous: null, results: [mockPayout] });
+  }),
+
+  http.post(`${SANDBOX_BASE_URL}/api/v1/payouts/`, async ({ request }) => {
+    await capture(request);
+    return HttpResponse.json(mockPayout, { status: 201 });
+  }),
+
+  http.get(`${SANDBOX_BASE_URL}/api/v1/payouts/:public_id/`, async ({ request, params }) => {
+    await capture(request);
+    return HttpResponse.json({ ...mockPayout, payout_id: params.public_id });
+  }),
+
+  http.get(`${SANDBOX_BASE_URL}/api/v1/bank-accounts/`, async ({ request }) => {
+    await capture(request);
+    return HttpResponse.json([mockBankAccount]);
+  }),
+
+  http.post(`${SANDBOX_BASE_URL}/api/v1/bank-accounts/`, async ({ request }) => {
+    await capture(request);
+    // Unverified: the API returns the full number, unmasked.
+    return HttpResponse.json(
+      { ...mockBankAccount, verified_at: null, account_number_masked: "0123456789" },
+      { status: 201 },
+    );
+  }),
+
+  http.get(`${SANDBOX_BASE_URL}/api/v1/bank-accounts/:id/`, async ({ request, params }) => {
+    await capture(request);
+    return HttpResponse.json({ ...mockBankAccount, id: Number(params.id) });
+  }),
+
+  http.patch(`${SANDBOX_BASE_URL}/api/v1/bank-accounts/:id/`, async ({ request, params }) => {
+    await capture(request);
+    return HttpResponse.json({ ...mockBankAccount, id: Number(params.id) });
+  }),
+
+  http.delete(`${SANDBOX_BASE_URL}/api/v1/bank-accounts/:id/`, async ({ request }) => {
+    await capture(request);
+    return new HttpResponse(null, { status: 204 });
+  }),
+
+  http.post(`${SANDBOX_BASE_URL}/api/v1/bank-accounts/:id/send-otp/`, async ({ request }) => {
+    await capture(request);
+    return HttpResponse.json({ detail: "Verification code sent." });
+  }),
+  
+  // BYOP — list and fee shapes captured 2026-11-20; credentials 200 body from Swagger.
+  http.get(`${SANDBOX_BASE_URL}/api/v1/byop/payment-methods/`, async ({ request }) => {
+    await capture(request);
+    return HttpResponse.json([mockPaymentMethod]);
+  }),
+
+  http.patch(`${SANDBOX_BASE_URL}/api/v1/byop/credentials/:id/`, async ({ request }) => {
+    await capture(request);
+    return HttpResponse.json({ detail: "Credentials saved successfully." });
+  }),
+
+  http.patch(`${SANDBOX_BASE_URL}/api/v1/byop/fees/:id/`, async ({ request }) => {
+    await capture(request);
+    const body = (await request.clone().json()) as Record<string, unknown>;
+    return HttpResponse.json({ processing_fee: body.processing_fee });
   }),
 ];
 

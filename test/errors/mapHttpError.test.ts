@@ -49,6 +49,15 @@ describe("mapHttpError", () => {
     expect(mapHttpError({ status: 404 }).message).toBe("Not found.");
   });
 
+  it("a coded 400 ({ detail, code }) takes message from detail; code stays in rawBody, never a field", () => {
+    const body = { detail: "You already have a pending payout request.", code: "pending_payout_request_exists" };
+    const err = mapHttpError({ status: 400, body });
+    expect(err).toBeInstanceOf(ValidationError);
+    expect(err.message).toBe(body.detail);
+    expect((err as ValidationError).fieldErrors).toEqual({});
+    expect(err.rawBody).toEqual(body);
+  });
+
   it("a text 400/401/403/404 body gets the neutral status message, never a SUQO-specific fallback", () => {
     for (const status of [400, 401, 403, 404]) {
       const err = mapHttpError({ status, statusText: "X", body: "error code: 1010" });

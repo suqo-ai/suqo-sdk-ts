@@ -7,6 +7,9 @@ import {
   CustomersResource,
   CheckoutSessionsResource,
   WebhooksResource,
+  PayoutsResource,
+  BankAccountsResource,
+  ByopResource,
 } from "./resources/index.js";
 
 /** Options accepted by {@link SuqoClient}'s constructor (SDK-SPEC.md §2, §4; addendum §5). */
@@ -61,6 +64,12 @@ export class SuqoClient {
    * makes no network call; the management methods do.
    */
   readonly webhooks: WebhooksResource;
+  /** Request, list and retrieve your account's payouts (SDK-SPEC.md §5, §6). */
+  readonly payouts: PayoutsResource;
+  /** Add, verify (emailed code), edit and delete the bank account payouts go to (SDK-SPEC.md §5). */
+  readonly bankAccounts: BankAccountsResource;
+  /** BYOP: list payment methods, replace your own gateway credentials and set the processing fee (SDK-SPEC.md §5). */
+  readonly byop: ByopResource;
 
   constructor(options: SuqoClientOptions) {
     this.#config = new SdkConfig(options);
@@ -70,6 +79,9 @@ export class SuqoClient {
     this.customers = new CustomersResource(http);
     this.checkoutSessions = new CheckoutSessionsResource(http);
     this.webhooks = new WebhooksResource(http);
+    this.payouts = new PayoutsResource(http);
+    this.bankAccounts = new BankAccountsResource(http);
+    this.byop = new ByopResource(http);
   }
 
   /** `"sandbox" | "live"` — inferred from the key prefix, never selected explicitly (SDK-SPEC.md §2). */

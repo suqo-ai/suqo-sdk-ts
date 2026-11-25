@@ -1,6 +1,6 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { SuqoClient } from "../../src/client.js";
-import { resetCapturedRequests, server } from "./support.js";
+import { mockPaymentMethod, resetCapturedRequests, server } from "./support.js";
 
 /**
  * Contract tests: response decoding (SDK-SPEC.md §15, addendum §11 must-cover list) — a real
@@ -134,6 +134,49 @@ describe("contract: response decoding", () => {
     expect(customer.fullName).toBe("Ram Bahadur");
   });
 
+  it("payouts.list() decodes camelCase Payouts with decimal strings and null dates", async () => {
+    const payout = (await client().payouts.list()).results[0];
+    expect(payout?.payoutId).toBe("PYT-MF4G9W-CTEP55");
+    expect(payout?.netAmount).toBe("11835.00");
+    expect(typeof payout?.amount).toBe("string");
+    expect(payout?.paidDate).toBeNull();
+    expect(payout).not.toHaveProperty("net_amount");
+  });
+
+  it("payouts.create() decodes the 201 Payout", async () => {
+    const payout = await client().payouts.create();
+    expect(payout.payoutId).toBe("PYT-MF4G9W-CTEP55");
+    expect(payout.status).toBe("PENDING");
+  });
+
+  it("payouts.retrieve() decodes a single Payout", async () => {
+    const payout = await client().payouts.retrieve("PYT-ABC");
+    expect(payout.payoutId).toBe("PYT-ABC");
+    expect(payout.status).toBe("PENDING");
+    expect(payout.receiptUrl).toBeNull();
+  });
+
+  it("bankAccounts.list()/create()/update() decode camelCase with an integer id; delete()/sendOtp() resolve to undefined", async () => {
+    const [account] = await client().bankAccounts.list();
+    expect(account).toMatchObject({ id: 42, bankName: "Nabil Bank", accountNumberMasked: "****4521" });
+    expect(account).not.toHaveProperty("account_number_masked");
+
+    const created = await client().bankAccounts.create({
+      bankName: "Nabil Bank",
+      accountName: "Himalayan Tea Pvt. Ltd.",
+      accountNumber: "0123456789",
+      branch: "Kathmandu",
+    });
+    expect(created.verifiedAt).toBeNull();
+    expect(created.accountNumberMasked).toBe("0123456789");
+
+    const updated = await client().bankAccounts.update(7, { code: "123456" });
+    expect(updated.id).toBe(7);
+
+    await expect(client().bankAccounts.delete(7)).resolves.toBeUndefined();
+    await expect(client().bankAccounts.sendOtp(7)).resolves.toBeUndefined();
+  });
+
   it("products.list() decodes productImage as camelCase image objects", async () => {
     const page = await client().products.list();
     expect(page.results[0]?.productImage).toEqual([{ image: "https://cdn.example/product.png", imageOrder: 0 }]);
@@ -172,6 +215,18 @@ describe("contract: response decoding", () => {
     await expect(client().webhooks.retrieveSecret()).resolves.toEqual({ signingSecret: "whsec_contract_test" });
     await expect(client().webhooks.delete("whk_contract01")).resolves.toBeUndefined();
     await expect(client().webhooks.testDelivery("whk_contract01")).resolves.toBeUndefined();
+  });
+
+  it("byop.listPaymentMethods()/updateProcessingFee() decode camelCase; replaceCredentials() resolves to undefined", async () => {
+    const [pm] = await client().byop.listPaymentMethods();
+    expect(pm).toMatchObject({ paymentTypeId: mockPaymentMethod.payment_type_id, fee: "0.00", isVerified: null });
+    expect(pm).not.toHaveProperty("payment_type_id");
+    await expect(
+      client().byop.updateProcessingFee(mockPaymentMethod.payment_type_id, { processingFee: "1.50" }),
+    ).resolves.toEqual({ processingFee: "1.50" });
+    await expect(
+      client().byop.replaceCredentials(mockPaymentMethod.payment_type_id, { paymentType: "khalti", merchantSecret: "s" }),
+    ).resolves.toBeUndefined();
   });
 
   it("decimal-shaped fields (price, total_subscribers) stay strings end to end, never coerced to number", async () => {
