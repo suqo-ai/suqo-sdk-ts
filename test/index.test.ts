@@ -1,6 +1,18 @@
 import { describe, expect, it } from "vitest";
 import * as sdk from "../src/index.js";
 import packageJson from "../package.json";
+// Type-only exports have no runtime value, so this import is the test: `npm run typecheck` fails
+// if any of them stops being exported from the package root (BYOP's four were missing in 2.2.0).
+import type {
+  Payout,
+  BankAccount,
+  CreateBankAccountParams,
+  UpdateBankAccountParams,
+  PaymentMethod,
+  ByopCredentials,
+  UpdateByopFeeParams,
+  ByopFee,
+} from "../src/index.js";
 
 describe("public export surface", () => {
   it("exports the version, kept in sync with package.json (found in review: this used to assert a hardcoded literal that silently drifted from the real version)", () => {
@@ -36,6 +48,18 @@ describe("public export surface", () => {
     expect(suqo.checkoutSessions).toBeDefined();
     expect(suqo.webhooks).toBeDefined();
     expect(suqo.webhooks.verify).toBeTypeOf("function");
+    expect(suqo.payouts).toBeDefined();
+    expect(suqo.bankAccounts).toBeDefined();
+    expect(suqo.byop).toBeDefined();
+  });
+
+  it("exports every payout, bank-account and BYOP model type from the package root", () => {
+    const credentials: ByopCredentials = { paymentType: "khalti", merchantSecret: "s" };
+    const fee: UpdateByopFeeParams = { processingFee: null };
+    const shapes: [Payout?, BankAccount?, CreateBankAccountParams?, UpdateBankAccountParams?, PaymentMethod?, ByopFee?] = [];
+    expect(credentials.paymentType).toBe("khalti");
+    expect(fee.processingFee).toBeNull();
+    expect(shapes).toEqual([]);
   });
 
   it("exports the pagination runtime helpers", () => {
